@@ -17,7 +17,7 @@ On Linux the XDG environment variables are honoured if you set them. The pipe an
 
 Help > Check for Updates asks the releases page whether a newer version exists and tells you the result. It never downloads or installs anything. With Help > Check for Updates Automatically on, Composa asks once a day at launch and shows a strip under the menu when a newer version is available, with a link to its release notes, Skip this version, and a dismiss button. A check that fails says nothing. A stable version is never offered a pre-release.
 
-A Composa installed from a `.deb` or `.rpm` package is updated by your package manager, and the Help menu says so instead of offering to check. To stop the automatic check on any build, set the environment variable `COMPOSA_DISABLE_UPDATE_CHECK` to 1.
+The `.deb` and `.rpm` check too: they are downloaded from the releases page and installed by hand, so no repository will offer you the next version. To upgrade, install the new release's file over the old one, with `sudo apt install ./composa_*.deb` or `sudo dnf install ./composa-*.rpm`. To stop the automatic check on any build, set the environment variable `COMPOSA_DISABLE_UPDATE_CHECK` to 1.
 
 ## If something goes wrong
 

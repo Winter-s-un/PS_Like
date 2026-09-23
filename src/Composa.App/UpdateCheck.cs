@@ -10,7 +10,7 @@ public enum UpdateChannel
 {
     /// <summary>Downloaded from the releases page: nothing else will tell the user a new version exists.</summary>
     GitHub,
-    /// <summary>Installed by apt, dnf or similar. The package manager owns updates and this must stay quiet.</summary>
+    /// <summary>Installed from a repository by apt, dnf or similar. The package manager owns updates and this must stay quiet.</summary>
     Managed
 }
 
@@ -71,8 +71,10 @@ public sealed class UpdateCheck(IReleaseSource source, Settings settings, Func<D
     public static readonly TimeSpan Interval = TimeSpan.FromHours(24);
 
     /// <summary>
-    /// Set at build time by the packaging scripts. A .deb or .rpm is built as "managed", because
-    /// telling someone to sidestep their package manager is worse than saying nothing.
+    /// Set at build time by the packaging scripts. Every download on the releases page is "github",
+    /// the .deb and .rpm included, since a file installed by hand has no repository to update it. A
+    /// package that comes from a repository is built as "managed", because telling someone to
+    /// sidestep their package manager is worse than saying nothing.
     /// </summary>
     public static UpdateChannel Channel { get; } =
         typeof(UpdateCheck).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()

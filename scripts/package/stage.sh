@@ -22,8 +22,8 @@ PUBLISH_ARGS=(-c Release -r "$RID" --self-contained true -p:DebugType=none)
 if $SINGLE_FILE; then
   PUBLISH_ARGS+=(-p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true)
 fi
-# UpdateChannel travels with the build: a package installed by apt or dnf must never nag about an
-# update its package manager owns. The property is read by the update check added in Phase 2.
+# UpdateChannel travels with the build. "github" notifies about new releases; "managed" is for a
+# package that comes from a repository, whose package manager owns updates and must not be sidestepped.
 PUBLISH_ARGS+=("-p:UpdateChannel=${UPDATE_CHANNEL:-github}")
 
 dotnet publish "$ROOT/src/Composa.App" "${PUBLISH_ARGS[@]}" -o "$STAGE/usr/lib/$APP"

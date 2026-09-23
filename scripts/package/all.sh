@@ -25,8 +25,11 @@ echo "==> tarball"
 "$HERE/tarball.sh" "$RID" "$OUT"
 
 echo "==> staging for the package formats"
-# A package installed by apt or dnf must never nag about an update its package manager owns.
-UPDATE_CHANNEL=managed "$HERE/stage.sh" "$RID" "$STAGE"
+# The .deb and .rpm are downloaded from the releases page and installed by hand, so no repository
+# will ever offer their users an update: they keep the github channel, like every other download,
+# and upgrade by installing the next release's file over the old one. A build that really does come
+# from a repository is packaged with UPDATE_CHANNEL=managed, which tells the user to look there instead.
+UPDATE_CHANNEL="${UPDATE_CHANNEL:-github}" "$HERE/stage.sh" "$RID" "$STAGE"
 
 echo "==> deb"
 "$HERE/deb.sh" "$RID" "$STAGE" "$OUT"
@@ -34,10 +37,12 @@ echo "==> deb"
 echo "==> rpm"
 "$HERE/rpm.sh" "$RID" "$STAGE" "$OUT"
 
-# The AppImage is the download for anyone whose distribution is neither Debian nor Fedora shaped,
-# so it is built from the same tree but keeps the github update channel: nothing manages it.
+# The AppImage is the download for anyone whose distribution is neither Debian nor Fedora shaped. It
+# is built from the same tree; nothing ever manages it, so it is always on the github channel.
 echo "==> AppImage"
-UPDATE_CHANNEL=github "$HERE/stage.sh" "$RID" "$STAGE" >/dev/null
+if [ "${UPDATE_CHANNEL:-github}" != "github" ]; then
+  UPDATE_CHANNEL=github "$HERE/stage.sh" "$RID" "$STAGE" >/dev/null
+fi
 "$HERE/appimage.sh" "$RID" "$STAGE" "$OUT"
 
 echo
