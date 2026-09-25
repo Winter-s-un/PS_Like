@@ -24,6 +24,28 @@ public class TextLayoutTests
         Assert.Equal(layout.Lines[0].Baseline + 48, layout.Lines[1].Baseline);
     }
 
+    private static int Ink(TextStyle style)
+    {
+        using var pixels = new TextLayout(style).Render();
+        var count = 0;
+        foreach (var pixel in pixels.Pixels) if (pixel.Alpha > 0) count++;
+        return count;
+    }
+
+    [Fact]
+    public void Bold_and_italic_render_even_for_a_family_Skia_does_not_have()
+    {
+        // Inter is the default style's family: Avalonia's font for the interface, which is not installed for Skia.
+        foreach (var family in new[] { "Inter", Family })
+        {
+            var plain = new TextStyle { Text = "Hello", Size = 40, FontFamily = family };
+            Assert.True(Ink(plain with { Bold = true }) > Ink(plain) * 1.1, $"{family}: bold has no more ink than regular");
+            using var upright = new TextLayout(plain).Render();
+            using var italic = new TextLayout(plain with { Italic = true }).Render();
+            Assert.False(upright.GetPixelSpan().SequenceEqual(italic.GetPixelSpan()), $"{family}: italic renders the same as upright");
+        }
+    }
+
     [Fact]
     public void Paragraph_text_wraps_at_spaces_and_clips_to_its_box()
     {

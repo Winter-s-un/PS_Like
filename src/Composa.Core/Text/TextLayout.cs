@@ -44,12 +44,26 @@ public sealed class TextLayout
 
     private readonly SKTypeface typeface;
 
+    /// <summary>
+    /// The closest face in the family. A family Skia does not know (Inter is Avalonia's font for the interface and is
+    /// not installed for Skia) goes through the platform's substitution, which keeps the weight and slant; the plain
+    /// default typeface would drop both.
+    /// </summary>
     public static SKTypeface TypefaceFor(TextStyle style) =>
-        SKFontManager.Default.MatchFamily(style.FontFamily, new SKFontStyle(
-            style.Bold ? SKFontStyleWeight.Bold : SKFontStyleWeight.Normal, SKFontStyleWidth.Normal,
-            style.Italic ? SKFontStyleSlant.Italic : SKFontStyleSlant.Upright)) ?? SKTypeface.Default;
+        SKFontManager.Default.MatchFamily(style.FontFamily, FontStyle(style)) ?? SKTypeface.FromFamilyName(style.FontFamily, FontStyle(style)) ?? SKTypeface.Default;
 
-    private SKFont MakeFont() => new(typeface, (float)Math.Clamp(Style.Size, 1, 4000)) { Subpixel = true, Edging = SKFontEdging.Antialias, Hinting = SKFontHinting.None };
+    private static SKFontStyle FontStyle(TextStyle style) => new(
+        style.Bold ? SKFontStyleWeight.Bold : SKFontStyleWeight.Normal, SKFontStyleWidth.Normal,
+        style.Italic ? SKFontStyleSlant.Italic : SKFontStyleSlant.Upright);
+
+    /// <summary>The font for layout and drawing alike. A face without a bold or italic variant gets them synthesized, as Photoshop's faux styles do.</summary>
+    private SKFont MakeFont()
+    {
+        var font = new SKFont(typeface, (float)Math.Clamp(Style.Size, 1, 4000)) { Subpixel = true, Edging = SKFontEdging.Antialias, Hinting = SKFontHinting.None };
+        if (Style.Bold && typeface.FontWeight < (int)SKFontStyleWeight.SemiBold) font.Embolden = true;
+        if (Style.Italic && typeface.FontSlant == SKFontStyleSlant.Upright) font.SkewX = -0.25f;
+        return font;
+    }
 
     public TextLayout(TextStyle style)
     {
