@@ -51,15 +51,21 @@ public class McpTests
     {
         var window = new MainWindow { Width = 1000, Height = 700 };
         window.Show();
-        var session = EditorSession.NewCanvas(400, 300, SKColors.White);
-        window.AddSession(session);
         using var host = new McpHost(window, PipeName());
         Assert.True(await host.StartAsync());
 
         await using var client = await Pumped(McpClient.CreateAsync(Bridge(host.PipeName)));
         await Pumped(() => host.Connections == 1);
         var tools = await client.ListToolsAsync();
-        Assert.Equal(["add_text", "describe_document", "fill_layer", "list_documents", "new_layer", "render", "undo"], tools.Select(t => t.Name).Order());
+        Assert.Equal(["add_text", "describe_document", "fill_layer", "list_documents", "new_document", "new_layer", "render", "undo"], tools.Select(t => t.Name).Order());
+
+        var tooBig = await Pumped(client.CallToolAsync("new_document", new Dictionary<string, object?> { ["width"] = 40000, ["height"] = 10 }));
+        Assert.Equal(true, tooBig.IsError);
+        Assert.Contains("at most", Text(tooBig));
+        var created = await Pumped(client.CallToolAsync("new_document", new Dictionary<string, object?> { ["width"] = 400, ["height"] = 300, ["background"] = "#FFFFFF" }));
+        Assert.Equal("Created document 1: \"Untitled\" 400×300 px, now active.", Text(created));
+        var session = window.Session!;
+        Assert.Equal("Background", session.ActiveLayer!.Name);
 
         var listed = await Pumped(client.CallToolAsync("list_documents"));
         Assert.Contains("1: \"Untitled\" 400×300 px, 1 layers", Text(listed));

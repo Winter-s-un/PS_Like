@@ -86,6 +86,21 @@ public sealed class ComposaTools(MainWindow window)
         layer.IsGroup ? "group" : layer.IsAdjustment ? $"{layer.Adjustment?.GetType().Name ?? "adjustment"} adjustment" :
         layer.Text != null ? "text" : layer.Shape != null ? $"{ShapeStyle.DisplayName(layer.Shape.Kind).ToLowerInvariant()} shape" : "pixels";
 
+    [McpServerTool(Name = "new_document")]
+    [Description("Creates a new document in a new tab and makes it the active one.")]
+    public Task<string> NewDocument(
+        [Description("Width in pixels")] int width,
+        [Description("Height in pixels")] int height,
+        [Description("Background color as #rrggbb; leave it out for a transparent canvas")] string? background = null) => OnUi(() =>
+    {
+        if (window.IsDragging) throw new McpException("The person is dragging on the canvas; try again in a moment.");
+        if (!DocumentLimits.FitsSurface(width, height))
+            throw new McpException($"A canvas is at most {DocumentLimits.MaxSide} px on a side and {DocumentLimits.MaxSurfaceMegapixels} megapixels; {width}×{height} px is not.");
+        var s = EditorSession.NewCanvas(width, height, background == null ? null : ParseColor(background));
+        window.AddSession(s);
+        return $"Created document {window.Sessions.Count}: \"{s.Title}\" {width}×{height} px, now active.";
+    });
+
     [McpServerTool(Name = "new_layer")]
     [Description("Adds an empty, transparent layer the size of the canvas above the active layer and makes it the active layer.")]
     public Task<string> NewLayer(
