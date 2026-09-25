@@ -102,6 +102,9 @@ public class McpTests
             var placed = await Pumped(client.CallToolAsync("place_image", new Dictionary<string, object?> { ["path"] = picture }));
             Assert.Equal($"Placed \"{Path.GetFileNameWithoutExtension(picture)}\" (800×200 px) as a layer at 0,100 size 400×100, now active.", Text(placed));
             Assert.Equal(3, session.Document.Layers.Count);                                          // Scaled down to fit and centered.
+            var half = await Pumped(client.CallToolAsync("place_image", new Dictionary<string, object?> { ["path"] = picture, ["scale"] = 0.5, ["x"] = 100, ["y"] = 100 }));
+            Assert.Contains("as a layer at 0,75 size 200×50", Text(half));                             // Half the fitted size, centered on 100,100.
+            Assert.Equal("Undid Add Image.", Text(await Pumped(client.CallToolAsync("undo"))));
             var missing = await Pumped(client.CallToolAsync("place_image", new Dictionary<string, object?> { ["path"] = picture + ".missing" }));
             Assert.Equal(true, missing.IsError);
             Assert.Equal("Undid Add Image.", Text(await Pumped(client.CallToolAsync("undo"))));
