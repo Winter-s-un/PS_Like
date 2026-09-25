@@ -224,9 +224,15 @@ public sealed partial class MainWindow
             settings.Save();
         };
 
+        // The MCP server, through which an AI agent drives the editor. Off until switched on, and remembered.
+        var aiControl = new MenuItem { Header = "Allow AI Control", ToggleType = MenuItemToggleType.CheckBox, IsChecked = settings.AllowAiControl };
+        aiControl.Click += async (_, _) => { await SetAiControl(!AiControl); aiControl.IsChecked = settings.AllowAiControl; };
+
         Top("_Help", Item("Keyboard Shortcuts…", () => _ = ShowShortcuts(), Key.F1, needsDocument: false),
             Item("Check for Updates…", () => _ = CheckForUpdatesNow(), needsDocument: false),
             autoUpdates,
+            Line(),
+            aiControl,
             Line(),
             Item("About Composa", () => _ = Prompts.Alert(this, "About Composa",
             $"Composa {AppInfo.Version}\n\nA layer-based image editor for compositing and retouching, built with .NET, Avalonia and Skia. " +
