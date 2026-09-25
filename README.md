@@ -77,6 +77,18 @@ Composa is developed on Linux, on X11 and Wayland (through XWayland), and that i
 - Tool settings stick between launches: Auto Select, the transform controls, the pixel grid, rulers, guides, the grid, Snap and the Snap To options keep what you last set them to
 - Autosave for crash recovery: unsaved work is copied to `~/.cache/composa/recovery` every two minutes and offered back after an unclean exit
 
+### AI control
+
+Composa can be driven by an AI agent through the [Model Context Protocol](https://modelcontextprotocol.io). Tick **Help > Allow AI Control** (off by default, remembered between launches) and the running application answers on a private, per-user pipe; the status bar says "AI connected" while an agent is attached. Every tool goes through the same editing commands the window uses, so an agent's change shows up as it happens and Ctrl+Z takes it back like any other step.
+
+An MCP client reaches the application through `composa --mcp`, a bridge that carries the client's stdio to the pipe and exits when either side closes. For Claude Code, from the folder you work in:
+
+```bash
+claude mcp add composa -- composa --mcp
+```
+
+The first tools list and describe the open documents, add a layer, fill it, add text, undo, and render the canvas to a PNG so the agent can see what it did. More follow. The macOS app instead watches its project folder for changes made by other programs; Composa has the agent talk to the editor.
+
 ## Differences from the macOS app
 
 - Projects are saved as `.cmps` files: a zip archive with a JSON manifest and one PNG per layer and mask. Projects saved by the macOS app (`.comp` packages) cannot be opened.
