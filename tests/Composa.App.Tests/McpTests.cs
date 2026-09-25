@@ -3,6 +3,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Composa.App.Mcp;
 using Composa.Editing;
+using Composa.IO;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using SkiaSharp;
@@ -57,7 +58,7 @@ public class McpTests
         await using var client = await Pumped(McpClient.CreateAsync(Bridge(host.PipeName)));
         await Pumped(() => host.Connections == 1);
         var tools = await client.ListToolsAsync();
-        Assert.Equal(["add_text", "describe_document", "fill_layer", "list_documents", "new_document", "new_layer", "render", "undo"], tools.Select(t => t.Name).Order());
+        Assert.Equal(["add_text", "describe_document", "fill_layer", "list_documents", "new_document", "new_layer", "place_image", "render", "undo"], tools.Select(t => t.Name).Order());
 
         var tooBig = await Pumped(client.CallToolAsync("new_document", new Dictionary<string, object?> { ["width"] = 40000, ["height"] = 10 }));
         Assert.Equal(true, tooBig.IsError);
@@ -93,6 +94,19 @@ public class McpTests
         Assert.Equal(200, png.Width);
         Assert.Equal(150, png.Height);
         Assert.Equal(SKColors.Red, png.GetPixel(190, 140));
+
+        var picture = Path.Combine(Path.GetTempPath(), $"composa-place-{Guid.NewGuid():N}.png");
+        using (var wide = new SKBitmap(800, 200)) { wide.Erase(SKColors.Lime); ImageFiles.Save(wide, picture, ExportFormat.Png); }
+        try
+        {
+            var placed = await Pumped(client.CallToolAsync("place_image", new Dictionary<string, object?> { ["path"] = picture }));
+            Assert.Equal($"Placed \"{Path.GetFileNameWithoutExtension(picture)}\" (800×200 px) as a layer at 0,100 size 400×100, now active.", Text(placed));
+            Assert.Equal(3, session.Document.Layers.Count);                                          // Scaled down to fit and centered.
+            var missing = await Pumped(client.CallToolAsync("place_image", new Dictionary<string, object?> { ["path"] = picture + ".missing" }));
+            Assert.Equal(true, missing.IsError);
+            Assert.Equal("Undid Add Image.", Text(await Pumped(client.CallToolAsync("undo"))));
+        }
+        finally { File.Delete(picture); }
 
         var refused = await Pumped(client.CallToolAsync("fill_layer", new Dictionary<string, object?> { ["color"] = "nonsense" }));
         Assert.Equal(true, refused.IsError);

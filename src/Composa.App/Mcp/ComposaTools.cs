@@ -3,6 +3,8 @@ using System.Reflection;
 using System.Text;
 using Avalonia.Threading;
 using Composa.Editing;
+using Composa.IO;
+using Composa.IO.Psd;
 using Composa.Model;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
@@ -100,6 +102,35 @@ public sealed class ComposaTools(MainWindow window)
         window.AddSession(s);
         return $"Created document {window.Sessions.Count}: \"{s.Title}\" {width}×{height} px, now active.";
     });
+
+    [McpServerTool(Name = "place_image")]
+    [Description("Places an image file as a new layer above the active layer: PNG, JPEG, WebP, BMP, GIF, SVG, and HEIC, AVIF or TIFF when ImageMagick is available. Photoshop and camera RAW files need a dialog, so they are opened from the File menu instead.")]
+    public async Task<string> PlaceImage(
+        [Description("Absolute path of the image file")] string path,
+        [Description("Canvas x of the image's center; leave both out to center it on the canvas")] double? x = null,
+        [Description("Canvas y of the image's center")] double? y = null,
+        [Description("Scale the image down to fit the canvas (never up)")] bool fit = true,
+        int? document = null)
+    {
+        if (!File.Exists(path)) throw new McpException($"There is no file at {path}.");
+        if (PsdImport.IsPsd(path) || RawImporter.IsRaw(path)) throw new McpException("Photoshop and camera RAW files need a dialog; open them from the File menu.");
+        var (canvas, budget) = await OnUi(() => { var s = Editable(document); return (new SKSizeI(s.Document.Width, s.Document.Height), DocumentLimits.DocumentPixelBudget - s.Document.RasterPixels()); });
+        // Decoding is the slow part and needs no document, so it runs off the UI thread, as the window's own import does.
+        var pixels = await Task.Run(() => SvgImporter.IsSvg(path) ? SvgImporter.Render(path, canvas, budget) : ImageFiles.Load(path));
+        if ((long)pixels.Width * pixels.Height > budget)
+        {
+            pixels.Dispose();
+            throw new McpException($"{Path.GetFileName(path)} is {pixels.Width}×{pixels.Height} px, more than the {budget / 1_000_000} megapixels the document can still hold.");
+        }
+        return await OnUi(() =>
+        {
+            var s = Editable(document);
+            var center = x is { } cx && y is { } cy ? new SKPoint((float)cx, (float)cy) : (SKPoint?)null;
+            var layer = s.AddImageLayer(Path.GetFileNameWithoutExtension(path), pixels, center, fit);
+            var b = layer.Bounds;
+            return $"Placed \"{layer.Name}\" ({pixels.Width}×{pixels.Height} px) as a layer at {b.Left:0},{b.Top:0} size {b.Width:0}×{b.Height:0}, now active.";
+        });
+    }
 
     [McpServerTool(Name = "new_layer")]
     [Description("Adds an empty, transparent layer the size of the canvas above the active layer and makes it the active layer.")]
