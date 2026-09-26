@@ -59,7 +59,7 @@ public class McpTests
         await using var client = await Pumped(McpClient.CreateAsync(Bridge(host.PipeName)));
         await Pumped(() => host.Connections == 1);
         var tools = await client.ListToolsAsync();
-        Assert.Equal(["add_text", "delete_layer", "describe_document", "duplicate_layer", "fill_layer", "list_documents", "new_document", "new_layer", "place_image", "render", "reorder_layer", "select_layer", "set_layer", "transform_layer", "undo"], tools.Select(t => t.Name).Order());
+        Assert.Equal(["add_line", "add_shape", "add_text", "delete_layer", "describe_document", "duplicate_layer", "fill_layer", "list_documents", "new_document", "new_layer", "paint_stroke", "place_image", "render", "reorder_layer", "select_layer", "set_layer", "transform_layer", "undo"], tools.Select(t => t.Name).Order());
 
         var tooBig = await Pumped(client.CallToolAsync("new_document", new Dictionary<string, object?> { ["width"] = 40000, ["height"] = 10 }));
         Assert.Equal(true, tooBig.IsError);
@@ -142,6 +142,21 @@ public class McpTests
         Assert.Equal("\"Greeting\" is the active layer.", Text(byId));
         Assert.Equal("Deleted \"Greeting copy\".", Text(await Pumped(client.CallToolAsync("delete_layer", new Dictionary<string, object?> { ["layer"] = "Greeting copy" }))));
         Assert.Equal(2, session.Document.Layers.Count);
+        // Painting and shapes.
+        var stroke = await Pumped(client.CallToolAsync("paint_stroke", new Dictionary<string, object?> { ["points"] = new[] { new[] { 20.0, 200.0 }, new[] { 380.0, 200.0 } }, ["color"] = "#00FF00", ["size"] = 30, ["hardness"] = 1, ["layer"] = "Background" }));
+        Assert.Equal("Painted a paint stroke of 2 points on \"Background\".", Text(stroke));
+        Assert.Equal(SKColors.Lime, session.Document.Layers[0].Pixels!.GetPixel(200, 200));
+        Assert.Equal("Brush", session.History.UndoName);
+        var onText = await Pumped(client.CallToolAsync("paint_stroke", new Dictionary<string, object?> { ["points"] = new[] { new[] { 20.0, 20.0 } }, ["layer"] = "Greeting" }));
+        Assert.Equal(true, onText.IsError);
+        Assert.Contains("live text", Text(onText));
+        var shape = await Pumped(client.CallToolAsync("add_shape", new Dictionary<string, object?> { ["kind"] = "ellipse", ["x"] = 10, ["y"] = 10, ["width"] = 100, ["height"] = 50, ["color"] = "#FF00FF" }));
+        Assert.Matches("Added ellipse \"Ellipse( \\d+)?\" at 10,10 size 100×50, now active\\.", Text(shape));
+        Assert.Equal(ShapeKind.Ellipse, session.ActiveLayer!.Shape!.Kind);
+        var line = await Pumped(client.CallToolAsync("add_line", new Dictionary<string, object?> { ["x1"] = 0, ["y1"] = 0, ["x2"] = 100, ["y2"] = 100, ["width"] = 6 }));
+        Assert.Matches("Added line \"Line( \\d+)?\" from 0,0 to 100,100, now active\\.", Text(line));
+        Assert.Equal(6, session.ActiveLayer!.Shape!.LineWidth);
+
         var unknown = await Pumped(client.CallToolAsync("set_layer", new Dictionary<string, object?> { ["layer"] = "Nope", ["visible"] = true }));
         Assert.Equal(true, unknown.IsError);
         Assert.Contains("no layer", Text(unknown));
