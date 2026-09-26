@@ -1,10 +1,10 @@
-using System.Diagnostics;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Composa.App.Mcp;
 using Composa.Editing;
 using Composa.IO;
 using Composa.Model;
+using ModelContextProtocol;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using SkiaSharp;
@@ -151,15 +151,33 @@ public class McpTests
     }
 
     [AvaloniaFact]
-    public async Task The_bridge_says_when_nothing_is_listening()
+    public async Task The_bridge_outlives_the_application_and_announces_its_tools_each_time_it_is_back()
     {
-        var start = new ProcessStartInfo("dotnet", [App, "--mcp"]) { RedirectStandardError = true, RedirectStandardOutput = true, RedirectStandardInput = true };
-        start.Environment[McpPipe.Variable] = PipeName();
-        using var bridge = Process.Start(start)!;
-        var error = await bridge.StandardError.ReadToEndAsync();
-        await bridge.WaitForExitAsync();
-        Assert.Equal(1, bridge.ExitCode);
-        Assert.Contains("not running", error);
+        var pipe = PipeName();
+        await using var client = await McpClient.CreateAsync(Bridge(pipe));                 // Nothing listens yet.
+        var changes = 0;
+        await using var handler = client.RegisterNotificationHandler(NotificationMethods.ToolListChangedNotification, (_, _) => { Interlocked.Increment(ref changes); return default; });
+        Assert.True(client.ServerCapabilities.Tools?.ListChanged);
+        Assert.Empty(await client.ListToolsAsync());
+        var away = await Assert.ThrowsAnyAsync<McpException>(async () => await client.CallToolAsync("list_documents"));
+        Assert.Contains("not running", away.Message);
+
+        var window = new MainWindow { Width = 1000, Height = 700 };
+        window.Show();
+        var first = new McpHost(window, pipe);
+        Assert.True(await first.StartAsync());
+        await Pumped(() => changes >= 1);
+        Assert.Contains("new_document", (await client.ListToolsAsync()).Select(t => t.Name));
+        Assert.Contains("Created document 1", Text(await Pumped(client.CallToolAsync("new_document", new Dictionary<string, object?> { ["width"] = 64, ["height"] = 64 }))));
+
+        first.Dispose();                                                                     // Composa quits.
+        await Pumped(() => changes >= 2);
+        Assert.Empty(await client.ListToolsAsync());
+
+        using var second = new McpHost(window, pipe);                                        // Composa is started again.
+        Assert.True(await second.StartAsync());
+        await Pumped(() => changes >= 3);
+        Assert.Contains("1: \"Untitled\" 64×64 px", Text(await Pumped(client.CallToolAsync("list_documents"))));
     }
 
     [AvaloniaFact]

@@ -81,7 +81,7 @@ Composa is developed on Linux, on X11 and Wayland (through XWayland), and that i
 
 Composa can be driven by an AI agent through the [Model Context Protocol](https://modelcontextprotocol.io). Tick **Help > Allow AI Control** (off by default, remembered between launches) and the running application answers on a private, per-user pipe; the status bar says "AI connected" while an agent is attached. Every tool goes through the same editing commands the window uses, so an agent's change shows up as it happens and Ctrl+Z takes it back like any other step.
 
-An MCP client reaches the application through `composa --mcp`, a bridge that carries the client's stdio to the pipe and exits when either side closes. For Claude Code, from the folder you work in:
+An MCP client reaches the application through `composa --mcp`, a bridge that carries the client's stdio to the pipe. The bridge outlives the application: while Composa is not running the tool list is empty, and each time it is started the tools appear again, so Composa can be started, quit and updated without touching the client. For Claude Code, from the folder you work in:
 
 ```bash
 claude mcp add composa -- composa --mcp
