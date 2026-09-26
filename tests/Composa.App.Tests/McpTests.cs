@@ -1,3 +1,4 @@
+using System.IO.Pipes;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Composa.App.Mcp;
@@ -330,6 +331,24 @@ public class McpTests
         Assert.Equal(changes, resourceChanges);                                              // Resources are announced alongside the tools.
         Assert.Contains("1: \"Untitled\" 64×64 px", Text(await Pumped(client.CallToolAsync("list_documents"))));
         Assert.Contains("composa://documents", (await client.ListResourcesAsync()).Select(r => r.Uri));
+    }
+
+    [Fact]
+    public async Task The_bridge_starts_the_application_once_when_asked_to_and_nothing_answers()
+    {
+        var toBridge = new AnonymousPipeServerStream(PipeDirection.Out);
+        using var fromBridge = new AnonymousPipeServerStream(PipeDirection.In);
+        var launched = 0;
+        var bridge = new McpBridge(PipeName(),
+            new StreamReader(new AnonymousPipeClientStream(PipeDirection.In, toBridge.ClientSafePipeHandle)),
+            new StreamWriter(new AnonymousPipeClientStream(PipeDirection.Out, fromBridge.ClientSafePipeHandle)) { AutoFlush = true },
+            () => Interlocked.Increment(ref launched));
+        var run = bridge.RunAsync();
+        for (var i = 0; i < 500 && Volatile.Read(ref launched) == 0; i++) await Task.Delay(10);
+        await Task.Delay(1500);                                                              // Several more attempts fail meanwhile.
+        Assert.Equal(1, launched);
+        toBridge.Dispose();                                                                  // The client closes its end.
+        Assert.Equal(0, await run);
     }
 
     [AvaloniaFact]

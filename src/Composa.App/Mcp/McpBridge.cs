@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
@@ -11,7 +12,8 @@ namespace Composa.App.Mcp;
 /// application's pipe and the answers back. It outlives the application: the client's handshake is answered here and
 /// replayed to the application whenever it is reached, so Composa can be started, quit and rebuilt while the client
 /// keeps one server, and the client is told its tools changed each time. While the application is away, the tool
-/// list is empty and calls fail with a message saying so.
+/// list is empty and calls fail with a message saying so. With <c>--launch</c> the bridge starts the application
+/// once when nothing answers at first; a later quit is the person's and is left alone.
 /// </summary>
 public sealed class McpBridge
 {
@@ -21,6 +23,7 @@ public sealed class McpBridge
     private readonly string pipeName;
     private readonly TextReader input;
     private readonly TextWriter output;
+    private readonly Action? launch;
     private readonly SemaphoreSlim outputLock = new(1, 1);
     private readonly SemaphoreSlim pipeLock = new(1, 1);
     private readonly CancellationTokenSource stop = new();
@@ -33,18 +36,40 @@ public sealed class McpBridge
     private bool appReady;                                 // The application answered the bridge's initialize.
     private volatile bool firstAttemptDone;                // Requests arriving before the first connection attempt has failed are held, not refused.
 
-    public McpBridge(string pipeName, TextReader input, TextWriter output)
+    private bool launched;                                 // The application was started by this bridge; it is started at most once.
+
+    public McpBridge(string pipeName, TextReader input, TextWriter output, Action? launch = null)
     {
         this.pipeName = pipeName;
         this.input = input;
         this.output = output;
+        this.launch = launch;
     }
 
-    public static Task<int> RunAsync(string pipeName)
+    public static Task<int> RunAsync(string pipeName, bool launch)
     {
         var input = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false));
         var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
-        return new McpBridge(pipeName, input, output).RunAsync();
+        return new McpBridge(pipeName, input, output, launch ? LaunchApplication : null).RunAsync();
+    }
+
+    /// <summary>
+    /// Starts the application this bridge belongs to: the same executable without the bridge flags, or the same
+    /// assembly under the dotnet host during development. Its stdout is drained and dropped, because the bridge's
+    /// stdout is the protocol channel and a child must never share it; stderr is inherited, where the client logs it.
+    /// </summary>
+    private static void LaunchApplication()
+    {
+        var start = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, RedirectStandardOutput = true };
+        if (Path.GetFileNameWithoutExtension(Environment.ProcessPath).Equals("dotnet", StringComparison.OrdinalIgnoreCase))
+            start.ArgumentList.Add(Environment.GetCommandLineArgs()[0]);
+        try
+        {
+            var process = Process.Start(start);
+            process?.BeginOutputReadLine();
+            Console.Error.WriteLine("Starting Composa.");
+        }
+        catch (Exception error) { Console.Error.WriteLine($"Couldn't start Composa: {error.Message}"); }
     }
 
     /// <summary>Runs until the client closes its end.</summary>
@@ -76,6 +101,7 @@ public sealed class McpBridge
                 pipe.Dispose();
                 firstAttemptDone = true;
                 await RefuseHeldAsync();
+                if (launch != null && !launched) { launched = true; launch(); }
                 if (!said) { await Console.Error.WriteLineAsync("Composa is not running, or Help > Allow AI Control is off; waiting for it."); said = true; }
                 try { await Task.Delay(500, stop.Token); } catch (OperationCanceledException) { return; }
                 continue;
