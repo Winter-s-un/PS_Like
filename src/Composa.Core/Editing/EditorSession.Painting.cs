@@ -69,6 +69,25 @@ public sealed partial class EditorSession
         finally { (Brush, Foreground) = (savedBrush, savedForeground); }
     }
 
+    /// <summary>
+    /// Paints many strokes as one undoable step, "Brush Strokes", for an agent blocking in a picture or drawing every
+    /// line it traced. Stops at the first stroke that cannot be painted and says why, with how many landed before it.
+    /// </summary>
+    public (int Painted, string? Problem) PaintStrokes(IReadOnlyList<PlannedStroke> strokes)
+    {
+        var painted = 0;
+        foreach (var stroke in strokes)
+        {
+            var entries = History.Count;
+            var problem = PaintStroke(stroke.Points, stroke.Brush, stroke.Color, stroke.Mode);
+            if (problem != null) return (painted, problem);
+            painted++;
+            // A stroke that touched nothing left no entry; every other one folds into the first.
+            if (painted > 1 && History.Count == entries + 1) History.MergeLast("Brush Strokes");
+        }
+        return (painted, null);
+    }
+
     /// <summary>Starts painting at a document point. Returns false (with a reason) when the active layer can't be painted.</summary>
     /// <param name="mode">The brush to use; the current tool's when left out.</param>
     public bool BeginStroke(SKPoint point, out string? problem, bool lineFromLast = false, BrushMode? mode = null)

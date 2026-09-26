@@ -65,8 +65,8 @@ public class McpTests
             ["add_line", "add_shape", "add_text", "adjust_black_and_white", "adjust_brightness_contrast", "adjust_color_balance", "adjust_curves", "adjust_exposure", "adjust_gradient_map",
              "adjust_hue_saturation", "adjust_invert", "adjust_levels", "delete_layer", "describe_document", "deselect", "duplicate_layer", "export_image", "fill_layer", "filter_add_noise",
              "filter_bloom", "filter_blur", "filter_lens_correction", "filter_motion_blur", "filter_painterly", "filter_remove_background", "filter_sharpen", "filter_tonal_contrast", "filter_vignette", "list_documents",
-             "modify_selection", "new_document", "new_layer", "open_document", "paint_stroke", "place_image", "render", "reorder_layer", "save_document", "select_all", "select_inverse",
-             "select_layer", "select_layer_pixels", "select_object", "select_shape", "select_subject", "select_wand", "set_layer", "transform_layer", "undo"],
+             "modify_selection", "new_document", "new_layer", "open_document", "paint_stroke", "paint_strokes", "place_image", "render", "reorder_layer", "sample_color", "save_document", "select_all", "select_inverse",
+             "select_layer", "select_layer_pixels", "select_object", "select_shape", "select_subject", "select_wand", "set_layer", "trace_edges", "transform_layer", "undo"],
             tools.Select(t => t.Name).Order());
 
         var resources = await client.ListResourcesAsync();
@@ -177,6 +177,39 @@ public class McpTests
         var onText = await Pumped(client.CallToolAsync("paint_stroke", new Dictionary<string, object?> { ["points"] = new[] { new[] { 20.0, 20.0 } }, ["layer"] = "Greeting" }));
         Assert.Equal(true, onText.IsError);
         Assert.Contains("live text", Text(onText));
+        // Many strokes at once, colors read back, and a gridded or partial render.
+        var batch = await Pumped(client.CallToolAsync("paint_strokes", new Dictionary<string, object?>
+        {
+            ["strokes"] = new object[]
+            {
+                new { points = new[] { new[] { 20.0, 250.0 }, new[] { 380.0, 250.0 } }, color = "#00FF00", size = 20, hardness = 1.0 },
+                new { points = new[] { new[] { 20.0, 280.0 }, new[] { 380.0, 280.0 } }, color = "#0000FF", size = 10, hardness = 1.0 }
+            },
+            ["layer"] = "Background"
+        }));
+        Assert.Equal("Painted 2 strokes on \"Background\".", Text(batch));
+        Assert.Equal(SKColors.Lime, session.Document.Layers[0].Pixels!.GetPixel(200, 250));
+        Assert.Equal(SKColors.Blue, session.Document.Layers[0].Pixels!.GetPixel(200, 280));
+        Assert.Equal("Brush Strokes", session.History.UndoName);
+        Assert.Equal("Greeting", session.ActiveLayer!.Name);
+        Assert.Equal("Undid Brush Strokes.", Text(await Pumped(client.CallToolAsync("undo"))));
+        Assert.Equal(SKColors.Red, session.Document.Layers[0].Pixels!.GetPixel(200, 280));
+        var sampled = Text(await Pumped(client.CallToolAsync("sample_color", new Dictionary<string, object?> { ["points"] = new[] { new[] { 200.0, 200.0 }, new[] { 200.0, 20.0 } }, ["radius"] = 1, ["layer"] = "Background" })));
+        Assert.Contains("200,200: #00FF00", sampled);
+        Assert.Contains("200,20: #FF0000", sampled);
+        var gridded = await Pumped(client.CallToolAsync("render", new Dictionary<string, object?> { ["maxSide"] = 200, ["grid"] = 100 }));
+        Assert.Contains("grid every 100 px", Text(gridded));
+        using (var view = SKBitmap.Decode(Assert.Single(gridded.Content.OfType<ImageContentBlock>()).DecodedData.ToArray()))
+        {
+            Assert.NotEqual(SKColors.Red, view.GetPixel(50, 60));                           // The line at canvas x 100 darkens the red.
+            Assert.Equal(SKColors.Red, view.GetPixel(60, 60));
+        }
+        var part = await Pumped(client.CallToolAsync("render", new Dictionary<string, object?> { ["x"] = 0, ["y"] = 0, ["width"] = 200, ["height"] = 150 }));
+        Assert.Contains("200×150 px view", Text(part));
+        Assert.Contains("region at 0,0 size 200×150", Text(part));
+        var halfRegion = await Pumped(client.CallToolAsync("render", new Dictionary<string, object?> { ["x"] = 10, ["width"] = 20 }));
+        Assert.Equal(true, halfRegion.IsError);
+
         var shape = await Pumped(client.CallToolAsync("add_shape", new Dictionary<string, object?> { ["kind"] = "ellipse", ["x"] = 10, ["y"] = 10, ["width"] = 100, ["height"] = 50, ["color"] = "#FF00FF" }));
         Assert.Matches("Added ellipse \"Ellipse( \\d+)?\" at 10,10 size 100×50, now active\\.", Text(shape));
         Assert.Equal(ShapeKind.Ellipse, session.ActiveLayer!.Shape!.Kind);
@@ -214,6 +247,9 @@ public class McpTests
         await Pumped(client.CallToolAsync("fill_layer", new Dictionary<string, object?> { ["color"] = "#0000FF" }));                     // Background is active: fills inside the selection only.
         Assert.Equal(SKColors.Blue, session.Document.Layers[0].Pixels!.GetPixel(50, 40));
         Assert.NotEqual(SKColors.Blue, session.Document.Layers[0].Pixels!.GetPixel(300, 200));
+        var traced = Text(await Pumped(client.CallToolAsync("trace_edges", new Dictionary<string, object?> { ["layer"] = "Background", ["minLength"] = 30, ["maxLines"] = 5 })));
+        Assert.Matches("^[1-5] edges, longest first", traced);                               // The blue rectangle's outline, at least.
+        Assert.Matches(@"\n\d+,\d+ \d+,\d+", traced);
         Assert.Equal("Selected the area at 0,0 size 110×90.", Text(await Pumped(client.CallToolAsync("modify_selection", new Dictionary<string, object?> { ["expand"] = 10 }))));
         Assert.Equal("Selected the area at 20,0 size 110×90.", Text(await Pumped(client.CallToolAsync("modify_selection", new Dictionary<string, object?> { ["moveX"] = 20 }))));
         var polygon = await Pumped(client.CallToolAsync("select_shape", new Dictionary<string, object?> { ["kind"] = "polygon", ["points"] = new[] { new[] { 200.0, 100.0 }, new[] { 300.0, 100.0 }, new[] { 250.0, 200.0 } }, ["mode"] = "add" }));

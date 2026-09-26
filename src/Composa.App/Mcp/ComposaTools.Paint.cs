@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json.Serialization;
 using Composa.Model;
 using Composa.Painting;
 using ModelContextProtocol;
@@ -23,12 +24,7 @@ public sealed partial class ComposaTools
         int? document = null) => OnUi(() =>
     {
         var s = Editable(document);
-        var brushMode = mode.Trim().ToLowerInvariant() switch
-        {
-            "paint" => BrushMode.Paint, "erase" => BrushMode.Erase, "blur" => BrushMode.Blur,
-            "smudge" => BrushMode.Smudge, "dodge" => BrushMode.Dodge, "burn" => BrushMode.Burn,
-            _ => throw new McpException("mode is paint, erase, blur, smudge, dodge or burn.")
-        };
+        var brushMode = ParseBrushMode(mode);
         if (points.Length == 0 || points.Any(p => p.Length != 2)) throw new McpException("points is a list of [x, y] pairs with at least one pair.");
         if (size is < 1 or > 5000 || double.IsNaN(size)) throw new McpException("size is 1 to 5000 pixels.");
         // A stroke aimed at a layer paints there and leaves the selection alone, so what is added next still goes where it did.
@@ -42,6 +38,60 @@ public sealed partial class ComposaTools
         if (problem != null) throw new McpException(problem);
         return $"Painted a {mode} stroke of {path.Count} point{(path.Count == 1 ? "" : "s")} on \"{target.Name}\".";
     });
+
+    /// <summary>One stroke of a <c>paint_strokes</c> call, with the same choices as <c>paint_stroke</c>.</summary>
+    public sealed class StrokeSpec
+    {
+        [JsonPropertyName("points"), Description("The stroke's points as [[x, y], [x, y], ...] in canvas pixels; a single point is a dab")]
+        public double[][] Points { get; set; } = [];
+        [JsonPropertyName("color"), Description("A color as #rrggbb or #aarrggbb")]
+        public string Color { get; set; } = "#000000";
+        [JsonPropertyName("size"), Description("Brush diameter in pixels")]
+        public double Size { get; set; } = 40;
+        [JsonPropertyName("hardness"), Description("Edge hardness from 0 (soft) to 1 (hard)")]
+        public double Hardness { get; set; } = 0.8;
+        [JsonPropertyName("opacity"), Description("The most the stroke covers, 0 to 1")]
+        public double Opacity { get; set; } = 1;
+        [JsonPropertyName("mode"), Description("paint, erase, blur, smudge, dodge or burn")]
+        public string Mode { get; set; } = "paint";
+    }
+
+    private const int MaxBatch = 2000;
+
+    [McpServerTool(Name = "paint_strokes")]
+    [Description("Paints many brush strokes in one call as one undoable step: block in a whole picture, or draw every line trace_edges found, without a round trip per stroke. Each stroke has its own points, color, size, hardness, opacity and mode, as paint_stroke takes them. Strokes are painted in the order given, so lay the big soft ones down first.")]
+    public Task<string> PaintStrokes(
+        [Description("The strokes, in painting order")] StrokeSpec[] strokes,
+        [Description("The layer to paint on; the active one when left out")] string? layer = null,
+        int? document = null) => OnUi(() =>
+    {
+        var s = Editable(document);
+        if (strokes.Length == 0) throw new McpException("strokes is empty.");
+        if (strokes.Length > MaxBatch) throw new McpException($"At most {MaxBatch} strokes go in one call; this one has {strokes.Length}.");
+        var planned = new List<PlannedStroke>(strokes.Length);
+        for (var i = 0; i < strokes.Length; i++)
+        {
+            var stroke = strokes[i];
+            if (stroke.Points.Length == 0 || stroke.Points.Any(p => p.Length != 2)) throw new McpException($"Stroke {i + 1}: points is a list of [x, y] pairs with at least one pair.");
+            if (stroke.Size is < 1 or > 5000 || double.IsNaN(stroke.Size)) throw new McpException($"Stroke {i + 1}: size is 1 to 5000 pixels.");
+            var brush = new BrushSettings { Size = stroke.Size, Hardness = Math.Clamp(stroke.Hardness, 0, 1), Opacity = Math.Clamp(stroke.Opacity, 0, 1) };
+            planned.Add(new PlannedStroke(stroke.Points.Select(p => new SKPoint((float)p[0], (float)p[1])).ToList(), brush, ParseColor(stroke.Color), ParseBrushMode(stroke.Mode)));
+        }
+        var active = s.ActiveLayer;
+        if (layer != null) s.SelectLayer(Find(s, layer).Id);
+        var target = s.ActiveLayer ?? throw new McpException("No layer is active.");
+        var (painted, problem) = s.PaintStrokes(planned);
+        if (active != null && active != target) s.SelectLayer(active.Id);
+        if (problem != null) throw new McpException($"{problem} {painted} of {planned.Count} strokes were painted before that.");
+        return $"Painted {painted} strokes on \"{target.Name}\".";
+    });
+
+    private static BrushMode ParseBrushMode(string mode) => mode.Trim().ToLowerInvariant() switch
+    {
+        "paint" => BrushMode.Paint, "erase" => BrushMode.Erase, "blur" => BrushMode.Blur,
+        "smudge" => BrushMode.Smudge, "dodge" => BrushMode.Dodge, "burn" => BrushMode.Burn,
+        _ => throw new McpException("mode is paint, erase, blur, smudge, dodge or burn.")
+    };
 
     [McpServerTool(Name = "add_shape")]
     [Description("Adds a live rectangle, rounded rectangle or ellipse as a new layer above the active one. Live shapes stay editable: transform_layer redraws them at the new size.")]

@@ -6,6 +6,7 @@ using Composa.Editing;
 using Composa.IO;
 using Composa.IO.Psd;
 using Composa.Model;
+using Composa.Rendering;
 using Composa.Selections;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
@@ -211,28 +212,85 @@ public sealed partial class ComposaTools(MainWindow window)
     });
 
     [McpServerTool(Name = "render", ReadOnly = true, Idempotent = true)]
-    [Description("The document as it looks now, flattened to a PNG. Call it to see the result of your changes.")]
+    [Description("The document as it looks now, flattened to a PNG. Call it to see the result of your changes. A grid labels canvas coordinates so you can read where things are instead of estimating; a region (x, y, width, height) shows part of the canvas at full size, for working on detail such as an eye.")]
     public Task<CallToolResult> Render(
-        [Description("The longest side of the image in pixels; the document is scaled down to fit, never up")] int maxSide = 1024,
+        [Description("The longest side of the image in pixels; the picture is scaled down to fit, never up")] int maxSide = 1024,
+        [Description("Draw a labelled grid every this many canvas pixels; 0 for none")] int grid = 0,
+        [Description("Left of a region to render instead of the whole canvas, in canvas pixels")] double? x = null,
+        [Description("Top of the region")] double? y = null,
+        [Description("Width of the region")] double? width = null,
+        [Description("Height of the region")] double? height = null,
         int? document = null) => OnUi(() =>
     {
-        var (png, description) = Png(Session(document), maxSide);
+        var s = Session(document);
+        SKRectI? region = null;
+        if (x != null || y != null || width != null || height != null)
+        {
+            if (x == null || y == null || width == null || height == null) throw new McpException("A region needs x, y, width and height.");
+            region = SKRectI.Create((int)Math.Floor(x.Value), (int)Math.Floor(y.Value), (int)Math.Ceiling(width.Value), (int)Math.Ceiling(height.Value));
+        }
+        var (png, description) = Png(s, maxSide, region, Math.Max(0, grid));
         return new CallToolResult { Content = [new TextContentBlock { Text = description }, ImageContentBlock.FromBytes(png, "image/png")] };
     });
 
-    /// <summary>The composite scaled to fit <paramref name="maxSide"/> as a PNG, with a line saying what it shows.</summary>
-    private static (byte[] Png, string Description) Png(EditorSession s, int maxSide)
+    /// <summary>The composite, or a region of it, scaled to fit <paramref name="maxSide"/> as a PNG, with a line saying what it shows.</summary>
+    private static (byte[] Png, string Description) Png(EditorSession s, int maxSide, SKRectI? region = null, int grid = 0)
     {
         var composite = s.Composite();                                      // Owned by the session: never disposed here.
-        var scale = Math.Min(1.0, (double)Math.Clamp(maxSide, 16, 4096) / Math.Max(composite.Width, composite.Height));
-        using var scaled = scale < 1
-            ? composite.Resize(new SKSizeI(Math.Max(1, (int)Math.Round(composite.Width * scale)), Math.Max(1, (int)Math.Round(composite.Height * scale))),
-                               new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear))
-            : null;
-        var picture = scaled ?? composite;
-        using var image = SKImage.FromBitmap(picture);
-        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-        return (data.ToArray(), $"{picture.Width}×{picture.Height} px view of the {composite.Width}×{composite.Height} px canvas.");
+        var whole = new SKRectI(0, 0, composite.Width, composite.Height);
+        var area = region is { } r ? SKRectI.Intersect(r, whole) : whole;
+        if (area.IsEmpty) throw new McpException($"That region lies outside the {composite.Width}×{composite.Height} px canvas.");
+        var scale = Math.Min(1.0, (double)Math.Clamp(maxSide, 16, 4096) / Math.Max(area.Width, area.Height));
+        var size = new SKSizeI(Math.Max(1, (int)Math.Round(area.Width * scale)), Math.Max(1, (int)Math.Round(area.Height * scale)));
+        using var picture = Pixels.NewColor(size.Width, size.Height);
+        using (var canvas = new SKCanvas(picture))
+        {
+            canvas.Scale((float)scale);
+            using var paint = new SKPaint { IsAntialias = true };
+            using var image = SKImage.FromBitmap(composite);
+            canvas.DrawImage(image, SKRect.Create(area.Left, area.Top, area.Width, area.Height), SKRect.Create(0, 0, area.Width, area.Height),
+                             new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear), paint);
+            if (grid > 0) DrawGrid(canvas, area, (float)scale, grid);
+        }
+        using var encoded = SKImage.FromBitmap(picture);
+        using var data = encoded.Encode(SKEncodedImageFormat.Png, 100);
+        var description = $"{picture.Width}×{picture.Height} px view of the {composite.Width}×{composite.Height} px canvas";
+        if (region != null) description += $", region at {area.Left},{area.Top} size {area.Width}×{area.Height}";
+        if (grid > 0) description += $", grid every {grid} px labelled in canvas coordinates";
+        return (data.ToArray(), description + ".");
+    }
+
+    /// <summary>Lines every <paramref name="grid"/> canvas pixels with their canvas coordinate along the top and left edges, drawn on the canvas already scaled to the output.</summary>
+    private static void DrawGrid(SKCanvas canvas, SKRectI area, float scale, int grid)
+    {
+        canvas.ResetMatrix();
+        using var line = new SKPaint { Color = new SKColor(0, 0, 0, 120), StrokeWidth = 1, IsAntialias = false };
+        using var halo = new SKPaint { Color = new SKColor(255, 255, 255, 200), IsAntialias = true };
+        using var text = new SKPaint { Color = SKColors.Black, IsAntialias = true };
+        using var font = new SKFont(SKTypeface.Default, 11);
+        // Labels need room: when lines fall closer than that in the output, only every nth is labelled.
+        var every = Math.Max(1, (int)Math.Ceiling(28 / (grid * scale)));
+        float outWidth = area.Width * scale, outHeight = area.Height * scale;
+        for (var gx = (int)Math.Ceiling(area.Left / (double)grid) * grid; gx <= area.Right; gx += grid)
+        {
+            var ox = (float)Math.Round((gx - area.Left) * scale) + 0.5f;
+            canvas.DrawLine(ox, 0, ox, outHeight, line);
+            if (gx / grid % every != 0) continue;
+            var label = gx.ToString();
+            var width = font.MeasureText(label);
+            canvas.DrawRect(ox + 1, 0, width + 4, 13, halo);
+            canvas.DrawText(label, ox + 3, 10, SKTextAlign.Left, font, text);
+        }
+        for (var gy = (int)Math.Ceiling(area.Top / (double)grid) * grid; gy <= area.Bottom; gy += grid)
+        {
+            var oy = (float)Math.Round((gy - area.Top) * scale) + 0.5f;
+            canvas.DrawLine(0, oy, outWidth, oy, line);
+            if (gy / grid % every != 0) continue;
+            var label = gy.ToString();
+            var width = font.MeasureText(label);
+            canvas.DrawRect(0, oy + 1, width + 4, 13, halo);
+            canvas.DrawText(label, 2, oy + 11, SKTextAlign.Left, font, text);
+        }
     }
 
     // ---- Plumbing -----------------------------------------------------------------------------------------------
