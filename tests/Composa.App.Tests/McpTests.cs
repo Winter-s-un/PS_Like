@@ -143,10 +143,12 @@ public class McpTests
         Assert.Equal("Deleted \"Greeting copy\".", Text(await Pumped(client.CallToolAsync("delete_layer", new Dictionary<string, object?> { ["layer"] = "Greeting copy" }))));
         Assert.Equal(2, session.Document.Layers.Count);
         // Painting and shapes.
+        await Pumped(client.CallToolAsync("select_layer", new Dictionary<string, object?> { ["layer"] = "Greeting" }));
         var stroke = await Pumped(client.CallToolAsync("paint_stroke", new Dictionary<string, object?> { ["points"] = new[] { new[] { 20.0, 200.0 }, new[] { 380.0, 200.0 } }, ["color"] = "#00FF00", ["size"] = 30, ["hardness"] = 1, ["layer"] = "Background" }));
         Assert.Equal("Painted a paint stroke of 2 points on \"Background\".", Text(stroke));
         Assert.Equal(SKColors.Lime, session.Document.Layers[0].Pixels!.GetPixel(200, 200));
         Assert.Equal("Brush", session.History.UndoName);
+        Assert.Equal("Greeting", session.ActiveLayer!.Name);                                  // Painting on a named layer does not select it.
         var onText = await Pumped(client.CallToolAsync("paint_stroke", new Dictionary<string, object?> { ["points"] = new[] { new[] { 20.0, 20.0 } }, ["layer"] = "Greeting" }));
         Assert.Equal(true, onText.IsError);
         Assert.Contains("live text", Text(onText));

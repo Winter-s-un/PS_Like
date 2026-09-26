@@ -11,7 +11,7 @@ namespace Composa.App.Mcp;
 public sealed partial class ComposaTools
 {
     [McpServerTool(Name = "paint_stroke")]
-    [Description("Paints one brush stroke through the given canvas points on the active layer (or the layer named), as a drag with the Brush tool would. A single point is a dab. Live text and shape layers cannot be painted on.")]
+    [Description("Paints one brush stroke through the given canvas points on the active layer, or on the layer named without changing which layer is active, as a drag with the Brush tool would. A single point is a dab. Live text and shape layers cannot be painted on.")]
     public Task<string> PaintStroke(
         [Description("The stroke's points as [[x, y], [x, y], ...] in canvas pixels; a curve needs a point every few pixels")] double[][] points,
         [Description("A color as #rrggbb or #aarrggbb; ignored by the erase and smearing modes")] string color = "#000000",
@@ -31,11 +31,15 @@ public sealed partial class ComposaTools
         };
         if (points.Length == 0 || points.Any(p => p.Length != 2)) throw new McpException("points is a list of [x, y] pairs with at least one pair.");
         if (size is < 1 or > 5000 || double.IsNaN(size)) throw new McpException("size is 1 to 5000 pixels.");
+        // A stroke aimed at a layer paints there and leaves the selection alone, so what is added next still goes where it did.
+        var active = s.ActiveLayer;
         if (layer != null) s.SelectLayer(Find(s, layer).Id);
         var target = s.ActiveLayer ?? throw new McpException("No layer is active.");
         var brush = new BrushSettings { Size = size, Hardness = Math.Clamp(hardness, 0, 1), Opacity = Math.Clamp(opacity, 0, 1) };
         var path = points.Select(p => new SKPoint((float)p[0], (float)p[1])).ToList();
-        if (s.PaintStroke(path, brush, ParseColor(color), brushMode) is { } problem) throw new McpException(problem);
+        var problem = s.PaintStroke(path, brush, ParseColor(color), brushMode);
+        if (active != null && active != target) s.SelectLayer(active.Id);
+        if (problem != null) throw new McpException(problem);
         return $"Painted a {mode} stroke of {path.Count} point{(path.Count == 1 ? "" : "s")} on \"{target.Name}\".";
     });
 
