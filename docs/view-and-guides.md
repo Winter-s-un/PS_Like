@@ -1,0 +1,27 @@
+# View, rulers and guides
+
+The View menu holds the zoom commands and everything that helps you line things up. These options travel with you from tab to tab and are remembered between launches.
+
+## Zoom
+
+View > Fit Canvas (Ctrl+0) fits the document in the window, never above 100 percent. View > Actual Pixels (Ctrl+1) shows it at 100 percent. Zoom In (Ctrl and plus) and Zoom Out (Ctrl and minus) step through fixed stops from 12.5 to 1600 percent, and Ctrl with the mouse wheel zooms freely around the pointer, from 1 to 6400 percent. The status bar shows the zoom, and the tab bar has Fit, 100% and zoom buttons.
+
+## Pixel grid
+
+View > Pixel Grid (800% and above) draws a line between pixels once you are zoomed in far enough to see them. It is on by default.
+
+## Rulers and guides
+
+View > Rulers (Ctrl+R) shows rulers along the top and left of the canvas, in pixels. Drag out of the top ruler to create a horizontal guide, or out of the left ruler for a vertical one. Move a guide with the Move tool; drop it back on a ruler to delete it. Guides snap as you drag them, and sit on half-pixel positions. View > Show > Guides (Ctrl+;) hides and shows them, View > Lock Guides (Ctrl+Alt+;) stops them being created or moved, and View > Clear Guides removes them all. Guides are saved with the project and undo with it.
+
+## Grid
+
+View > Show > Grid (Ctrl+') draws a layout grid over the canvas: a major line every 64 pixels with eight subdivisions. It is only a guide; it is not part of the picture.
+
+## Snapping
+
+With View > Snap (Ctrl+Shift+;) on, moving a layer, drawing a crop box or dragging a guide snaps to the targets ticked under View > Snap To: guides, the grid, the edges and centers of other layers, and the edges and center of the document. Magenta lines show what you snapped to. Hidden guides and a hidden grid do not snap. Hold Ctrl while dragging to move without snapping.
+
+## Transform controls
+
+View > Show Transform Controls (Ctrl+H) shows or hides the frame with handles the Move tool draws around the active layer.
