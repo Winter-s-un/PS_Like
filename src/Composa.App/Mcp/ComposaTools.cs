@@ -18,7 +18,7 @@ namespace Composa.App.Mcp;
 /// agent does is one undoable step, refreshes the window through the session's events and can be taken back with
 /// Ctrl+Z like anything else. Documents are addressed by their tab number, the way <c>list_documents</c> reports them.
 /// </summary>
-public sealed class ComposaTools(MainWindow window)
+public sealed partial class ComposaTools(MainWindow window)
 {
     public McpServerPrimitiveCollection<McpServerTool> Collection()
     {
@@ -46,7 +46,7 @@ public sealed class ComposaTools(MainWindow window)
     });
 
     [McpServerTool(Name = "describe_document", ReadOnly = true, Idempotent = true)]
-    [Description("The canvas and the layer stack of a document, top layer first. The active layer is marked with *.")]
+    [Description("The canvas and the layer stack of a document, top layer first. The active layer is marked with *; the id in brackets names a layer when two share a name.")]
     public Task<string> DescribeDocument(int? document = null) => OnUi(() =>
     {
         var s = Session(document);
@@ -65,7 +65,7 @@ public sealed class ComposaTools(MainWindow window)
         for (var i = layers.Count - 1; i >= 0; i--)
         {
             var layer = layers[i];
-            text.Append(' ', depth * 2).Append(doc.ActiveLayerId == layer.Id ? "* " : "- ").Append('"').Append(layer.Name).Append("\": ").Append(Kind(layer));
+            text.Append(' ', depth * 2).Append(doc.ActiveLayerId == layer.Id ? "* " : "- ").Append('"').Append(layer.Name).Append("\" [").Append(Id(layer)).Append("]: ").Append(Kind(layer));
             if (layer.Text != null) text.Append(" \"").Append(layer.Text.Text.Replace("\n", "\\n")).Append('"');
             if (layer.Pixels != null)
             {

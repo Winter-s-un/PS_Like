@@ -4,6 +4,7 @@ using Avalonia.Threading;
 using Composa.App.Mcp;
 using Composa.Editing;
 using Composa.IO;
+using Composa.Model;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using SkiaSharp;
@@ -58,7 +59,7 @@ public class McpTests
         await using var client = await Pumped(McpClient.CreateAsync(Bridge(host.PipeName)));
         await Pumped(() => host.Connections == 1);
         var tools = await client.ListToolsAsync();
-        Assert.Equal(["add_text", "describe_document", "fill_layer", "list_documents", "new_document", "new_layer", "place_image", "render", "undo"], tools.Select(t => t.Name).Order());
+        Assert.Equal(["add_text", "delete_layer", "describe_document", "duplicate_layer", "fill_layer", "list_documents", "new_document", "new_layer", "place_image", "render", "reorder_layer", "select_layer", "set_layer", "transform_layer", "undo"], tools.Select(t => t.Name).Order());
 
         var tooBig = await Pumped(client.CallToolAsync("new_document", new Dictionary<string, object?> { ["width"] = 40000, ["height"] = 10 }));
         Assert.Equal(true, tooBig.IsError);
@@ -84,8 +85,8 @@ public class McpTests
 
         var described = Text(await Pumped(client.CallToolAsync("describe_document")));
         Assert.Contains("400×300 px", described);
-        Assert.Contains("* \"Hello\": text \"Hello\"", described);
-        Assert.Contains("- \"Background\": pixels", described);
+        Assert.Matches("\\* \"Hello\" \\[[0-9a-f]{8}\\]: text \"Hello\"", described);
+        Assert.Matches("- \"Background\" \\[[0-9a-f]{8}\\]: pixels", described);
 
         var rendered = await Pumped(client.CallToolAsync("render", new Dictionary<string, object?> { ["maxSide"] = 200 }));
         var image = Assert.Single(rendered.Content.OfType<ImageContentBlock>());
@@ -117,6 +118,33 @@ public class McpTests
 
         Assert.Equal("Undid Text.", Text(await Pumped(client.CallToolAsync("undo"))));
         Assert.Single(session.Document.Layers);
+
+        // The layer tools, on a fresh text layer.
+        await Pumped(client.CallToolAsync("add_text", new Dictionary<string, object?> { ["text"] = "Hello", ["x"] = 20, ["y"] = 30 }));
+        var hello = session.ActiveLayer!;
+        var set = await Pumped(client.CallToolAsync("set_layer", new Dictionary<string, object?> { ["layer"] = "hello", ["name"] = "Greeting", ["visible"] = false, ["opacity"] = 0.5, ["blend"] = "soft light" }));
+        Assert.Equal("\"Greeting\": named \"Greeting\", hidden, opacity 50%, blend Soft Light.", Text(set));
+        Assert.False(hello.Visible);
+        Assert.Equal(0.5, hello.Opacity);
+        Assert.Equal(BlendMode.SoftLight, hello.Blend);
+        Assert.Equal("Blend Mode", session.History.UndoName);
+        await Pumped(client.CallToolAsync("set_layer", new Dictionary<string, object?> { ["layer"] = "Greeting", ["visible"] = true }));
+        var moved = await Pumped(client.CallToolAsync("transform_layer", new Dictionary<string, object?> { ["layer"] = "Greeting", ["x"] = 50, ["y"] = 60 }));
+        Assert.StartsWith("\"Greeting\" is now at 50,60 size", Text(moved));
+        Assert.Equal(50, hello.Transform.X);
+        Assert.Equal("Background", session.Document.Layers[0].Name);
+        Assert.Equal("Duplicated \"Greeting\" as \"Greeting copy\", now active.", Text(await Pumped(client.CallToolAsync("duplicate_layer", new Dictionary<string, object?> { ["layer"] = "Greeting" }))));
+        Assert.Equal(3, session.Document.Layers.Count);
+        await Pumped(client.CallToolAsync("reorder_layer", new Dictionary<string, object?> { ["layer"] = "Greeting copy", ["direction"] = "bottom" }));
+        Assert.Equal("Greeting copy", session.Document.Layers[0].Name);
+        Assert.Contains("already at the bottom", Text(await Pumped(client.CallToolAsync("reorder_layer", new Dictionary<string, object?> { ["layer"] = "Greeting copy", ["direction"] = "down" }))));
+        var byId = await Pumped(client.CallToolAsync("select_layer", new Dictionary<string, object?> { ["layer"] = hello.Id.ToString("N")[..8] }));
+        Assert.Equal("\"Greeting\" is the active layer.", Text(byId));
+        Assert.Equal("Deleted \"Greeting copy\".", Text(await Pumped(client.CallToolAsync("delete_layer", new Dictionary<string, object?> { ["layer"] = "Greeting copy" }))));
+        Assert.Equal(2, session.Document.Layers.Count);
+        var unknown = await Pumped(client.CallToolAsync("set_layer", new Dictionary<string, object?> { ["layer"] = "Nope", ["visible"] = true }));
+        Assert.Equal(true, unknown.IsError);
+        Assert.Contains("no layer", Text(unknown));
 
         await client.DisposeAsync();
         await Pumped(() => host.Connections == 0);
