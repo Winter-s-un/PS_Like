@@ -50,6 +50,11 @@
     added along with the CHANGELOG.md section when a release is cut; see RELEASING.md.
   -->
   <releases>
+    <release version="1.2.0" date="2026-09-27">
+      <description>
+        <p>An AI agent can drive the editor through a Model Context Protocol server, a Painterly filter turns a photo into a painting that is still that photo, letters of a text layer can have their own colors, saving writes in the background, sliders show their colors and can be reset, and Motion Blur's angle has a full-circle dial.</p>
+      </description>
+    </release>
     <release version="1.1.0" date="2026-09-25">
       <description>
         <p>Photoshop Large Document files, editable Photoshop text, SVG import, a memory budget for the whole document, sliders you drag, scrub or type into, a dial for shadow angles, and a color picker laid out as Photoshop's.</p>
