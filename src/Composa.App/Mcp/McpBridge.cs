@@ -26,10 +26,12 @@ public sealed class McpBridge
     private readonly CancellationTokenSource stop = new();
     private readonly object gate = new();
     private readonly HashSet<string> inFlight = [];      // Ids of client requests the application still owes an answer to.
+    private readonly List<string> waiting = [];          // Client messages held while the handshake with the application runs.
     private StreamWriter? pipeWriter;
     private JsonNode? initializeParams;                    // The client's, replayed to the application on every connection.
     private bool clientInitialized;                        // The client sent notifications/initialized.
     private bool appReady;                                 // The application answered the bridge's initialize.
+    private volatile bool firstAttemptDone;                // Requests arriving before the first connection attempt has failed are held, not refused.
 
     public McpBridge(string pipeName, TextReader input, TextWriter output)
     {
@@ -72,6 +74,8 @@ public sealed class McpBridge
             catch (Exception)
             {
                 pipe.Dispose();
+                firstAttemptDone = true;
+                await RefuseHeldAsync();
                 if (!said) { await Console.Error.WriteLineAsync("Composa is not running, or Help > Allow AI Control is off; waiting for it."); said = true; }
                 try { await Task.Delay(500, stop.Token); } catch (OperationCanceledException) { return; }
                 continue;
@@ -103,10 +107,20 @@ public sealed class McpBridge
         finally { pipeLock.Release(); }
         var wasReady = appReady;
         appReady = false;
+        firstAttemptDone = true;
         List<string> owed;
         lock (gate) { owed = [.. inFlight]; inFlight.Clear(); }
         foreach (var id in owed) await ToClientAsync(Error(JsonNode.Parse(id), "Composa closed while this was running."));
+        await RefuseHeldAsync();
         if (wasReady && clientInitialized) await ToClientAsync(Notification("notifications/tools/list_changed"));
+    }
+
+    /// <summary>Answers the messages held for a handshake that did not come: the application went away, or was never there.</summary>
+    private async Task RefuseHeldAsync()
+    {
+        List<string> held;
+        lock (gate) { held = [.. waiting]; waiting.Clear(); }
+        foreach (var line in held) await AnswerAwayAsync(line);
     }
 
     private Task SendInitializeToAppAsync() =>
@@ -118,9 +132,12 @@ public sealed class McpBridge
         var id = message?["id"];
         if (id is JsonValue value && value.TryGetValue<string>(out var text) && text == InitializeId)
         {
-            // The handshake is complete: the application is ready for the client's requests.
+            // The handshake is complete: the application is ready for the client's requests, held ones first.
             await ToAppAsync(Notification("notifications/initialized"));
             appReady = true;
+            List<string> held;
+            lock (gate) { held = [.. waiting]; waiting.Clear(); }
+            foreach (var line2 in held) await ForwardAsync(line2);
             if (clientInitialized) await ToClientAsync(Notification("notifications/tools/list_changed"));
             return;
         }
@@ -156,17 +173,33 @@ public sealed class McpBridge
             if (appReady) await ToClientAsync(Notification("notifications/tools/list_changed"));
             return;
         }
-        if (appReady)
+        if (appReady) { await ForwardAsync(line); return; }
+        if (pipeWriter != null || !firstAttemptDone)
         {
-            if (id != null && method != null) lock (gate) inFlight.Add(id.ToJsonString());
-            await ToAppAsync(line);
+            // The application is there (or may be, a moment after launch) but the handshake is still running.
+            lock (gate) waiting.Add(line);
             return;
         }
-        // The application is away. Notifications and responses have nowhere to go; requests get an honest answer.
+        await AnswerAwayAsync(line);
+    }
+
+    /// <summary>The application is away. Notifications and responses have nowhere to go; requests get an honest answer.</summary>
+    private async Task AnswerAwayAsync(string line)
+    {
+        var message = TryParse(line);
+        var method = message?["method"]?.GetValue<string>();
+        var id = message?["id"];
         if (id == null || method == null) return;
         if (method == "tools/list") await ToClientAsync(Result(id, new JsonObject { ["tools"] = new JsonArray() }));
         else if (method == "ping") await ToClientAsync(Result(id, new JsonObject()));
         else await ToClientAsync(Error(id, "Composa is not running, or Help > Allow AI Control is off. Start it and the tools appear by themselves."));
+    }
+
+    private async Task ForwardAsync(string line)
+    {
+        var message = TryParse(line);
+        if (message?["id"] is { } id && message["method"] != null) lock (gate) inFlight.Add(id.ToJsonString());
+        await ToAppAsync(line);
     }
 
     private async Task ToClientAsync(string line)
