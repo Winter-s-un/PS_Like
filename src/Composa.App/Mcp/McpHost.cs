@@ -96,14 +96,19 @@ public sealed class McpHost : IDisposable
         Dispatcher.UIThread.Post(() => ConnectionsChanged?.Invoke());
     }
 
-    private McpServerOptions Options() => new()
+    private McpServerOptions Options()
     {
-        ServerInfo = new Implementation { Name = "composa", Title = "Composa", Version = AppInfo.Version },
-        ServerInstructions = "Composa is a layer-based image editor. The tools act on the documents open in its window; " +
-                             "every change is an undoable step the person can see and undo. Coordinates are canvas pixels " +
-                             "with the origin at the top left. Call render to see the result of your changes.",
-        ToolCollection = new ComposaTools(window).Collection()
-    };
+        var tools = new ComposaTools(window);
+        return new McpServerOptions
+        {
+            ServerInfo = new Implementation { Name = "composa", Title = "Composa", Version = AppInfo.Version },
+            ServerInstructions = "Composa is a layer-based image editor. The tools act on the documents open in its window; " +
+                                 "every change is an undoable step the person can see and undo. Coordinates are canvas pixels " +
+                                 "with the origin at the top left. Call render to see the result of your changes.",
+            ToolCollection = tools.Collection(),
+            ResourceCollection = tools.Resources()
+        };
+    }
 
     public void Dispose() => stop.Cancel();
 }

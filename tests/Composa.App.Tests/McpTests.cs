@@ -68,6 +68,12 @@ public class McpTests
              "select_layer", "select_layer_pixels", "select_object", "select_shape", "select_subject", "select_wand", "set_layer", "transform_layer", "undo"],
             tools.Select(t => t.Name).Order());
 
+        var resources = await client.ListResourcesAsync();
+        Assert.Equal(["composa://documents"], resources.Select(r => r.Uri));
+        Assert.Equal(["composa://documents/{number}", "composa://documents/{number}/image"], (await client.ListResourceTemplatesAsync()).Select(r => r.UriTemplate).Order());
+        var none = await Pumped(client.ReadResourceAsync("composa://documents"));
+        Assert.Equal("No document is open.", Assert.IsType<TextResourceContents>(Assert.Single(none.Contents)).Text);
+
         var tooBig = await Pumped(client.CallToolAsync("new_document", new Dictionary<string, object?> { ["width"] = 40000, ["height"] = 10 }));
         Assert.Equal(true, tooBig.IsError);
         Assert.Contains("at most", Text(tooBig));
@@ -102,6 +108,17 @@ public class McpTests
         Assert.Equal(200, png.Width);
         Assert.Equal(150, png.Height);
         Assert.Equal(SKColors.Red, png.GetPixel(190, 140));
+
+        var asResource = await Pumped(client.ReadResourceAsync("composa://documents/1"));
+        var text = Assert.IsType<TextResourceContents>(Assert.Single(asResource.Contents));
+        Assert.Equal("composa://documents/1", text.Uri);
+        Assert.Contains("- \"Background\"", text.Text);
+        var imageResource = await Pumped(client.ReadResourceAsync("composa://documents/1/image"));
+        var blob = Assert.IsType<BlobResourceContents>(Assert.Single(imageResource.Contents));
+        Assert.Equal("image/png", blob.MimeType);
+        using (var fromResource = SKBitmap.Decode(blob.DecodedData.ToArray())) { Assert.Equal(400, fromResource.Width); Assert.Equal(SKColors.Red, fromResource.GetPixel(390, 290)); }
+        var noSuch = await Assert.ThrowsAnyAsync<McpException>(async () => await Pumped(client.ReadResourceAsync("composa://documents/9")));
+        Assert.Contains("no document 9", noSuch.Message);
 
         var picture = Path.Combine(Path.GetTempPath(), $"composa-place-{Guid.NewGuid():N}.png");
         using (var wide = new SKBitmap(800, 200)) { wide.Erase(SKColors.Lime); ImageFiles.Save(wide, picture, ExportFormat.Png); }
@@ -284,9 +301,14 @@ public class McpTests
         var pipe = PipeName();
         await using var client = await McpClient.CreateAsync(Bridge(pipe));                 // Nothing listens yet.
         var changes = 0;
+        var resourceChanges = 0;
         await using var handler = client.RegisterNotificationHandler(NotificationMethods.ToolListChangedNotification, (_, _) => { Interlocked.Increment(ref changes); return default; });
+        await using var resourceHandler = client.RegisterNotificationHandler(NotificationMethods.ResourceListChangedNotification, (_, _) => { Interlocked.Increment(ref resourceChanges); return default; });
         Assert.True(client.ServerCapabilities.Tools?.ListChanged);
+        Assert.True(client.ServerCapabilities.Resources?.ListChanged);
         Assert.Empty(await client.ListToolsAsync());
+        Assert.Empty(await client.ListResourcesAsync());
+        Assert.Empty(await client.ListResourceTemplatesAsync());
         var away = await Assert.ThrowsAnyAsync<McpException>(async () => await client.CallToolAsync("list_documents"));
         Assert.Contains("not running", away.Message);
 
@@ -305,7 +327,9 @@ public class McpTests
         using var second = new McpHost(window, pipe);                                        // Composa is started again.
         Assert.True(await second.StartAsync());
         await Pumped(() => changes >= 3);
+        Assert.Equal(changes, resourceChanges);                                              // Resources are announced alongside the tools.
         Assert.Contains("1: \"Untitled\" 64×64 px", Text(await Pumped(client.CallToolAsync("list_documents"))));
+        Assert.Contains("composa://documents", (await client.ListResourcesAsync()).Select(r => r.Uri));
     }
 
     [AvaloniaFact]

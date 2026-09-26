@@ -112,7 +112,14 @@ public sealed class McpBridge
         lock (gate) { owed = [.. inFlight]; inFlight.Clear(); }
         foreach (var id in owed) await ToClientAsync(Error(JsonNode.Parse(id), "Composa closed while this was running."));
         await RefuseHeldAsync();
-        if (wasReady && clientInitialized) await ToClientAsync(Notification("notifications/tools/list_changed"));
+        if (wasReady && clientInitialized) await AnnounceListsChangedAsync();
+    }
+
+    /// <summary>The application came or went: what the client can list has changed.</summary>
+    private async Task AnnounceListsChangedAsync()
+    {
+        await ToClientAsync(Notification("notifications/tools/list_changed"));
+        await ToClientAsync(Notification("notifications/resources/list_changed"));
     }
 
     /// <summary>Answers the messages held for a handshake that did not come: the application went away, or was never there.</summary>
@@ -138,7 +145,7 @@ public sealed class McpBridge
             List<string> held;
             lock (gate) { held = [.. waiting]; waiting.Clear(); }
             foreach (var line2 in held) await ForwardAsync(line2);
-            if (clientInitialized) await ToClientAsync(Notification("notifications/tools/list_changed"));
+            if (clientInitialized) await AnnounceListsChangedAsync();
             return;
         }
         if (id != null && message?["method"] == null) lock (gate) inFlight.Remove(id.ToJsonString());
@@ -170,7 +177,7 @@ public sealed class McpBridge
         if (method == "notifications/initialized")
         {
             clientInitialized = true;
-            if (appReady) await ToClientAsync(Notification("notifications/tools/list_changed"));
+            if (appReady) await AnnounceListsChangedAsync();
             return;
         }
         if (appReady) { await ForwardAsync(line); return; }
@@ -191,6 +198,8 @@ public sealed class McpBridge
         var id = message?["id"];
         if (id == null || method == null) return;
         if (method == "tools/list") await ToClientAsync(Result(id, new JsonObject { ["tools"] = new JsonArray() }));
+        else if (method == "resources/list") await ToClientAsync(Result(id, new JsonObject { ["resources"] = new JsonArray() }));
+        else if (method == "resources/templates/list") await ToClientAsync(Result(id, new JsonObject { ["resourceTemplates"] = new JsonArray() }));
         else if (method == "ping") await ToClientAsync(Result(id, new JsonObject()));
         else await ToClientAsync(Error(id, "Composa is not running, or Help > Allow AI Control is off. Start it and the tools appear by themselves."));
     }
@@ -214,7 +223,7 @@ public sealed class McpBridge
     private static string InitializeResult(JsonNode? id, string? protocolVersion) => Result(id, new JsonObject
     {
         ["protocolVersion"] = protocolVersion ?? "2025-06-18",
-        ["capabilities"] = new JsonObject { ["tools"] = new JsonObject { ["listChanged"] = true } },
+        ["capabilities"] = new JsonObject { ["tools"] = new JsonObject { ["listChanged"] = true }, ["resources"] = new JsonObject { ["listChanged"] = true } },
         ["serverInfo"] = new JsonObject { ["name"] = "composa", ["title"] = "Composa", ["version"] = AppInfo.Version },
         ["instructions"] = "Composa is a layer-based image editor. The tools act on the documents open in its window; " +
                            "every change is an undoable step the person can see and undo. Coordinates are canvas pixels " +

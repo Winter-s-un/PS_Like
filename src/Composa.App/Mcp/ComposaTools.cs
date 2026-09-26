@@ -29,6 +29,14 @@ public sealed partial class ComposaTools(MainWindow window)
         return tools;
     }
 
+    public McpServerResourceCollection Resources()
+    {
+        var resources = new McpServerResourceCollection();
+        foreach (var method in typeof(ComposaTools).GetMethods(BindingFlags.Public | BindingFlags.Instance))
+            if (method.GetCustomAttribute<McpServerResourceAttribute>() != null) resources.Add(McpServerResource.Create(method, this));
+        return resources;
+    }
+
     [McpServerTool(Name = "list_documents", ReadOnly = true, Idempotent = true)]
     [Description("The documents open in Composa, numbered as their tabs are. Other tools take that number as `document`; leave it out for the active one.")]
     public Task<string> ListDocuments() => OnUi(() =>
@@ -208,7 +216,13 @@ public sealed partial class ComposaTools(MainWindow window)
         [Description("The longest side of the image in pixels; the document is scaled down to fit, never up")] int maxSide = 1024,
         int? document = null) => OnUi(() =>
     {
-        var s = Session(document);
+        var (png, description) = Png(Session(document), maxSide);
+        return new CallToolResult { Content = [new TextContentBlock { Text = description }, ImageContentBlock.FromBytes(png, "image/png")] };
+    });
+
+    /// <summary>The composite scaled to fit <paramref name="maxSide"/> as a PNG, with a line saying what it shows.</summary>
+    private static (byte[] Png, string Description) Png(EditorSession s, int maxSide)
+    {
         var composite = s.Composite();                                      // Owned by the session: never disposed here.
         var scale = Math.Min(1.0, (double)Math.Clamp(maxSide, 16, 4096) / Math.Max(composite.Width, composite.Height));
         using var scaled = scale < 1
@@ -218,15 +232,8 @@ public sealed partial class ComposaTools(MainWindow window)
         var picture = scaled ?? composite;
         using var image = SKImage.FromBitmap(picture);
         using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-        return new CallToolResult
-        {
-            Content =
-            [
-                new TextContentBlock { Text = $"{picture.Width}×{picture.Height} px view of the {composite.Width}×{composite.Height} px canvas." },
-                ImageContentBlock.FromBytes(data.ToArray(), "image/png")
-            ]
-        };
-    });
+        return (data.ToArray(), $"{picture.Width}×{picture.Height} px view of the {composite.Width}×{composite.Height} px canvas.");
+    }
 
     // ---- Plumbing -----------------------------------------------------------------------------------------------
 
