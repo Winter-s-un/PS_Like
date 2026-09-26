@@ -87,7 +87,7 @@ An MCP client reaches the application through `composa --mcp`, a bridge that car
 claude mcp add composa -- composa --mcp
 ```
 
-The tools create a document, list and describe the open ones, place an image file as a layer, add a layer, fill it, add text, paint brush strokes, add shapes and lines, select, rename, hide, reorder, duplicate, delete, move, resize and rotate layers, set opacity and blend mode, undo, and render the canvas to a PNG so the agent can see what it did. More follow. The macOS app instead watches its project folder for changes made by other programs; Composa has the agent talk to the editor.
+The tools create a document, list and describe the open ones, place an image file as a layer, add a layer, fill it, add text, paint brush strokes, add shapes and lines, apply every adjustment (in place or as an adjustment layer) and every filter but Camera Raw, select, rename, hide, reorder, duplicate, delete, move, resize and rotate layers, set opacity and blend mode, undo, and render the canvas to a PNG so the agent can see what it did. More follow. The macOS app instead watches its project folder for changes made by other programs; Composa has the agent talk to the editor.
 
 ## Differences from the macOS app
 

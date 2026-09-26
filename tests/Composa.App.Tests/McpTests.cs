@@ -2,6 +2,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Composa.App.Mcp;
 using Composa.Editing;
+using Composa.Filters;
 using Composa.IO;
 using Composa.Model;
 using ModelContextProtocol;
@@ -59,7 +60,11 @@ public class McpTests
         await using var client = await Pumped(McpClient.CreateAsync(Bridge(host.PipeName)));
         await Pumped(() => host.Connections == 1);
         var tools = await client.ListToolsAsync();
-        Assert.Equal(["add_line", "add_shape", "add_text", "delete_layer", "describe_document", "duplicate_layer", "fill_layer", "list_documents", "new_document", "new_layer", "paint_stroke", "place_image", "render", "reorder_layer", "select_layer", "set_layer", "transform_layer", "undo"], tools.Select(t => t.Name).Order());
+        Assert.Equal(
+            ["add_line", "add_shape", "add_text", "adjust_black_and_white", "adjust_brightness_contrast", "adjust_color_balance", "adjust_curves", "adjust_exposure", "adjust_gradient_map", "adjust_hue_saturation", "adjust_invert", "adjust_levels",
+             "delete_layer", "describe_document", "duplicate_layer", "fill_layer", "filter_add_noise", "filter_bloom", "filter_blur", "filter_lens_correction", "filter_motion_blur", "filter_remove_background", "filter_sharpen", "filter_tonal_contrast", "filter_vignette",
+             "list_documents", "new_document", "new_layer", "paint_stroke", "place_image", "render", "reorder_layer", "select_layer", "set_layer", "transform_layer", "undo"],
+            tools.Select(t => t.Name).Order());
 
         var tooBig = await Pumped(client.CallToolAsync("new_document", new Dictionary<string, object?> { ["width"] = 40000, ["height"] = 10 }));
         Assert.Equal(true, tooBig.IsError);
@@ -158,6 +163,23 @@ public class McpTests
         var line = await Pumped(client.CallToolAsync("add_line", new Dictionary<string, object?> { ["x1"] = 0, ["y1"] = 0, ["x2"] = 100, ["y2"] = 100, ["width"] = 6 }));
         Assert.Matches("Added line \"Line( \\d+)?\" from 0,0 to 100,100, now active\\.", Text(line));
         Assert.Equal(6, session.ActiveLayer!.Shape!.LineWidth);
+
+        // Adjustments and filters.
+        var inverted = await Pumped(client.CallToolAsync("adjust_invert", new Dictionary<string, object?> { ["layer"] = "Background" }));
+        Assert.Equal("Applied Invert to \"Background\".", Text(inverted));
+        Assert.Equal(new SKColor(255, 0, 255), session.Document.Layers[0].Pixels!.GetPixel(200, 200));   // The lime stroke, inverted.
+        Assert.Equal("Invert", session.History.UndoName);
+        var asLayer = await Pumped(client.CallToolAsync("adjust_brightness_contrast", new Dictionary<string, object?> { ["contrast"] = 30, ["asLayer"] = true, ["layer"] = "Background" }));
+        Assert.Matches("Added adjustment layer \"Brightness/Contrast( \\d+)?\" above \"Background\", now active\\.", Text(asLayer));
+        Assert.Equal(30, ((BrightnessContrastAdjustment)session.ActiveLayer!.Adjustment!).Contrast);
+        var onLive = await Pumped(client.CallToolAsync("adjust_exposure", new Dictionary<string, object?> { ["exposure"] = 1, ["layer"] = "Greeting" }));
+        Assert.Equal(true, onLive.IsError);
+        Assert.Contains("asLayer", Text(onLive));
+        var blurred = await Pumped(client.CallToolAsync("filter_blur", new Dictionary<string, object?> { ["radius"] = 6, ["layer"] = "Background" }));
+        Assert.Equal("Applied Gaussian Blur to \"Background\".", Text(blurred));
+        Assert.Equal("Gaussian Blur", session.History.UndoName);
+        var badRange = await Pumped(client.CallToolAsync("adjust_hue_saturation", new Dictionary<string, object?> { ["hue"] = 30, ["range"] = "purples" }));
+        Assert.Equal(true, badRange.IsError);
 
         var unknown = await Pumped(client.CallToolAsync("set_layer", new Dictionary<string, object?> { ["layer"] = "Nope", ["visible"] = true }));
         Assert.Equal(true, unknown.IsError);
