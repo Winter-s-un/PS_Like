@@ -24,6 +24,8 @@ public sealed partial class MainWindow : Window
     private readonly TextBlock sizeText = new() { Foreground = Palette.Secondary };
     private readonly TextBlock positionText = new() { Foreground = Palette.Secondary, Width = 96 };
     private readonly TextBlock hintText = new() { Foreground = Palette.Secondary, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly TextBlock aiText = new() { Foreground = Palette.Accent };
+    private Mcp.McpHost? aiControl;
     private readonly Border foregroundSwatch = new() { Width = 26, Height = 26, BorderBrush = Brushes.White, BorderThickness = new Thickness(1.5), CornerRadius = new CornerRadius(3) };
     private readonly Border backgroundSwatch = new() { Width = 26, Height = 26, BorderBrush = Brushes.White, BorderThickness = new Thickness(1.5), CornerRadius = new CornerRadius(3) };
     private readonly Panel welcome;
@@ -92,6 +94,7 @@ public sealed partial class MainWindow : Window
         Closing += OnClosing;
 
         SetSession(null);
+        if (settings.AllowAiControl) _ = SetAiControl(true);
 
         if (recovery != null)
         {
@@ -143,6 +146,10 @@ public sealed partial class MainWindow : Window
     }
 
     public EditorSession? Session => session;
+    /// <summary>Every open document, in tab order.</summary>
+    public IReadOnlyList<EditorSession> Sessions => sessions;
+    /// <summary>Whether a drag on the canvas is mutating a bitmap in place, when nothing else may touch the document.</summary>
+    internal bool IsDragging => canvas.IsDragging;
     /// <summary>The remembered preferences; tests read them back without anything reaching disk.</summary>
     public Settings Settings => settings;
     public CanvasView Canvas => canvas;
@@ -274,9 +281,40 @@ public sealed partial class MainWindow : Window
         settings.Save();
     }
 
+    /// <summary>Whether the MCP server is running, so an AI agent can connect and drive the editor.</summary>
+    public bool AiControl => aiControl != null;
+
+    public async Task SetAiControl(bool on)
+    {
+        if (on == AiControl) return;
+        settings.AllowAiControl = on;
+        settings.Save();
+        if (on)
+        {
+            var host = new Mcp.McpHost(this);
+            host.ConnectionsChanged += UpdateAiText;
+            if (await host.StartAsync()) aiControl = host;
+            else ShowProblem("Another Composa window already allows AI control; agents reach that one.");
+        }
+        else
+        {
+            aiControl!.Dispose();
+            aiControl = null;
+        }
+        UpdateAiText();
+    }
+
+    private void UpdateAiText()
+    {
+        var connected = aiControl?.Connections ?? 0;
+        aiText.IsVisible = connected > 0;
+        aiText.Text = connected == 1 ? "AI connected" : $"{connected} AIs connected";
+    }
+
     private async void OnClosing(object? sender, WindowClosingEventArgs e)
     {
         RememberWindow();
+        aiControl?.Dispose();
         if (session?.IsEditingText == true) session.FinishText();
         if (closingConfirmed || (saving.Count == 0 && sessions.All(s => !s.IsModified))) return;
         e.Cancel = true;
@@ -350,7 +388,7 @@ public sealed partial class MainWindow : Window
 
     private Control BuildStatusBar()
     {
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,Auto,*"), Height = 28, Background = Palette.Panel };
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,Auto,*,Auto"), Height = 28, Background = Palette.Panel };
         zoomText.Margin = new Thickness(14, 0, 8, 0);
         sizeText.Margin = new Thickness(0, 0, 24, 0);
         hintText.HorizontalAlignment = HorizontalAlignment.Right;
@@ -359,7 +397,10 @@ public sealed partial class MainWindow : Window
         AddAt(grid, sizeText, 1);
         AddAt(grid, positionText, 2);
         AddAt(grid, hintText, 3);
-        foreach (var text in new[] { zoomText, sizeText, positionText, hintText }) text.FontSize = 11.5;
+        aiText.Margin = new Thickness(0, 0, 14, 0);
+        aiText.IsVisible = false;
+        AddAt(grid, aiText, 4);
+        foreach (var text in new[] { zoomText, sizeText, positionText, hintText, aiText }) text.FontSize = 11.5;
         return grid;
     }
 

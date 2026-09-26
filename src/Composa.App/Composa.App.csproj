@@ -37,6 +37,8 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="$(AvaloniaVersion)" />
     <ProjectReference Include="../Composa.Core/Composa.Core.csproj" />
+    <!-- The MCP server that lets an AI agent drive the editor. Core only: the ASP.NET hosting package has no place in a desktop app. -->
+    <PackageReference Include="ModelContextProtocol.Core" Version="2.2.0" />
     <AvaloniaResource Include="Assets/**" />
     <!--
       How this build was distributed, read back at runtime by UpdateCheck. The packaging scripts

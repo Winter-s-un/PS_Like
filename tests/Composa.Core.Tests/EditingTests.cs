@@ -516,6 +516,31 @@ public class EditingTests
     }
 }
 
+public class PaintStrokeTests
+{
+    [Fact]
+    public void A_whole_stroke_paints_with_its_own_brush_and_leaves_the_tool_state_alone()
+    {
+        var session = EditorSession.NewCanvas(200, 100, SKColors.White);
+        session.Tool = Tool.Smear;                                          // Would smear, not paint, if the mode came from the tool.
+        var (brush, foreground) = (session.Brush, session.Foreground);
+        var problem = session.PaintStroke([new SKPoint(20, 50), new SKPoint(180, 50)], new BrushSettings { Size = 20, Hardness = 1 }, SKColors.Red);
+        Assert.Null(problem);
+        Assert.Equal(SKColors.Red, session.Document.Layers[0].Pixels!.GetPixel(100, 50));
+        Assert.Equal("Brush", session.History.UndoName);
+        Assert.Same(brush, session.Brush);
+        Assert.Equal(foreground, session.Foreground);
+
+        Assert.Null(session.PaintStroke([new SKPoint(100, 50)], new BrushSettings { Size = 20, Hardness = 1 }, SKColors.Blue, BrushMode.Erase));
+        Assert.Equal(0, session.Document.Layers[0].Pixels!.GetPixel(100, 50).Alpha);
+        Assert.Equal("Eraser", session.History.UndoName);
+
+        var text = session.AddText(new SKPoint(10, 10), new TextStyle { Text = "Hi", Size = 20 });
+        session.SelectLayer(text.Id);
+        Assert.Contains("live text", session.PaintStroke([new SKPoint(20, 20)], new BrushSettings(), SKColors.Red));
+    }
+}
+
 public class FloatingSelectionTests
 {
     [Fact]

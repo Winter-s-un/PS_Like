@@ -53,6 +53,8 @@ public sealed partial class EditorSession
         var unit = style.IsBox ? 0f : style.Alignment switch { TextAlignment.Center => 0.5f, TextAlignment.Right => 1f, _ => 0f };
         var anchorBefore = layer.Matrix.MapPoint(unit * old.Width, 0);
         var pixels = RenderText(style);
+        // A text layer is named after its text until someone names it by hand (or it is a copy); that name then stays.
+        if (layer.Text == null || layer.Name == layer.Text.LayerName()) layer.Name = style.LayerName();
         layer.Text = style;
         layer.Pixels = pixels;
         layer.Transform = t with { Width = pixels.Width * scaleX, Height = pixels.Height * scaleY, Distort = null };
@@ -63,7 +65,6 @@ public sealed partial class EditorSession
             moved = moved with { X = Math.Round(moved.X), Y = Math.Round(moved.Y), Width = pixels.Width, Height = pixels.Height };
         layer.Transform = moved;
         if (layer.Mask is { } mask && (mask.Width != pixels.Width || mask.Height != pixels.Height)) layer.Mask = Resample(mask, pixels.Width, pixels.Height);
-        layer.Name = style.LayerName();
         if (pendingBefore != null && !ReferenceEquals(old, pendingBefore.Find(layer.Id)?.Pixels)) { Pixels.Invalidate(old); old.Dispose(); }
         Invalidate(Geometry.Union(before, AffectedArea(layer)));
     }

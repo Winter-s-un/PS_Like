@@ -23,6 +23,9 @@ public sealed record BrushSettings
     public double Smoothing { get; init; }
 }
 
+/// <summary>A stroke planned in advance, as <see cref="Editing.EditorSession.PaintStrokes"/> takes them.</summary>
+public sealed record PlannedStroke(IReadOnlyList<SKPoint> Points, BrushSettings Brush, SKColor Color, BrushMode Mode = BrushMode.Paint);
+
 /// <summary>
 /// One drag of a brush-like tool over a bitmap (layer pixels or a mask). The stroke works on a private copy of
 /// the bitmap and recomputes touched pixels from the untouched original plus the coverage painted so far, so

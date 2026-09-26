@@ -24,6 +24,28 @@ public class TextLayoutTests
         Assert.Equal(layout.Lines[0].Baseline + 48, layout.Lines[1].Baseline);
     }
 
+    private static int Ink(TextStyle style)
+    {
+        using var pixels = new TextLayout(style).Render();
+        var count = 0;
+        foreach (var pixel in pixels.Pixels) if (pixel.Alpha > 0) count++;
+        return count;
+    }
+
+    [Fact]
+    public void Bold_and_italic_render_even_for_a_family_Skia_does_not_have()
+    {
+        // Inter is the default style's family: Avalonia's font for the interface, which is not installed for Skia.
+        foreach (var family in new[] { "Inter", Family })
+        {
+            var plain = new TextStyle { Text = "Hello", Size = 40, FontFamily = family };
+            Assert.True(Ink(plain with { Bold = true }) > Ink(plain) * 1.1, $"{family}: bold has no more ink than regular");
+            using var upright = new TextLayout(plain).Render();
+            using var italic = new TextLayout(plain with { Italic = true }).Render();
+            Assert.False(upright.GetPixelSpan().SequenceEqual(italic.GetPixelSpan()), $"{family}: italic renders the same as upright");
+        }
+    }
+
     [Fact]
     public void Paragraph_text_wraps_at_spaces_and_clips_to_its_box()
     {
@@ -315,6 +337,26 @@ public class TextSessionTests
         Assert.Equal(corner.X, after.X, 0.5);
         Assert.Equal(corner.Y, after.Y, 0.5);
         Assert.Equal(30, layer.Transform.Rotation);
+    }
+
+    [Fact]
+    public void A_text_layer_follows_its_text_until_it_is_named_by_hand()
+    {
+        var session = EditorSession.NewCanvas(200, 100, SKColors.White);
+        var layer = session.AddText(new SKPoint(10, 10), new TextStyle { Text = "Hello", FontFamily = Family, Size = 20 });
+        session.SelectLayer(layer.Id);
+        session.ChangeTextStyle(s => s with { Text = "Goodbye" });
+        Assert.Equal("Goodbye", layer.Name);                                // Still automatic: it follows the text.
+        session.Rename(layer, "Title");
+        session.ChangeTextStyle(s => s with { Text = "Farewell", Size = 30 });
+        Assert.Equal("Title", layer.Name);                                  // Named by hand: the name stays.
+        session.Fill(SKColors.Blue);
+        Assert.Equal("Title", layer.Name);
+        session.DuplicateSelectedLayers();
+        var copy = session.ActiveLayer!;
+        Assert.Equal("Title copy", copy.Name);
+        session.Fill(SKColors.Red);
+        Assert.Equal("Title copy", copy.Name);                              // A copy keeps its name through a recolor too.
     }
 
     [Fact]

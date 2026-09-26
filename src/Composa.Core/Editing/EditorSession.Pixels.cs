@@ -269,7 +269,7 @@ public sealed partial class EditorSession
             var matrix = TargetMatrix(target);
             var scale = Math.Sqrt(Math.Abs(matrix.ScaleX * matrix.ScaleY - matrix.SkewX * matrix.SkewY));
             if (scale > 1e-6 && Math.Abs(scale - 1) > 1e-3)
-                settings = settings with { Radius = settings.Radius / scale, BloomRadius = settings.BloomRadius / scale, TonalRadius = settings.TonalRadius / scale, CameraRawScale = 1 / scale };
+                settings = settings with { Radius = settings.Radius / scale, BloomRadius = settings.BloomRadius / scale, TonalRadius = settings.TonalRadius / scale, CameraRawScale = 1 / scale, Painterly = settings.Painterly with { BrushSize = settings.Painterly.BrushSize / scale } };
             // A floating layer's blur spreads past its edges; one that fills the canvas has nothing to spread into.
             var bounds = target.Pixels != null ? target.Bounds : new SKRect(0, 0, document.Width, document.Height);
             settings = settings with { ClampEdges = bounds.Left <= 0.5f && bounds.Top <= 0.5f && bounds.Right >= document.Width - 0.5f && bounds.Bottom >= document.Height - 0.5f };
@@ -483,26 +483,34 @@ public sealed partial class EditorSession
     }
 
     /// <summary>Adds a live shape layer covering a document rectangle (a line runs corner to corner).</summary>
-    public Layer? AddShape(SKRect rect)
+    /// <summary>Adds the Shape tool's current shape in the foreground color.</summary>
+    public Layer? AddShape(SKRect rect) =>
+        ShapeKind == ShapeKind.Line ? AddLine(new SKPoint(rect.Left, rect.Top), new SKPoint(rect.Right, rect.Bottom))
+                                    : AddShape(new ShapeStyle(ShapeKind, (uint)Foreground, ShapeCornerRadius), rect);
+
+    /// <summary>Adds a live rectangle, rounded rectangle or ellipse filling <paramref name="rect"/>, whatever the tool is set to.</summary>
+    public Layer? AddShape(ShapeStyle style, SKRect rect)
     {
-        if (ShapeKind == ShapeKind.Line) return AddLine(new SKPoint(rect.Left, rect.Top), new SKPoint(rect.Right, rect.Bottom));
+        if (style.Kind == ShapeKind.Line) throw new ArgumentException("A line is added with AddLine.", nameof(style));
         rect = SKRect.Create((float)Math.Round(rect.Left), (float)Math.Round(rect.Top), (float)Math.Round(rect.Width), (float)Math.Round(rect.Height));
         if (rect.Width < 1 || rect.Height < 1) return null;
-        var style = new ShapeStyle(ShapeKind, (uint)Foreground, ShapeCornerRadius);
-        return AddShapeLayer(style, rect, ShapeKind == ShapeKind.Ellipse ? "Ellipse" : "Rectangle");
+        return AddShapeLayer(style, rect, style.Kind == ShapeKind.Ellipse ? "Ellipse" : "Rectangle");
     }
 
-    /// <summary>Adds a live line between two document points, <see cref="ShapeLineWidth"/> thick with round ends.</summary>
-    public Layer? AddLine(SKPoint from, SKPoint to)
+    /// <summary>Adds a live line between two document points, <see cref="ShapeLineWidth"/> thick with round ends, in the foreground color.</summary>
+    public Layer? AddLine(SKPoint from, SKPoint to) => AddLine(from, to, Foreground, ShapeLineWidth);
+
+    /// <summary>Adds a live line between two document points with its own color and thickness, whatever the tool is set to.</summary>
+    public Layer? AddLine(SKPoint from, SKPoint to, SKColor color, double width)
     {
-        var thickness = Math.Clamp(ShapeLineWidth, 1, 5000);
+        var thickness = Math.Clamp(width, 1, 5000);
         if (!float.IsFinite(from.X) || !float.IsFinite(from.Y) || !float.IsFinite(to.X) || !float.IsFinite(to.Y)) return null;
         // The layer is the box around the two ends with room for the stroke's thickness (and its round ends).
         var half = (float)(thickness / 2);
         var box = new SKRect(Math.Min(from.X, to.X) - half, Math.Min(from.Y, to.Y) - half, Math.Max(from.X, to.X) + half, Math.Max(from.Y, to.Y) + half);
         box = SKRect.Create(MathF.Floor(box.Left), MathF.Floor(box.Top), MathF.Ceiling(box.Width), MathF.Ceiling(box.Height));
         if (box.Width < 1 || box.Height < 1 || (from.X == to.X && from.Y == to.Y)) return null;
-        var style = new ShapeStyle(ShapeKind.Line, (uint)Foreground, 0)
+        var style = new ShapeStyle(ShapeKind.Line, (uint)color, 0)
         {
             LineWidth = thickness,
             StartX = (from.X - box.Left) / box.Width, StartY = (from.Y - box.Top) / box.Height,

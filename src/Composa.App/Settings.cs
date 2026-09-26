@@ -18,6 +18,9 @@ public sealed class Settings
     /// <summary>Rebound shortcuts by command id: a gesture string, or empty for none. Missing entries keep the default.</summary>
     public Dictionary<string, string> Shortcuts { get; set; } = [];
 
+    /// <summary>Whether the MCP server runs, so an AI agent can drive the editor. Off until someone switches it on.</summary>
+    public bool AllowAiControl { get; set; }
+
     /// <summary>Whether to look for a newer version at launch. The manual check in the Help menu ignores this.</summary>
     public bool CheckForUpdates { get; set; } = true;
     /// <summary>When the last automatic check ran, so it happens at most once a day.</summary>

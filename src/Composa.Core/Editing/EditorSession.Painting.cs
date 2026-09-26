@@ -49,19 +49,59 @@ public sealed partial class EditorSession
         _ => EraserMode ? BrushMode.Erase : BrushMode.Paint
     };
 
+    /// <summary>
+    /// Paints one whole stroke through the given points with its own brush and color, as an agent or a script does,
+    /// leaving the tool, brush and colors as they were. Returns the reason when the active layer can't be painted.
+    /// </summary>
+    public string? PaintStroke(IReadOnlyList<SKPoint> points, BrushSettings brush, SKColor color, BrushMode mode = BrushMode.Paint)
+    {
+        if (points.Count == 0) return "A stroke needs at least one point.";
+        var (savedBrush, savedForeground) = (Brush, Foreground);
+        Brush = brush with { Smoothing = 0 };                             // The points are the stroke; nothing to smooth.
+        Foreground = color;
+        try
+        {
+            if (!BeginStroke(points[0], out var problem, mode: mode)) return problem;
+            foreach (var point in points.Skip(1)) ContinueStroke(point);
+            EndStroke();
+            return null;
+        }
+        finally { (Brush, Foreground) = (savedBrush, savedForeground); }
+    }
+
+    /// <summary>
+    /// Paints many strokes as one undoable step, "Brush Strokes", for an agent blocking in a picture or drawing every
+    /// line it traced. Stops at the first stroke that cannot be painted and says why, with how many landed before it.
+    /// </summary>
+    public (int Painted, string? Problem) PaintStrokes(IReadOnlyList<PlannedStroke> strokes)
+    {
+        var painted = 0;
+        foreach (var stroke in strokes)
+        {
+            var entries = History.Count;
+            var problem = PaintStroke(stroke.Points, stroke.Brush, stroke.Color, stroke.Mode);
+            if (problem != null) return (painted, problem);
+            painted++;
+            // A stroke that touched nothing left no entry; every other one folds into the first.
+            if (painted > 1 && History.Count == entries + 1) History.MergeLast("Brush Strokes");
+        }
+        return (painted, null);
+    }
+
     /// <summary>Starts painting at a document point. Returns false (with a reason) when the active layer can't be painted.</summary>
-    public bool BeginStroke(SKPoint point, out string? problem, bool lineFromLast = false)
+    /// <param name="mode">The brush to use; the current tool's when left out.</param>
+    public bool BeginStroke(SKPoint point, out string? problem, bool lineFromLast = false, BrushMode? mode = null)
     {
         problem = null;
         if (ActiveLayer is not { } layer) { problem = "Select a layer to paint on."; return false; }
         if (!IsEditingMask && layer.Pixels == null) { problem = layer.IsGroup ? "Folders can't be painted on. Select a layer inside." : "Adjustment layers have no pixels. Add a mask to paint on."; return false; }
         if (!IsEditingMask && layer.IsLive) { problem = $"This is live {(layer.Text != null ? "text" : "shape")}. Rasterize it (Layer menu) to paint on it."; return false; }
         if (!document.IsEffectivelyVisible(layer)) { problem = "The layer is hidden."; return false; }
-        var mode = CurrentBrushMode;
+        mode ??= CurrentBrushMode;
         if (mode == BrushMode.Clone && cloneSource == null) { problem = "Alt-click to set the clone source first."; return false; }
         if (mode == BrushMode.Heal && IsEditingMask) { problem = "The Spot Healing Brush works on pixels, not masks."; return false; }
 
-        Begin(mode switch
+        Begin(mode.Value switch
         {
             BrushMode.Erase => "Eraser", BrushMode.Clone => "Clone Stamp", BrushMode.Heal => "Spot Healing Brush",
             BrushMode.Liquify => "Liquify", BrushMode.Blur => "Blur", BrushMode.Smudge => "Smudge", BrushMode.Dodge => "Dodge", BrushMode.Burn => "Burn", _ => "Brush"
@@ -94,13 +134,13 @@ public sealed partial class EditorSession
             }
         }
         var color = mode == BrushMode.Paint ? Foreground : SKColors.Black;
-        stroke = new BrushStroke(target, Brush, mode, color, scale)
+        stroke = new BrushStroke(target, Brush, mode.Value, color, scale)
         {
             Selection = document.Selection, ToDocument = matrix, CloneSource = source, CloneOffset = offset
         };
         strokeLayer = layer;
         strokeOriginal = target;
-        strokeMode = mode;
+        strokeMode = mode.Value;
         SetTarget(layer, stroke.Working);
         Pixels.SetLive(stroke.Working, true);
         if (lineFromLast && lastStrokeEnd is { } from) stroke.AddPoint(strokeToLayer.MapPoint(from));

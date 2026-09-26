@@ -57,12 +57,14 @@ public sealed partial class EditorSession
         return layer;
     }
 
-    /// <summary>Adds decoded image pixels as a new layer, centered (or at a drop point) and scaled down to fit the canvas.</summary>
-    public Layer AddImageLayer(string name, SKBitmap pixels, SKPoint? center = null, bool fit = true)
+    /// <summary>
+    /// Adds decoded image pixels as a new layer, centered (or at a drop point) and scaled down to fit the canvas.
+    /// <paramref name="scale"/> then multiplies that size: a half-size logo is 0.5.
+    /// </summary>
+    public Layer AddImageLayer(string name, SKBitmap pixels, SKPoint? center = null, bool fit = true, double scale = 1)
     {
         var layer = Layer.Raster(name, pixels);
-        double scale = 1;
-        if (fit) scale = Math.Min(1, Math.Min((double)document.Width / pixels.Width, (double)document.Height / pixels.Height));
+        if (fit) scale *= Math.Min(1, Math.Min((double)document.Width / pixels.Width, (double)document.Height / pixels.Height));
         double w = pixels.Width * scale, h = pixels.Height * scale;
         var c = center ?? new SKPoint(document.Width / 2f, document.Height / 2f);
         layer.Transform = new LayerTransform { Width = w, Height = h, X = Math.Round(c.X - w / 2), Y = Math.Round(c.Y - h / 2) };

@@ -77,6 +77,20 @@ Composa is developed on Linux, on X11 and Wayland (through XWayland), and that i
 - Tool settings stick between launches: Auto Select, the transform controls, the pixel grid, rulers, guides, the grid, Snap and the Snap To options keep what you last set them to
 - Autosave for crash recovery: unsaved work is copied to `~/.cache/composa/recovery` every two minutes and offered back after an unclean exit
 
+### AI control
+
+Composa can be driven by an AI agent through the [Model Context Protocol](https://modelcontextprotocol.io). Tick **Help > Allow AI Control** (off by default, remembered between launches) and the running application answers on a private, per-user pipe; the status bar says "AI connected" while an agent is attached. Every tool goes through the same editing commands the window uses, so an agent's change shows up as it happens and Ctrl+Z takes it back like any other step.
+
+An MCP client reaches the application through `composa --mcp`, a bridge that carries the client's stdio to the pipe. The bridge outlives the application: while Composa is not running the tool list is empty, and each time it is started the tools appear again, so Composa can be started, quit and updated without touching the client. For Claude Code, from the folder you work in:
+
+```bash
+claude mcp add composa -- composa --mcp
+```
+
+Add `--launch` after `--mcp` and the bridge starts Composa when it is not running at the moment the client connects; a later quit is yours and is left alone.
+
+The tools create a document, list and describe the open ones, place an image file as a layer, add a layer, fill it, add text, paint brush strokes, add shapes and lines, apply every adjustment (in place or as an adjustment layer) and every filter but Camera Raw, including Painterly, which repaints a layer in brush strokes that follow the picture so a photo becomes a painting that is still that photo, make and modify selections (marquee, lasso, wand, object, subject), select, rename, hide, reorder, duplicate, delete, move, resize and rotate layers, set opacity and blend mode, open a project or image file, save the project, export it as PNG, JPEG or WebP, undo, and render the canvas to a PNG so the agent can see what it did, with a labelled grid to read coordinates from or a region at full size. For drawing by hand there are the colors at points (sample_color), the picture's edges as polylines in canvas coordinates (trace_edges) and many strokes in one call (paint_strokes), so an agent's lines and colors can come from the picture instead of from a guess. The document list, a document's layers and its render are also resources (`composa://documents`, `composa://documents/1`, `composa://documents/1/image`) for a client that attaches context instead of calling tools. More follow. The macOS app instead watches its project folder for changes made by other programs; Composa has the agent talk to the editor.
+
 ## Differences from the macOS app
 
 - Projects are saved as `.cmps` files: a zip archive with a JSON manifest and one PNG per layer and mask. Projects saved by the macOS app (`.comp` packages) cannot be opened.
