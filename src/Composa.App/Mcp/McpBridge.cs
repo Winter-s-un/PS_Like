@@ -55,17 +55,19 @@ public sealed class McpBridge
 
     /// <summary>
     /// Starts the application this bridge belongs to: the same executable without the bridge flags, or the same
-    /// assembly under the dotnet host during development. Its stdout is drained and dropped, because the bridge's
-    /// stdout is the protocol channel and a child must never share it; stderr is inherited, where the client logs it.
+    /// assembly under the dotnet host during development. The bridge's stdin and stdout are the protocol channel and
+    /// a child must never share them: it gets a closed stdin and its stdout is drained and dropped. stderr is
+    /// inherited, where the client logs it.
     /// </summary>
     private static void LaunchApplication()
     {
-        var start = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, RedirectStandardOutput = true };
+        var start = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, RedirectStandardInput = true, RedirectStandardOutput = true };
         if (Path.GetFileNameWithoutExtension(Environment.ProcessPath).Equals("dotnet", StringComparison.OrdinalIgnoreCase))
             start.ArgumentList.Add(Environment.GetCommandLineArgs()[0]);
         try
         {
             var process = Process.Start(start);
+            process?.StandardInput.Close();
             process?.BeginOutputReadLine();
             Console.Error.WriteLine("Starting Composa.");
         }
