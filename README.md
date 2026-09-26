@@ -77,6 +77,8 @@ Composa is developed on Linux, on X11 and Wayland (through XWayland), and that i
 - Tool settings stick between launches: Auto Select, the transform controls, the pixel grid, rulers, guides, the grid, Snap and the Snap To options keep what you last set them to
 - Autosave for crash recovery: unsaved work is copied to `~/.cache/composa/recovery` every two minutes and offered back after an unclean exit
 
+A user guide covering every tool, menu and the AI control is in [docs/](docs/README.md).
+
 ### AI control
 
 Composa can be driven by an AI agent through the [Model Context Protocol](https://modelcontextprotocol.io). Tick **Help > Allow AI Control** (off by default, remembered between launches) and the running application answers on a private, per-user pipe; the status bar says "AI connected" while an agent is attached. Every tool goes through the same editing commands the window uses, so an agent's change shows up as it happens and Ctrl+Z takes it back like any other step.
