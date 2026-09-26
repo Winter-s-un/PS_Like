@@ -4,22 +4,30 @@ All notable changes to Composa are recorded here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
-Catches up with Compositor 1.2.11 and 1.3.2.
+## [1.2.0] - 2026-09-27
+
+An AI agent can drive Composa, a photo can become a painting, and the catch-up with Compositor 1.2.11 and 1.3.2.
 
 ### Added
 
+- AI control. Composa hosts a Model Context Protocol server, so an AI agent (Claude Code, Claude Desktop or any other MCP client) can edit the open documents through the editor's own commands. Tick Help > Allow AI Control; it is off by default and remembered between launches. Every change an agent makes is one undoable step that appears in the window as it happens, and Ctrl+Z takes it back like anything else. The status bar says "AI connected" while an agent is attached. The macOS app instead watches its project folder for changes made by other programs; Composa has the agent talk to the editor.
+- Fifty-three tools cover the editor: create, open, save and export documents; place image and SVG files as layers; add layers, text, shapes and lines; select, rename, hide, reorder, duplicate, delete, move, resize and rotate layers and set their opacity and blend mode; paint with the brush, eraser, blur, smudge, dodge and burn; apply every adjustment in place or as an adjustment layer and every filter but Camera Raw; make and modify selections with the marquee, lasso, wand, object and subject; undo; and render the canvas to see the result. The document list, a document's layers and its render are also resources an agent can read by URI.
+- `composa --mcp` is the bridge an MCP client launches to reach the running application. It outlives Composa: while Composa is not running the tools are simply absent and a call says so, and each time Composa starts the tools appear again, so Composa can be started, quit and updated without touching the client. A request that arrives while the connection is still being set up waits for it instead of failing, and a request in flight when Composa quits gets an answer instead of hanging. Add `--launch` to the command and the bridge starts Composa when nothing answers.
+- Painterly filter, in the Filter menu and as a tool: repaints a layer in brush strokes that follow the picture, the largest brush first and each smaller one only where the picture still differs, so a photo becomes a painting that is still recognizably the same photo. Four styles (impressionist, expressionist, colorist wash and pointillist), a brush size that fits itself to the picture, the number of brushes and how closely to follow the picture; the same seed paints the same strokes. The strokes are painted with the brush engine's falloff, in parallel by bands, so a 1000 by 1500 photo takes about two seconds.
+- Tools for drawing by hand, so an agent's lines and colors come from the picture instead of from a guess: the render can carry a grid labelled in canvas coordinates to read positions from, or show one region at full size; the colors at points can be read, from the screen or from one layer under the agent's strokes; the picture's edges come back as polylines, longest first; and many brush strokes go in one call as one undoable step, so a painting is no longer capped by a round trip per stroke.
 - Letters of a text layer can have their own colors: select some of the text while typing and pick a color from the Type bar's swatch or the foreground swatch, and only those letters take it. With nothing selected, or on a text layer that is not open for typing, the color goes on all of the text as before. New letters take the color of the letter before them, the swatch shows the color at the caret, and Fill still paints every letter. Project files that use this are format version 4.
 - Saving writes in the background: the document as it is when you press Save goes to disk off the UI thread, so the tools stay usable while a large project encodes, and only that version counts as saved. The status bar names the file while it writes; closing waits for a save still writing.
 - Camera Raw's Color Grading group sits directly under Color and opens with it.
 - Hue/Saturation, Black & White and Color Balance sliders show their colors on the track. Hue shows the hue circle centred on the selected range's color (red to red when colorizing), Saturation runs from gray to the range's color or the tint, Lightness from black to white, each Black & White family from dark to light in its own hue, and Color Balance from each color to its opposite. Camera Raw's Temperature, Tint, Vibrance, Saturation, Glow Warmth, Color Mixer, Color Grading and Calibration sliders show theirs too.
 - Every slider in a dialog can be reset: double-click it to type and a Reset button appears on its left, which puts it back to the value that changes nothing, or to a filter's default. Camera Raw's sliders reset to a fresh grade's values.
 - Motion Blur's angle has a dial beside the field, as the shadow effects have. It is drawn as a line through the centre, since a blur runs along one, and turns the full circle: the angle now runs from -180 to 180 rather than -90 to 90, as Photoshop's does.
-
 - Drag a number's label to change its value, as in Photoshop: the transform bar's X, Y, W, H and angle, the text size, tracking and leading, the object selection's edge offset, and the width, height and resolution in the New Canvas, Canvas Size and Image Size dialogs. Dragging moves in whole numbers, Alt makes it ten times finer, and typing still takes decimals.
 - A layer mask can be painted anywhere on the canvas, past the layer's own pixels, with the brush, a gradient or a fill. The mask grows with its layer; new area starts as the mask's background, so a hide-all mask stays black and a reveal-all mask stays white.
 
 ### Fixed
 
+- Bold and italic text rendered plain when the font family has no bold or italic face available to the renderer, as the default family did not. The renderer now substitutes a face and, failing that, synthesizes the weight and slant.
+- A text layer renamed by hand took its text back as its name when it was restyled or recolored. The name now follows the text only until it is named by hand.
 - Closing the window or a tab while typing text commits the text first, so the save prompt appears and the text is in what gets saved. Before, a document with nothing else changed closed without a word and the text was lost.
 
 ### Removed
