@@ -232,6 +232,9 @@ public sealed partial class ComposaTools(MainWindow window)
 
     private static async Task<T> OnUi<T>(Func<T> work) => await Dispatcher.UIThread.InvokeAsync(work);
 
+    /// <summary>For work that awaits on the UI thread, such as a save that writes in the background.</summary>
+    private static async Task<T> OnUi<T>(Func<Task<T>> work) => await Dispatcher.UIThread.InvokeAsync(work);
+
     private EditorSession Session(int? document)
     {
         var sessions = window.Sessions;

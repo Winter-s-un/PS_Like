@@ -62,9 +62,9 @@ public class McpTests
         var tools = await client.ListToolsAsync();
         Assert.Equal(
             ["add_line", "add_shape", "add_text", "adjust_black_and_white", "adjust_brightness_contrast", "adjust_color_balance", "adjust_curves", "adjust_exposure", "adjust_gradient_map",
-             "adjust_hue_saturation", "adjust_invert", "adjust_levels", "delete_layer", "describe_document", "deselect", "duplicate_layer", "fill_layer", "filter_add_noise",
+             "adjust_hue_saturation", "adjust_invert", "adjust_levels", "delete_layer", "describe_document", "deselect", "duplicate_layer", "export_image", "fill_layer", "filter_add_noise",
              "filter_bloom", "filter_blur", "filter_lens_correction", "filter_motion_blur", "filter_remove_background", "filter_sharpen", "filter_tonal_contrast", "filter_vignette", "list_documents",
-             "modify_selection", "new_document", "new_layer", "paint_stroke", "place_image", "render", "reorder_layer", "select_all", "select_inverse",
+             "modify_selection", "new_document", "new_layer", "open_document", "paint_stroke", "place_image", "render", "reorder_layer", "save_document", "select_all", "select_inverse",
              "select_layer", "select_layer_pixels", "select_object", "select_shape", "select_subject", "select_wand", "set_layer", "transform_layer", "undo"],
             tools.Select(t => t.Name).Order());
 
@@ -208,6 +208,71 @@ public class McpTests
         var unknown = await Pumped(client.CallToolAsync("set_layer", new Dictionary<string, object?> { ["layer"] = "Nope", ["visible"] = true }));
         Assert.Equal(true, unknown.IsError);
         Assert.Contains("no layer", Text(unknown));
+
+        // Files: save, export and open.
+        var folder = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), $"composa-files-{Guid.NewGuid():N}")).FullName;
+        try
+        {
+            var never = await Pumped(client.CallToolAsync("save_document"));
+            Assert.Equal(true, never.IsError);
+            Assert.Contains("never been saved", Text(never));
+            var notProject = await Pumped(client.CallToolAsync("save_document", new Dictionary<string, object?> { ["path"] = Path.Combine(folder, "work.png") }));
+            Assert.Equal(true, notProject.IsError);
+            Assert.Contains("export_image", Text(notProject));
+            var relative = await Pumped(client.CallToolAsync("save_document", new Dictionary<string, object?> { ["path"] = "work.cmps" }));
+            Assert.Equal(true, relative.IsError);
+            var project = Path.Combine(folder, "work.cmps");
+            Assert.Equal($"Saved \"work\" to {project}.", Text(await Pumped(client.CallToolAsync("save_document", new Dictionary<string, object?> { ["path"] = project }))));
+            Assert.True(File.Exists(project));
+            Assert.Equal(project, session.FilePath);
+            Assert.False(session.IsModified);
+            Assert.False(window.IsSaving(session));
+            await Pumped(client.CallToolAsync("new_layer", new Dictionary<string, object?> { ["name"] = "Later" }));
+            Assert.True(session.IsModified);
+            Assert.Contains("unsaved changes", Text(await Pumped(client.CallToolAsync("list_documents"))));
+            Assert.Equal($"Saved \"work\" to {project}.", Text(await Pumped(client.CallToolAsync("save_document"))));   // Its own file is replaced without asking.
+            Assert.False(session.IsModified);
+            var copy = Path.Combine(folder, "copy.cmps");
+            File.WriteAllText(copy, "in the way");
+            var taken = await Pumped(client.CallToolAsync("save_document", new Dictionary<string, object?> { ["path"] = copy }));
+            Assert.Equal(true, taken.IsError);
+            Assert.Contains("overwrite", Text(taken));
+            Assert.NotEqual(true, (await Pumped(client.CallToolAsync("save_document", new Dictionary<string, object?> { ["path"] = copy, ["overwrite"] = true }))).IsError);
+            Assert.Equal(copy, session.FilePath);
+            Assert.Equal("copy", session.Title);
+
+            var badExtension = await Pumped(client.CallToolAsync("export_image", new Dictionary<string, object?> { ["path"] = Path.Combine(folder, "flat.tiff") }));
+            Assert.Equal(true, badExtension.IsError);
+            Assert.Contains(".png, .jpg or .webp", Text(badExtension));
+            var jpeg = Path.Combine(folder, "flat.jpg");
+            Assert.Equal($"Exported \"copy\" as a 400×300 px JPEG to {jpeg}.", Text(await Pumped(client.CallToolAsync("export_image", new Dictionary<string, object?> { ["path"] = jpeg, ["quality"] = 80 }))));
+            using (var exported = SKBitmap.Decode(jpeg)) { Assert.Equal(400, exported.Width); Assert.Equal(300, exported.Height); }
+            var occupied = await Pumped(client.CallToolAsync("export_image", new Dictionary<string, object?> { ["path"] = jpeg }));
+            Assert.Equal(true, occupied.IsError);
+            Assert.Contains("overwrite", Text(occupied));
+            Assert.NotEqual(true, (await Pumped(client.CallToolAsync("export_image", new Dictionary<string, object?> { ["path"] = jpeg, ["overwrite"] = true }))).IsError);
+            Assert.False(session.IsModified);                                                       // Exporting is not a change.
+
+            var again = await Pumped(client.CallToolAsync("open_document", new Dictionary<string, object?> { ["path"] = copy }));
+            Assert.Equal("Document 1 \"copy\" was already open, now active.", Text(again));
+            Assert.Single(window.Sessions);
+            var flat = await Pumped(client.CallToolAsync("open_document", new Dictionary<string, object?> { ["path"] = jpeg }));
+            Assert.Equal($"Opened document 2: \"flat\" 400×300 px, 1 layers, now active.", Text(flat));
+            Assert.Equal(2, window.Sessions.Count);
+            Assert.Same(window.Sessions[1], window.Session);
+            var reopened = await Pumped(client.CallToolAsync("open_document", new Dictionary<string, object?> { ["path"] = project }));
+            Assert.Equal("Opened document 3: \"work\" 400×300 px, 6 layers, now active.", Text(reopened));  // Saved with "Later", before the save to copy.cmps.
+            Assert.False(window.Sessions[2].IsModified);
+            var missing = await Pumped(client.CallToolAsync("open_document", new Dictionary<string, object?> { ["path"] = Path.Combine(folder, "nothing.png") }));
+            Assert.Equal(true, missing.IsError);
+            var broken = Path.Combine(folder, "broken.cmps");
+            File.WriteAllText(broken, "not a project");
+            var unreadable = await Pumped(client.CallToolAsync("open_document", new Dictionary<string, object?> { ["path"] = broken }));
+            Assert.Equal(true, unreadable.IsError);
+            Assert.Contains("Couldn't open broken.cmps", Text(unreadable));
+            Assert.Equal(3, window.Sessions.Count);
+        }
+        finally { Directory.Delete(folder, recursive: true); }
 
         await client.DisposeAsync();
         await Pumped(() => host.Connections == 0);

@@ -466,37 +466,45 @@ public sealed partial class MainWindow
     {
         foreach (var path in paths)
         {
-            try
-            {
-                if (sessions.FirstOrDefault(s => s.FilePath == path) is { } open) { SetSession(open); continue; }
-                if (PsdImport.IsPsd(path))
-                {
-                    // Photoshop files open as unsaved documents; what had to be converted is shown before anything is applied.
-                    if (await ImportPhotoshop(path, DocumentLimits.DocumentPixelBudget) is not { } import) continue;
-                    AddSession(EditorSession.OpenPhotoshop(import, Path.GetFileNameWithoutExtension(path)));
-                }
-                else if (Path.GetExtension(path).Equals(ProjectFile.Extension, StringComparison.OrdinalIgnoreCase))
-                {
-                    var loaded = new EditorSession(ProjectFile.Load(path));
-                    loaded.MarkSaved(path);
-                    AddSession(loaded);
-                }
-                else
-                {
-                    var pixels = RawImporter.IsRaw(path) ? await DevelopRaw(path)
-                        : SvgImporter.IsSvg(path) ? await Busy(() => Task.Run(() => SvgImporter.Render(path))) // At the size the file declares.
-                        : ImageFiles.Load(path);
-                    if (pixels == null) continue;
-                    var document = new Document(pixels.Width, pixels.Height);
-                    var layer = Layer.Raster(Path.GetFileNameWithoutExtension(path), pixels);
-                    document.Layers.Add(layer);
-                    document.SetActive(layer.Id);
-                    AddSession(new EditorSession(document) { SuggestedName = Path.GetFileNameWithoutExtension(path) });
-                }
-            }
-            catch (Exception error) { _ = Prompts.Alert(this, "Couldn't open " + Path.GetFileName(path), error.Message); continue; }
-            settings.AddRecent(Path.GetFullPath(path));
+            try { await OpenPath(path); }
+            catch (Exception error) { _ = Prompts.Alert(this, "Couldn't open " + Path.GetFileName(path), error.Message); }
         }
+    }
+
+    /// <summary>
+    /// Opens one file: a project in a tab, an image as a new document, or the tab it is already open in. Null means the
+    /// person declined a dialog on the way; anything wrong with the file is thrown, so the caller decides who hears it.
+    /// </summary>
+    public async Task<EditorSession?> OpenPath(string path)
+    {
+        EditorSession opened;
+        if (sessions.FirstOrDefault(s => s.FilePath == path) is { } open) { SetSession(open); return open; }
+        if (PsdImport.IsPsd(path))
+        {
+            // Photoshop files open as unsaved documents; what had to be converted is shown before anything is applied.
+            if (await ImportPhotoshop(path, DocumentLimits.DocumentPixelBudget) is not { } import) return null;
+            AddSession(opened = EditorSession.OpenPhotoshop(import, Path.GetFileNameWithoutExtension(path)));
+        }
+        else if (Path.GetExtension(path).Equals(ProjectFile.Extension, StringComparison.OrdinalIgnoreCase))
+        {
+            opened = new EditorSession(ProjectFile.Load(path));
+            opened.MarkSaved(path);
+            AddSession(opened);
+        }
+        else
+        {
+            var pixels = RawImporter.IsRaw(path) ? await DevelopRaw(path)
+                : SvgImporter.IsSvg(path) ? await Busy(() => Task.Run(() => SvgImporter.Render(path))) // At the size the file declares.
+                : ImageFiles.Load(path);
+            if (pixels == null) return null;
+            var document = new Document(pixels.Width, pixels.Height);
+            var layer = Layer.Raster(Path.GetFileNameWithoutExtension(path), pixels);
+            document.Layers.Add(layer);
+            document.SetActive(layer.Id);
+            AddSession(opened = new EditorSession(document) { SuggestedName = Path.GetFileNameWithoutExtension(path) });
+        }
+        settings.AddRecent(Path.GetFullPath(path));
+        return opened;
     }
 
     private async Task PlaceImages()
@@ -596,7 +604,17 @@ public sealed partial class MainWindow
             if (path == null) return false;
             if (!path.EndsWith(ProjectFile.Extension, StringComparison.OrdinalIgnoreCase)) path += ProjectFile.Extension;
         }
-        // Another save of this document still writing finishes first; this one then saves whatever changed since.
+        if (await SaveTo(target, path) is not { } error) return true;
+        await Prompts.Alert(this, "Couldn't save", error.Message);
+        return false;
+    }
+
+    /// <summary>
+    /// Saves the document to a project file, as Ctrl+S does once the path is known, and returns what went wrong or
+    /// null. Another save of this document still writing finishes first; this one then saves whatever changed since.
+    /// </summary>
+    public async Task<Exception?> SaveTo(EditorSession target, string path)
+    {
         if (saving.TryGetValue(target, out var earlier)) await earlier.Task;
         var task = Write(target, path);
         saving[target] = (path, task);
@@ -610,7 +628,7 @@ public sealed partial class MainWindow
     }
 
     /// <summary>The saves still writing, by document. Close and quit wait for them, and the status bar names them.</summary>
-    private readonly Dictionary<EditorSession, (string Path, Task<bool> Task)> saving = [];
+    private readonly Dictionary<EditorSession, (string Path, Task<Exception?> Task)> saving = [];
 
     /// <summary>True while a save of the document is still being written.</summary>
     public bool IsSaving(EditorSession target) => saving.ContainsKey(target);
@@ -618,22 +636,18 @@ public sealed partial class MainWindow
     /// <summary>
     /// Writes the document as it is now, off the UI thread, so the tools stay usable while a large project encodes.
     /// Committed bitmaps are immutable, so the snapshot can be read while editing goes on; only that snapshot counts as
-    /// saved, and an edit made meanwhile leaves the document modified.
+    /// saved, and an edit made meanwhile leaves the document modified. The task never faults: close and quit await it.
     /// </summary>
-    private async Task<bool> Write(EditorSession target, string path)
+    private async Task<Exception?> Write(EditorSession target, string path)
     {
         var snapshot = target.Document.Clone();
         var revision = target.Revision;
         try { await Task.Run(() => ProjectFile.Save(snapshot, path)); }
-        catch (Exception error)
-        {
-            await Prompts.Alert(this, "Couldn't save", error.Message);
-            return false;
-        }
+        catch (Exception error) { return error; }
         target.MarkSaved(path, revision);
         recovery?.Forget(target);
         settings.AddRecent(Path.GetFullPath(path));
-        return true;
+        return null;
     }
 
     private async Task Export(ExportFormat format)
