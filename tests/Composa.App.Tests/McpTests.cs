@@ -61,9 +61,11 @@ public class McpTests
         await Pumped(() => host.Connections == 1);
         var tools = await client.ListToolsAsync();
         Assert.Equal(
-            ["add_line", "add_shape", "add_text", "adjust_black_and_white", "adjust_brightness_contrast", "adjust_color_balance", "adjust_curves", "adjust_exposure", "adjust_gradient_map", "adjust_hue_saturation", "adjust_invert", "adjust_levels",
-             "delete_layer", "describe_document", "duplicate_layer", "fill_layer", "filter_add_noise", "filter_bloom", "filter_blur", "filter_lens_correction", "filter_motion_blur", "filter_remove_background", "filter_sharpen", "filter_tonal_contrast", "filter_vignette",
-             "list_documents", "new_document", "new_layer", "paint_stroke", "place_image", "render", "reorder_layer", "select_layer", "set_layer", "transform_layer", "undo"],
+            ["add_line", "add_shape", "add_text", "adjust_black_and_white", "adjust_brightness_contrast", "adjust_color_balance", "adjust_curves", "adjust_exposure", "adjust_gradient_map",
+             "adjust_hue_saturation", "adjust_invert", "adjust_levels", "delete_layer", "describe_document", "deselect", "duplicate_layer", "fill_layer", "filter_add_noise",
+             "filter_bloom", "filter_blur", "filter_lens_correction", "filter_motion_blur", "filter_remove_background", "filter_sharpen", "filter_tonal_contrast", "filter_vignette", "list_documents",
+             "modify_selection", "new_document", "new_layer", "paint_stroke", "place_image", "render", "reorder_layer", "select_all", "select_inverse",
+             "select_layer", "select_layer_pixels", "select_object", "select_shape", "select_subject", "select_wand", "set_layer", "transform_layer", "undo"],
             tools.Select(t => t.Name).Order());
 
         var tooBig = await Pumped(client.CallToolAsync("new_document", new Dictionary<string, object?> { ["width"] = 40000, ["height"] = 10 }));
@@ -180,6 +182,28 @@ public class McpTests
         Assert.Equal("Gaussian Blur", session.History.UndoName);
         var badRange = await Pumped(client.CallToolAsync("adjust_hue_saturation", new Dictionary<string, object?> { ["hue"] = 30, ["range"] = "purples" }));
         Assert.Equal(true, badRange.IsError);
+
+        // Selections.
+        var rect = await Pumped(client.CallToolAsync("select_shape", new Dictionary<string, object?> { ["kind"] = "rectangle", ["x"] = 0, ["y"] = 0, ["width"] = 100, ["height"] = 80 }));
+        Assert.Equal("Selected the area at 0,0 size 100×80.", Text(rect));
+        Assert.Contains("selection at 0,0 size 100×80", Text(await Pumped(client.CallToolAsync("describe_document"))));
+        await Pumped(client.CallToolAsync("fill_layer", new Dictionary<string, object?> { ["color"] = "#0000FF" }));                     // Background is active: fills inside the selection only.
+        Assert.Equal(SKColors.Blue, session.Document.Layers[0].Pixels!.GetPixel(50, 40));
+        Assert.NotEqual(SKColors.Blue, session.Document.Layers[0].Pixels!.GetPixel(300, 200));
+        Assert.Equal("Selected the area at 0,0 size 110×90.", Text(await Pumped(client.CallToolAsync("modify_selection", new Dictionary<string, object?> { ["expand"] = 10 }))));
+        Assert.Equal("Selected the area at 20,0 size 110×90.", Text(await Pumped(client.CallToolAsync("modify_selection", new Dictionary<string, object?> { ["moveX"] = 20 }))));
+        var polygon = await Pumped(client.CallToolAsync("select_shape", new Dictionary<string, object?> { ["kind"] = "polygon", ["points"] = new[] { new[] { 200.0, 100.0 }, new[] { 300.0, 100.0 }, new[] { 250.0, 200.0 } }, ["mode"] = "add" }));
+        Assert.Equal("Selected the area at 20,0 size 280×200.", Text(polygon));
+        Assert.Equal("Selected the area at 0,0 size 400×300.", Text(await Pumped(client.CallToolAsync("select_inverse"))));
+        Assert.Equal("Nothing is selected.", Text(await Pumped(client.CallToolAsync("deselect"))));
+        Assert.Null(session.Document.Selection);
+        Assert.Equal("Selected the area at 0,0 size 400×300.", Text(await Pumped(client.CallToolAsync("select_all"))));
+        var wand = await Pumped(client.CallToolAsync("select_wand", new Dictionary<string, object?> { ["x"] = 50, ["y"] = 40, ["tolerance"] = 10, ["allLayers"] = false }));
+        Assert.Equal("Selected the area at 0,0 size 100×80.", Text(wand));                            // The blue rectangle filled above, on the active Background.
+        Assert.Equal(32, session.WandTolerance);                                                      // The tool's own tolerance is put back.
+        var badMode = await Pumped(client.CallToolAsync("select_all", new Dictionary<string, object?> { ["document"] = 7 }));
+        Assert.Equal(true, badMode.IsError);
+        Assert.Equal("Nothing is selected.", Text(await Pumped(client.CallToolAsync("deselect"))));
 
         var unknown = await Pumped(client.CallToolAsync("set_layer", new Dictionary<string, object?> { ["layer"] = "Nope", ["visible"] = true }));
         Assert.Equal(true, unknown.IsError);

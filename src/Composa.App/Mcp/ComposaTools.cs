@@ -6,6 +6,7 @@ using Composa.Editing;
 using Composa.IO;
 using Composa.IO.Psd;
 using Composa.Model;
+using Composa.Selections;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -54,7 +55,11 @@ public sealed partial class ComposaTools(MainWindow window)
         var text = new StringBuilder();
         text.Append('"').Append(s.Title).Append("\": ").Append(doc.Width).Append('×').Append(doc.Height).Append(" px at ")
             .Append(doc.Resolution.ToString("0.#")).Append(" ppi");
-        if (doc.Selection != null) text.Append(", part of the canvas is selected");
+        if (doc.Selection != null && !SelectionMask.Bounds(doc.Selection).IsEmpty)
+        {
+            var b = SelectionMask.Bounds(doc.Selection);
+            text.Append(", selection at ").Append(b.Left).Append(',').Append(b.Top).Append(" size ").Append(b.Width).Append('×').Append(b.Height);
+        }
         text.AppendLine().AppendLine("Layers, top first:");
         Describe(text, doc, doc.Layers, 0);
         return text.ToString().TrimEnd();

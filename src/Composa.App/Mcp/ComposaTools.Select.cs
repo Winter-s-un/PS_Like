@@ -1,0 +1,170 @@
+using System.ComponentModel;
+using Composa.Editing;
+using Composa.Selections;
+using ModelContextProtocol;
+using ModelContextProtocol.Server;
+using SkiaSharp;
+
+namespace Composa.App.Mcp;
+
+/// <summary>
+/// The selection tools: the marquees and lasso, the Magic tool's two modes, the Select menu, and its modifiers. A
+/// selection limits fill_layer, paint_stroke, the adjustments and the filters to what is inside it, and a new
+/// adjustment layer takes it as its mask, exactly as in the window.
+/// </summary>
+public sealed partial class ComposaTools
+{
+    private const string Mode = "replace (the default), add, subtract or intersect, as Shift, Alt and Shift+Alt do with the marquee";
+    private const string FeatherEdge = "Softens the edge by this many pixels";
+
+    [McpServerTool(Name = "select_shape")]
+    [Description("Selects a rectangle or ellipse given by x, y, width and height, or a polygon given by points, in canvas pixels.")]
+    public Task<string> SelectShape(
+        [Description("rectangle, ellipse or polygon")] string kind,
+        double? x = null, double? y = null, double? width = null, double? height = null,
+        [Description("For a polygon: [[x, y], [x, y], ...], at least three")] double[][]? points = null,
+        [Description(Mode)] string mode = "replace",
+        [Description(FeatherEdge)] double feather = 0,
+        int? document = null) => OnUi(() =>
+    {
+        var s = Editable(document);
+        var how = ParseMode(mode);
+        WithFeather(s, feather, () =>
+        {
+            switch (kind.Trim().ToLowerInvariant())
+            {
+                case "rectangle": s.SelectRect(Frame(x, y, width, height), how); break;
+                case "ellipse": s.SelectEllipse(Frame(x, y, width, height), how); break;
+                case "polygon":
+                    if (points == null || points.Length < 3 || points.Any(p => p.Length != 2)) throw new McpException("A polygon needs points: at least three [x, y] pairs.");
+                    s.SelectPolygon(points.Select(p => new SKPoint((float)p[0], (float)p[1])).ToList(), how);
+                    break;
+                default: throw new McpException("kind is rectangle, ellipse or polygon.");
+            }
+        });
+        return Selected(s);
+    });
+
+    [McpServerTool(Name = "select_wand")]
+    [Description("Magic Wand: selects the pixels of a similar color around a canvas point. Tolerance 0 to 255 says how different a color may be; contiguous limits it to the connected area.")]
+    public Task<string> SelectWand(
+        int x, int y, int tolerance = 32, bool contiguous = true,
+        [Description("Sample every visible layer rather than the active layer alone")] bool allLayers = true,
+        [Description(Mode)] string mode = "replace",
+        int? document = null) => OnUi(() =>
+    {
+        var s = Editable(document);
+        InCanvas(s, x, y);
+        var (savedTolerance, savedContiguous, savedAll) = (s.WandTolerance, s.WandContiguous, s.SampleAllLayers);
+        (s.WandTolerance, s.WandContiguous, s.SampleAllLayers) = (Math.Clamp(tolerance, 0, 255), contiguous, allLayers);
+        try { s.SelectWand(x, y, ParseMode(mode)); }
+        finally { (s.WandTolerance, s.WandContiguous, s.SampleAllLayers) = (savedTolerance, savedContiguous, savedAll); }
+        return Selected(s);
+    });
+
+    [McpServerTool(Name = "select_object")]
+    [Description("Selects the object under a canvas point: the connected piece of everything that is not the plain backdrop around the picture. On the backdrop itself it selects nothing.")]
+    public Task<string> SelectObject(
+        int x, int y,
+        [Description("Sample every visible layer rather than the active layer alone")] bool allLayers = true,
+        [Description(Mode)] string mode = "replace",
+        int? document = null) => OnUi(() =>
+    {
+        var s = Editable(document);
+        InCanvas(s, x, y);
+        var savedAll = s.SampleAllLayers;
+        s.SampleAllLayers = allLayers;
+        try { s.SelectObject(x, y, ParseMode(mode)); }
+        finally { s.SampleAllLayers = savedAll; }
+        return Selected(s);
+    });
+
+    [McpServerTool(Name = "select_subject")]
+    [Description("Select > Subject: everything in the picture that is not the plain backdrop connected to its edges. Busy backgrounds defeat it.")]
+    public Task<string> SelectSubject([Description(Mode)] string mode = "replace", int? document = null) => OnUi(() =>
+    {
+        var s = Editable(document);
+        if (!s.SelectSubject(ParseMode(mode))) throw new McpException("No subject stands out from the backdrop.");
+        return Selected(s);
+    });
+
+    [McpServerTool(Name = "select_layer_pixels")]
+    [Description("Selects the shape of a layer's pixels (its mask with fromMask), as Ctrl-clicking its thumbnail does.")]
+    public Task<string> SelectLayerPixels(string layer, bool fromMask = false, [Description(Mode)] string mode = "replace", int? document = null) => OnUi(() =>
+    {
+        var s = Editable(document);
+        var target = Find(s, layer);
+        if (fromMask ? target.Mask == null : target.Pixels == null) throw new McpException($"\"{target.Name}\" has no {(fromMask ? "mask" : "pixels")}.");
+        if (fromMask) s.SelectLayerMask(target, ParseMode(mode)); else s.SelectLayerPixels(target, ParseMode(mode));
+        return Selected(s);
+    });
+
+    [McpServerTool(Name = "select_all")]
+    [Description("Selects the whole canvas.")]
+    public Task<string> SelectAll(int? document = null) => OnUi(() => { var s = Editable(document); s.SelectAll(); return Selected(s); });
+
+    [McpServerTool(Name = "deselect")]
+    [Description("Drops the selection, so the next edit works on the whole layer again.")]
+    public Task<string> Deselect(int? document = null) => OnUi(() => { var s = Editable(document); s.Deselect(); return "Nothing is selected."; });
+
+    [McpServerTool(Name = "select_inverse")]
+    [Description("Selects what was not selected.")]
+    public Task<string> SelectInverse(int? document = null) => OnUi(() => { var s = Editable(document); s.InvertSelection(); return Selected(s); });
+
+    [McpServerTool(Name = "modify_selection")]
+    [Description("Changes the selection: grow or shrink it by pixels, soften its edge, or move it. Give what should happen; several apply in that order.")]
+    public Task<string> ModifySelection(
+        [Description("Pixels to grow by")] int expand = 0,
+        [Description("Pixels to shrink by")] int contract = 0,
+        [Description(FeatherEdge)] double feather = 0,
+        [Description("Pixels to move right")] int moveX = 0,
+        [Description("Pixels to move down")] int moveY = 0,
+        int? document = null) => OnUi(() =>
+    {
+        var s = Editable(document);
+        if (s.Selection == null) throw new McpException("Nothing is selected.");
+        if (expand <= 0 && contract <= 0 && feather <= 0 && moveX == 0 && moveY == 0) throw new McpException("Nothing to do: give expand, contract, feather, moveX or moveY.");
+        if (expand > 0) s.ExpandSelection(Math.Min(expand, 500));
+        if (contract > 0) s.ContractSelection(Math.Min(contract, 500));
+        if (feather > 0) s.FeatherSelection((float)Math.Min(feather, 250));
+        if (moveX != 0 || moveY != 0) s.MoveSelection(moveX, moveY);
+        return Selected(s);
+    });
+
+    // ---- Shared -------------------------------------------------------------------------------------------------------
+
+    private static SelectionMode ParseMode(string mode) => mode.Trim().ToLowerInvariant() switch
+    {
+        "replace" or "new" => SelectionMode.Replace, "add" => SelectionMode.Add, "subtract" => SelectionMode.Subtract, "intersect" => SelectionMode.Intersect,
+        _ => throw new McpException("mode is replace, add, subtract or intersect.")
+    };
+
+    private static SKRect Frame(double? x, double? y, double? width, double? height)
+    {
+        if (x is not { } left || y is not { } top || width is not { } w || height is not { } h) throw new McpException("A rectangle or ellipse needs x, y, width and height.");
+        if (w < 1 || h < 1) throw new McpException("The width and height must be at least 1 px.");
+        return SKRect.Create((float)left, (float)top, (float)w, (float)h);
+    }
+
+    private static void InCanvas(EditorSession s, int x, int y)
+    {
+        if (x < 0 || y < 0 || x >= s.Document.Width || y >= s.Document.Height) throw new McpException($"{x},{y} is outside the {s.Document.Width}×{s.Document.Height} px canvas.");
+    }
+
+    /// <summary>Runs a marquee with a feather of its own, leaving the tool's Feather setting as it was.</summary>
+    private static void WithFeather(EditorSession s, double feather, Action select)
+    {
+        var saved = s.Feather;
+        s.Feather = Math.Clamp(feather, 0, 250);
+        try { select(); }
+        finally { s.Feather = saved; }
+    }
+
+    /// <summary>What is selected now, as the bounds of the selection.</summary>
+    private static string Selected(EditorSession s)
+    {
+        if (s.Selection == null) return "Nothing is selected.";
+        var b = SelectionMask.Bounds(s.Selection);
+        return b.IsEmpty ? "Nothing is selected." : $"Selected the area at {b.Left},{b.Top} size {b.Width}×{b.Height}.";
+    }
+}
