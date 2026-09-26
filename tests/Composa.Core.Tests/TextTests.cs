@@ -340,6 +340,26 @@ public class TextSessionTests
     }
 
     [Fact]
+    public void A_text_layer_follows_its_text_until_it_is_named_by_hand()
+    {
+        var session = EditorSession.NewCanvas(200, 100, SKColors.White);
+        var layer = session.AddText(new SKPoint(10, 10), new TextStyle { Text = "Hello", FontFamily = Family, Size = 20 });
+        session.SelectLayer(layer.Id);
+        session.ChangeTextStyle(s => s with { Text = "Goodbye" });
+        Assert.Equal("Goodbye", layer.Name);                                // Still automatic: it follows the text.
+        session.Rename(layer, "Title");
+        session.ChangeTextStyle(s => s with { Text = "Farewell", Size = 30 });
+        Assert.Equal("Title", layer.Name);                                  // Named by hand: the name stays.
+        session.Fill(SKColors.Blue);
+        Assert.Equal("Title", layer.Name);
+        session.DuplicateSelectedLayers();
+        var copy = session.ActiveLayer!;
+        Assert.Equal("Title copy", copy.Name);
+        session.Fill(SKColors.Red);
+        Assert.Equal("Title copy", copy.Name);                              // A copy keeps its name through a recolor too.
+    }
+
+    [Fact]
     public void Fill_recolors_live_text_and_the_style_round_trips()
     {
         var session = EditorSession.NewCanvas(200, 100, SKColors.White);
