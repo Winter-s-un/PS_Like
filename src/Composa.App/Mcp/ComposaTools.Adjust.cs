@@ -162,6 +162,19 @@ public sealed partial class ComposaTools
     public Task<string> FilterRemoveBackground(double tolerance = 20, [Description(TargetLayer)] string? layer = null, int? document = null) =>
         Filter(document, layer, new FilterSettings { Kind = FilterKind.RemoveBackground, Amount = Math.Clamp(tolerance, 0, 100) });
 
+    [McpServerTool(Name = "filter_painterly")]
+    [Description("Painterly: repaints the layer in brush strokes that follow the picture's edges, the largest brush first and each smaller one only where the picture still differs, so a photo becomes a painting that is still recognizably the same picture. Style impressionist (faithful), expressionist (long bending strokes, colors drift), colorist_wash (thin overlapping washes) or pointillist (dots). brushSize is the largest brush's diameter in pixels, 0 fits it to the picture; passes is how many brushes, each half the size, 1 to 4; detail 0 to 100 says how closely to follow the picture. Gaps between strokes stay transparent, so a paper-colored layer below gives a painting on paper. The same seed paints the same strokes; 0 picks one.")]
+    public Task<string> FilterPainterly(string style = "impressionist", double brushSize = 0, int passes = 3, double detail = 50, int seed = 0, [Description(TargetLayer)] string? layer = null, int? document = null)
+    {
+        var key = style.Trim().Replace("_", "").Replace(" ", "");
+        if (!Enum.TryParse<PainterlyStyle>(key, true, out var painterlyStyle)) throw new McpException("style is impressionist, expressionist, colorist_wash or pointillist.");
+        return Filter(document, layer, new FilterSettings
+        {
+            Kind = FilterKind.Painterly, Seed = seed == 0 ? (uint)Random.Shared.Next(1, int.MaxValue) : (uint)seed,
+            Painterly = new PainterlySettings { Style = painterlyStyle, BrushSize = brushSize, Passes = passes, Detail = detail }.Normalized()
+        });
+    }
+
     // ---- Shared -------------------------------------------------------------------------------------------------------
 
     private static int Channel(string channel) => channel.Trim().ToLowerInvariant() switch

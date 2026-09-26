@@ -340,6 +340,18 @@ public static class AdjustmentDialogs
                     Foreground = Palette.Secondary, MaxWidth = 380, TextWrapping = TextWrapping.Wrap
                 });
                 break;
+            case FilterKind.Painterly:
+                panel.Children.Add(Ui.Row(10, Ui.Label("Style", Palette.Secondary),
+                    Ui.Combo(Enum.GetValues<PainterlyStyle>(), initial.Painterly.Style, PainterlySettings.DisplayName, v => Update(current with { Painterly = current.Painterly with { Style = v } }), 140)));
+                Slider("Brush Size", initial.Painterly.BrushSize, 0, 200, v => current with { Painterly = current.Painterly with { BrushSize = v } });
+                Slider("Passes", initial.Painterly.Passes, 1, 4, v => current with { Painterly = current.Painterly with { Passes = (int)Math.Round(v) } });
+                Slider("Detail", initial.Painterly.Detail, 0, 100, v => current with { Painterly = current.Painterly with { Detail = v } });
+                panel.Children.Add(new TextBlock
+                {
+                    Text = "Repaints the layer in brush strokes that follow the picture's edges, the largest brush first and each smaller one only where the picture still differs. A brush size of 0 fits the brush to the picture. Gaps between strokes stay transparent.",
+                    Foreground = Palette.Secondary, MaxWidth = 380, TextWrapping = TextWrapping.Wrap
+                });
+                break;
             case FilterKind.RemoveBackground:
                 Slider("Tolerance", initial.Amount, 1, 100, v => current with { Amount = v });
                 panel.Children.Add(new TextBlock
