@@ -22,7 +22,7 @@ View > Grid Settings… chooses how the grid is drawn: a color from Photoshop's 
 
 ## Snapping
 
-With View > Snap (Ctrl+Shift+;) on, moving a layer, drawing a crop box or dragging a guide snaps to the targets ticked under View > Snap To: guides, the grid, the edges and centers of other layers, and the edges and center of the document. Magenta lines show what you snapped to. Hidden guides and a hidden grid do not snap. Hold Ctrl while dragging to move without snapping.
+With View > Snap (Ctrl+Shift+;) on, moving a layer, drawing a marquee or a shape, moving a selection outline, drawing a crop box or dragging a guide snaps to the targets ticked under View > Snap To: guides, the grid, the edges and centers of other layers, and the edges and center of the document. Magenta lines show what you snapped to. Hidden guides and a hidden grid do not snap. Hold Ctrl while dragging to move without snapping.
 
 ## Transform controls
 

@@ -28,7 +28,7 @@ Moves, resizes, rotates and distorts layers.
 
 ## Marquee (M)
 
-Selects a rectangle or an ellipse; press M again or Tab to switch. Drag to select. Shift adds to the selection, Alt subtracts, Shift and Alt together keep the intersection. With no selection, holding Shift from the start makes a square or a circle; while adding, letting Shift go and pressing it again does the same. Drag inside a selection to move its outline; Ctrl-drag inside to move the pixels, Ctrl and Alt to move a copy. A click without a drag deselects.
+Selects a rectangle or an ellipse; press M again or Tab to switch. Drag to select. Shift adds to the selection, Alt subtracts, Shift and Alt together keep the intersection. With no selection, holding Shift from the start makes a square or a circle; while adding, letting Shift go and pressing it again does the same. Drag inside a selection to move its outline (Shift pressed during the drag keeps it on one axis); Ctrl-drag inside to move the pixels, Ctrl and Alt to move a copy. A click without a drag deselects. The corners of a marquee, and a moved outline's edges, snap to guides, the grid, layer edges and the canvas edges according to View > Snap To; hold Ctrl while dragging to place them freely.
 
 The options bar has a Feather slider for new selections, buttons to expand, contract and feather the current selection by a number of pixels, and Select All, Deselect and Inverse.
 
@@ -73,7 +73,7 @@ Drag to draw a gradient from the foreground color to the background color, or to
 
 ## Shape (U)
 
-Draws a rectangle, rounded rectangle, ellipse or line in the foreground color, each on its own live shape layer that stays editable: transform it later and it is redrawn sharp. Shift+U or Tab steps through the kinds. Shift makes a square or circle, Alt draws from the center, and a line snaps to 45 degrees with Shift. Rounded rectangles have a corner radius (0 to 400) and lines a width (1 to 100).
+Draws a rectangle, rounded rectangle, ellipse or line in the foreground color, each on its own live shape layer that stays editable: transform it later and it is redrawn sharp. Shift+U or Tab steps through the kinds. Shift makes a square or circle, Alt draws from the center, and a line snaps to 45 degrees with Shift. The corners snap to guides, the grid, layer edges and the canvas edges according to View > Snap To; hold Ctrl to draw freely. Rounded rectangles have a corner radius (0 to 400) and lines a width (1 to 100).
 
 ## Type (T)
 

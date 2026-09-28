@@ -99,9 +99,9 @@ public sealed partial class EditorSession
     }
 
     /// <summary>Pulls a move onto the snap targets; returns the adjusted offsets and the positions snapped to.</summary>
-    public (float Dx, float Dy, float? SnapX, float? SnapY) SnapMove(SKRect box, IReadOnlySet<Guid> moving, float dx, float dy, float tolerance)
+    public (float Dx, float Dy, float? SnapX, float? SnapY) SnapMove(SKRect box, IReadOnlySet<Guid> moving, float dx, float dy, float tolerance, bool includeCenters = true)
     {
-        var (xs, ys) = SnapTargets(moving, includeCenters: true);
+        var (xs, ys) = SnapTargets(moving, includeCenters);
         float bestX = tolerance, bestY = tolerance, addX = 0, addY = 0;
         float? snapX = null, snapY = null;
         foreach (var edge in new[] { box.Left, box.MidX, box.Right })
@@ -117,6 +117,39 @@ public sealed partial class EditorSession
             if (d < bestY) { bestY = d; addY = target - (edge + dy); snapY = target; }
         }
         return (dx + addX, dy + addY, snapX, snapY);
+    }
+
+    /// <summary>
+    /// A point moved onto the nearest snap target within a tolerance, each axis on its own, without centers as a crop
+    /// edge: where a marquee or a shape starts and where its corner is dragged to. Also says what it snapped to.
+    /// </summary>
+    public (SKPoint Point, float? SnapX, float? SnapY) SnapPoint(SKPoint point, float tolerance)
+    {
+        var (xs, ys) = SnapTargets(null, includeCenters: false);
+        float? x = Nearest(point.X, xs), y = Nearest(point.Y, ys);
+        return (new SKPoint(x ?? point.X, y ?? point.Y), x, y);
+
+        float? Nearest(float value, List<float> targets)
+        {
+            float? best = null;
+            var bestDistance = tolerance;
+            foreach (var target in targets)
+            {
+                var distance = Math.Abs(target - value);
+                if (distance <= bestDistance) { bestDistance = distance; best = target; }
+            }
+            return best;
+        }
+    }
+
+    /// <summary>
+    /// A selection outline moved by an offset, nudged so its edges or middle meet a nearby target (without centers),
+    /// each axis on its own. An axis Shift has locked does not snap.
+    /// </summary>
+    public (float Dx, float Dy, float? SnapX, float? SnapY) SnapSelectionMove(SKRect box, float dx, float dy, float tolerance, bool horizontal = true, bool vertical = true)
+    {
+        var (snappedX, snappedY, snapX, snapY) = SnapMove(box, new HashSet<Guid>(), dx, dy, tolerance, includeCenters: false);
+        return (horizontal ? snappedX : dx, vertical ? snappedY : dy, horizontal ? snapX : null, vertical ? snapY : null);
     }
 
     /// <summary>Snaps one crop edge to the targets (without centers), or leaves it alone.</summary>

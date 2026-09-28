@@ -37,6 +37,11 @@ public sealed partial class CanvasView
     private bool spaceDown;
     private double scrubZoom;
     private readonly List<(SKPoint From, SKPoint To)> guides = [];
+    /// <summary>Where a marquee or shape starts and where its corner is now, after snapping; the press and pointer positions otherwise.</summary>
+    private SKPoint snapFrom, snapTo;
+    /// <summary>How far a selection outline being dragged has moved, after Shift's axis lock and snapping, and the outline's bounds when the drag began.</summary>
+    private SKPointI selectionOffset;
+    private SKRect selectionBox;
     private Layer? gradientLayer;
     private SKBitmap? gradientOriginal;
     // A drawn gradient stays adjustable (drag either end) until Enter, Escape, or another action settles it.
@@ -173,6 +178,8 @@ public sealed partial class CanvasView
         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
         var control = e.KeyModifiers.HasFlag(KeyModifiers.Control);
 
+        snapFrom = snapTo = pressDocument;
+        selectionOffset = SKPointI.Empty;
         // A press on a ruler drags a new guide out of it; with the Move tool a press on a guide moves it.
         if (BeginGuideDrag(point.Position)) { InvalidateVisual(); return; }
         if (OverRuler(point.Position)) return;
@@ -198,6 +205,7 @@ public sealed partial class CanvasView
                 shiftReleased = false;
                 if (control && InsideSelection(pressDocument) && session.BeginMovePixels(duplicate: alt)) { drag = Drag.MovePixels; break; }
                 drag = dragMode == SelectionMode.Replace && InsideSelection(pressDocument) ? Drag.MoveSelection : Drag.Marquee;
+                if (drag == Drag.Marquee) snapFrom = snapTo = SnapCorner(pressDocument, control: false);
                 break;
             case Tool.Lasso:
                 dragMode = polygon.Count == 0 ? ModeFor(e.KeyModifiers) : dragMode;
@@ -254,6 +262,7 @@ public sealed partial class CanvasView
                 break;
             case Tool.Shape:
                 drag = Drag.Shape;
+                snapFrom = snapTo = SnapCorner(pressDocument, control: false);
                 break;
             case Tool.Text:
                 BeginTextPress(shift, e.ClickCount);
@@ -267,6 +276,8 @@ public sealed partial class CanvasView
                 scrubZoom = zoom;
                 break;
         }
+        // The outline does not change while it is dragged, so its bounds are found once for snapping.
+        if (drag == Drag.MoveSelection && session.Selection is { } outline) selectionBox = (SKRect)SelectionMask.Bounds(outline);
         InvalidateVisual();
     }
 
@@ -282,10 +293,13 @@ public sealed partial class CanvasView
         PointerAt?.Invoke(new SKPointI((int)Math.Floor(currentDocument.X), (int)Math.Floor(currentDocument.Y)));
         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
         var alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+        snapTo = currentDocument;
 
         switch (drag)
         {
             case Drag.Pan: PanBy(delta); break;
+            case Drag.Marquee or Drag.Shape: snapTo = SnapCorner(currentDocument, e.KeyModifiers.HasFlag(KeyModifiers.Control)); break;
+            case Drag.MoveSelection: selectionOffset = SnappedSelectionOffset(shift, e.KeyModifiers.HasFlag(KeyModifiers.Control)); break;
             case Drag.Stroke:
                 session.ViewZoom = UnitsPerPixel;
                 foreach (var p in e.GetIntermediatePoints(this))
@@ -352,12 +366,14 @@ public sealed partial class CanvasView
             case Drag.Pan: UpdateCursor(); break;
             case Drag.Stroke: session.EndStroke(); break;
             case Drag.Marquee:
+                guides.Clear();
                 if (!moved) { if (dragMode == SelectionMode.Replace) session.Deselect(); break; }
                 var rect = MarqueeRect(ConstrainsMarquee(e.KeyModifiers), false);
                 if (session.MarqueeKind == MarqueeKind.Ellipse) session.SelectEllipse(rect, dragMode); else session.SelectRect(rect, dragMode);
                 break;
             case Drag.MoveSelection:
-                if (moved) session.MoveSelection((int)Math.Round(currentDocument.X - pressDocument.X), (int)Math.Round(currentDocument.Y - pressDocument.Y));
+                guides.Clear();
+                if (moved) session.MoveSelection(selectionOffset.X, selectionOffset.Y);
                 else session.Deselect();
                 break;
             case Drag.Lasso when session.LassoKind == LassoKind.Freehand:
@@ -381,8 +397,9 @@ public sealed partial class CanvasView
                 ToolStateChanged?.Invoke();
                 break;
             case Drag.Shape:
+                guides.Clear();
                 if (!moved) break;
-                if (session.ShapeKind == ShapeKind.Line) session.AddLine(pressDocument, ConstrainAngle(pressDocument, currentDocument, shift));
+                if (session.ShapeKind == ShapeKind.Line) session.AddLine(snapFrom, LineEnd(shift));
                 else session.AddShape(MarqueeRect(shift, alt));
                 break;
             case Drag.ZoomScrub:
@@ -461,17 +478,54 @@ public sealed partial class CanvasView
     private bool ConstrainsMarquee(KeyModifiers modifiers) =>
         modifiers.HasFlag(KeyModifiers.Shift) && (dragMode is not (SelectionMode.Add or SelectionMode.Intersect) || shiftReleased);
 
+    /// <summary>A line's far end: snapped to the targets, or held to 45 degrees from its start when Shift asks for that instead.</summary>
+    private SKPoint LineEnd(bool shift) => shift ? ConstrainAngle(snapFrom, currentDocument, true) : snapTo;
+
+    /// <summary>
+    /// A marquee or shape corner pulled onto the View > Snap To targets (canvas and layer edges, grid, guides) unless
+    /// Ctrl is held, recording the lines to draw. The pointer position itself when snapping is off.
+    /// </summary>
+    private SKPoint SnapCorner(SKPoint point, bool control)
+    {
+        guides.Clear();
+        if (session == null || !session.View.Snap || control) return point;
+        var (snapped, snapX, snapY) = session.SnapPoint(point, (float)(6 / UnitsPerPixel));
+        if (snapX is { } x) guides.Add((new SKPoint(x, -100000), new SKPoint(x, 100000)));
+        if (snapY is { } y) guides.Add((new SKPoint(-100000, y), new SKPoint(100000, y)));
+        return snapped;
+    }
+
+    /// <summary>
+    /// How far the selection outline has been dragged: Shift keeps it on one axis, and the outline's edges snap to the
+    /// targets as a drawn marquee does unless Ctrl is held.
+    /// </summary>
+    private SKPointI SnappedSelectionOffset(bool shift, bool control)
+    {
+        guides.Clear();
+        float dx = MathF.Round(currentDocument.X - pressDocument.X), dy = MathF.Round(currentDocument.Y - pressDocument.Y);
+        bool horizontal = true, vertical = true;
+        if (shift) { if (Math.Abs(dx) >= Math.Abs(dy)) { dy = 0; vertical = false; } else { dx = 0; horizontal = false; } }
+        if (session != null && session.View.Snap && !control)
+        {
+            var (snappedX, snappedY, snapX, snapY) = session.SnapSelectionMove(selectionBox, dx, dy, (float)(6 / UnitsPerPixel), horizontal, vertical);
+            dx = snappedX; dy = snappedY;
+            if (snapX is { } x) guides.Add((new SKPoint(x, -100000), new SKPoint(x, 100000)));
+            if (snapY is { } y) guides.Add((new SKPoint(-100000, y), new SKPoint(100000, y)));
+        }
+        return new SKPointI((int)MathF.Round(dx), (int)MathF.Round(dy));
+    }
+
     /// <summary>The rectangle dragged from the press point, optionally square and/or grown from its center.</summary>
     private SKRect MarqueeRect(bool square, bool fromCenter)
     {
-        float dx = Snap(currentDocument.X) - Snap(pressDocument.X), dy = Snap(currentDocument.Y) - Snap(pressDocument.Y);
+        float dx = Snap(snapTo.X) - Snap(snapFrom.X), dy = Snap(snapTo.Y) - Snap(snapFrom.Y);
         if (square)
         {
             var side = Math.Max(Math.Abs(dx), Math.Abs(dy));
             dx = side * (dx < 0 ? -1 : 1);
             dy = side * (dy < 0 ? -1 : 1);
         }
-        float x = Snap(pressDocument.X), y = Snap(pressDocument.Y);
+        float x = Snap(snapFrom.X), y = Snap(snapFrom.Y);
         var rect = fromCenter ? new SKRect(x - dx, y - dy, x + dx, y + dy) : new SKRect(x, y, x + dx, y + dy);
         return rect.Standardized;
     }

@@ -110,6 +110,25 @@ public class GuideTests
     }
 
     [Fact]
+    public void Points_and_selection_moves_snap_each_axis_on_its_own_without_centers()
+    {
+        var session = EditorSession.NewCanvas(400, 300);
+        session.AddGuide(GuideAxis.Vertical, 250);
+        // A corner near the guide takes its X and keeps its own Y; the canvas center (200) is not a target for points.
+        var (point, snapX, snapY) = session.SnapPoint(new SKPoint(247, 150), 6);
+        Assert.Equal((new SKPoint(250, 150), 250f, (float?)null), (point, snapX, snapY));
+        Assert.Equal(new SKPoint(203, 2), session.SnapPoint(new SKPoint(203, 2), 6).Point with { Y = 2 });
+        Assert.Equal(0, session.SnapPoint(new SKPoint(203, 2), 6).SnapY);
+        session.View = session.View with { Snap = false };
+        Assert.Null(session.SnapPoint(new SKPoint(247, 150), 6).SnapX);
+        session.View = session.View with { Snap = true };
+        // A selection box 100-200 moved by 47 has its right edge 3 short of the guide and is pulled over; Shift's lock on that axis stops it.
+        var box = SKRect.Create(100, 100, 100, 50);
+        Assert.Equal((50f, 0f, 250f, (float?)null), session.SnapSelectionMove(box, 47, 0, 6));
+        Assert.Equal((47f, 0f, (float?)null, (float?)null), session.SnapSelectionMove(box, 47, 0, 6, horizontal: false));
+    }
+
+    [Fact]
     public void Layout_grid_lines_include_majors_and_subdivisions()
     {
         var grid = new LayoutGrid();
