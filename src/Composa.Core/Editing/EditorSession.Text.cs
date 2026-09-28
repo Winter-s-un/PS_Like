@@ -222,7 +222,7 @@ public sealed partial class EditorSession
         if (style == current) return;
         Apply(StyleEditName, () => SetText(live, style));
         // Exactly one revision on: the commit above, with no other edit (or undo) between the two changes.
-        if (styleEdit is { } last && last.LayerId == live.Id && last.Revision == Revision - 1) History.MergeLast(StyleEditName);
+        if (styleEdit is { } last && last.LayerId == live.Id && last.Revision == Revision - 1) FoldLastStep(StyleEditName);
         styleEdit = (live.Id, Revision);
         TextDefaults = style.AsDefaults();
         TextChanged?.Invoke();

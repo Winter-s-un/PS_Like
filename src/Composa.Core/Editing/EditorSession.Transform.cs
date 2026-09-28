@@ -318,7 +318,7 @@ public sealed partial class EditorSession
                 ReplaceLivePixels(layer, RenderShape(layer.Shape, Math.Max(1, (int)Math.Round(transform.Width)), Math.Max(1, (int)Math.Round(transform.Height))));
         });
         // Exactly one revision on: the commit above, with no other edit (or undo) between the two changes.
-        if (inspectorEdit is { } last && last.LayerId == layer.Id && last.Revision == Revision - 1) History.MergeLast(InspectorEditName);
+        if (inspectorEdit is { } last && last.LayerId == layer.Id && last.Revision == Revision - 1) FoldLastStep(InspectorEditName);
         inspectorEdit = (layer.Id, Revision);
         InvalidateAll();
         LayersChanged?.Invoke();

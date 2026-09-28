@@ -134,6 +134,20 @@ public class HistoryTests
     }
 
     [Fact]
+    public void A_step_folded_into_the_one_before_is_announced()
+    {
+        var session = EditorSession.NewCanvas(200, 100, SKColors.White);
+        session.AddText(new SKPoint(10, 60), new TextStyle { Text = "Hi", Size = 40 });
+        var seen = new List<int>();
+        session.HistoryChanged += () => seen.Add(session.History.Steps.Count);
+        session.ChangeTextStyle(st => st with { Size = 41 });
+        session.ChangeTextStyle(st => st with { Size = 42 });
+        // The second change folds into the first, and whoever listens hears the list as it ends up.
+        Assert.Equal(["New Canvas", "Text", "Change Text Style"], Names(session));
+        Assert.Equal(session.History.Steps.Count, seen[^1]);
+    }
+
+    [Fact]
     public void Folded_steps_keep_the_state_they_end_in()
     {
         var history = new History();

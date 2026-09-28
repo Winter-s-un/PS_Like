@@ -206,6 +206,13 @@ public sealed partial class EditorSession
         HistoryChanged?.Invoke();
     }
 
+    /// <summary>Folds the step just committed into the one before it, and says so, since the list of steps changed after the commit announced it.</summary>
+    private void FoldLastStep(string name)
+    {
+        History.MergeLast(name);
+        HistoryChanged?.Invoke();
+    }
+
     /// <summary>
     /// Goes to the state at <paramref name="index"/> in <see cref="History.Steps"/> in one move, however many steps
     /// away it is, as a click in the History panel does. What is still open is finished first, as a new command would
