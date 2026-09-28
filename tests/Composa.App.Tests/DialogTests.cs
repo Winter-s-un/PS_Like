@@ -330,4 +330,50 @@ public class CameraRawDialogTests
         Assert.Equal(2, window.Sessions.Count);
         Assert.Equal((320, 200), (window.Sessions[1].Document.Width, window.Sessions[1].Document.Height));
     }
+
+    [AvaloniaFact]
+    public async Task Dither_dialog_controls_follow_the_style_and_the_colors()
+    {
+        var window = new MainWindow { Width = 1280, Height = 800 };
+        window.Show();
+        var previews = new List<FilterSettings>();
+        _ = AdjustmentDialogs.EditFilter(window, new FilterSettings { Kind = FilterKind.Dither }, previews.Add);
+        Dispatcher.UIThread.RunJobs();
+        var dialog = window.OwnedWindows.Last();
+        List<string> Labels() => dialog.GetVisualDescendants().OfType<SliderField>().Select(f => f.Label).ToList();
+        List<ComboBox> Combos() => dialog.GetVisualDescendants().OfType<ComboBox>().ToList();
+        // A slider field carries a text box of its own for typing, and so does a combo box; the Characters box is the one outside them.
+        List<TextBox> Boxes() => dialog.GetVisualDescendants().OfType<TextBox>().Where(t => !t.GetVisualAncestors().Any(a => a is SliderField or ComboBox)).ToList();
+        // Atkinson: chunky pixels, tones and diffusion; no halftone cell, no characters.
+        Assert.Equal(["Pixel Size", "Tones", "Diffusion", "Density", "Contrast"], Labels());
+        Assert.Empty(Boxes());
+        Assert.Empty(dialog.GetVisualDescendants().OfType<CheckBox>()); // Tones have no marks to swap.
+        Screenshots.Save(dialog, "32-dither");
+        // Halftone: a cell size and an angle dial; the pixel shape row is enabled because the pixels are chunky.
+        Combos()[0].SelectedIndex = DitherSettings.Groups.SelectMany(g => g).ToList().IndexOf(DitherStyle.HalftoneDots);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(["Pixel Size", "Cell Size", "Angle", "Density", "Contrast"], Labels());
+        Assert.Single(dialog.GetVisualDescendants().OfType<AngleDial>());
+        Assert.Equal("Light on Dark", dialog.GetVisualDescendants().OfType<CheckBox>().Single().Content);
+        var shape = Combos().Single(c => (c.SelectedItem as string) == "Square");
+        Assert.True(shape.IsEnabled);
+        dialog.GetVisualDescendants().OfType<SliderField>().First(f => f.Label == "Pixel Size").Value = 1;
+        // ASCII: text size and the characters, at full resolution so no pixel size or shape.
+        Combos()[0].SelectedIndex = DitherSettings.Groups.SelectMany(g => g).ToList().IndexOf(DitherStyle.Ascii);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(["Text Size", "Density", "Contrast"], Labels());
+        var characters = Boxes().Single();
+        Assert.Equal(DitherSettings.DefaultCharacters, characters.Text);
+        characters.Text = "#. ";
+        // Two Colors adds the swatches beside the menu.
+        var colors = Combos().Single(c => (c.SelectedItem as string) == "Black & White");
+        colors.SelectedIndex = (int)DitherColors.TwoColors;
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(2, dialog.GetVisualDescendants().OfType<Border>().Count(b => b.Width == 44 && b.Height == 24));
+        for (var i = 0; i < 5; i++) { await Task.Delay(60); Dispatcher.UIThread.RunJobs(); } // The preview timer needs the loop to run.
+        var last = previews.Last().Dither;
+        Assert.Equal((DitherStyle.Ascii, "#. ", DitherColors.TwoColors), (last.Style, last.Characters, last.Colors));
+        dialog.Close(false);
+        Dispatcher.UIThread.RunJobs();
+    }
 }

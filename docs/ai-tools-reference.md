@@ -126,6 +126,8 @@ Each filter tool takes `layer`.
 
 **filter_painterly**: repaints the layer in brush strokes that follow the picture, as the Painterly filter does. Parameters: `style`, one of impressionist, expressionist, colorist_wash or pointillist; `brushSize`, the largest brush's diameter in pixels, 0 to fit it to the picture; `passes` from 1 to 4; `detail` from 0 to 100; `seed`, where the same seed paints the same strokes and 0 picks one.
 
+**filter_dither**: turns the layer into dithered pixels, as the Dither filter does. Parameters: `style`, one of atkinson, floyd_steinberg, bayer2, bayer4, bayer8, halftone_dots, halftone_lines, halftone_diamonds, mac_patterns or ascii; `pixelSize` from 1 to 32 and `pixelShape`, square or dot; `cellSize` from 4 to 64 and `angle` from -90 to 90 for the halftone styles; `textSize` from 6 to 64 and `characters` for ascii; `tones` from 2 to 8 and `diffusion` from 0 to 100; `density` and `contrast` from -100 to 100; `colors`, one of black_white, two_colors or original, with `dark` and `light` for two_colors; `lightOnDark`, whether marks stand for the light tones.
+
 ## Resources
 
 For clients that read resources, three are available: `composa://documents` gives the document list, `composa://documents/1` the layer stack of the first tab, and `composa://documents/1/image` its render as a PNG at most 1024 pixels on its longest side. Replace 1 with any tab number.

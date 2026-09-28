@@ -28,11 +28,18 @@ The Hue/Saturation, Black & White and Color Balance sliders show their colors on
 - **Sharpen**: an amount and a radius.
 - **Vignette**: blends a color into the edges while keeping the center. Amount, Midpoint (where the falloff starts), Roundness (from following the frame to a circle), Feather and Highlights, which spares bright pixels near the edge. On an empty layer it paints across the whole canvas, so a vignette can live on its own layer above a photo.
 - **Bloom / Glow**: makes the bright parts glow, with an amount and a radius.
+- **Dither**: described below.
 - **Tonal Contrast**: local contrast, with an amount, a radius and how much the shadows, midtones and highlights each get.
 - **Lens Correction**: removes barrel distortion (positive) or pincushion distortion (negative).
 - **Remove Background**: makes the plain backdrop connected to the layer's edges transparent. Tolerance says how different a pixel may be from the backdrop and still go. It suits product shots and portraits on a plain background; it is not a subject detector.
 - **Camera Raw Filter**: a full grading panel, described in [Camera Raw Filter](camera-raw.md).
 - **Painterly**: described below.
+
+## Dither
+
+Dither turns a layer into dithered pixels, the way old screens and printers drew tones with only two colors. The Style menu offers four kinds: error diffusion (Atkinson, the classic Mac look that passes on only part of each pixel's error and stays crisp, and Floyd-Steinberg), ordered Bayer grids of 2, 4 or 8 pixels, halftone screens (dots, lines or diamonds, with a Cell Size and an Angle dial) and marks (the old Mac fill patterns, and ASCII drawn as readable characters laid out like lines of text, with a Text Size and the characters to use).
+
+Pixel Size makes chunky pixels: the layer is averaged down by that much, dithered and blown back up, and Pixel Shape draws each one as a solid square or a round dot on the dark color, like an LED screen. Diffusion and Bayer styles have Tones (2 is pure 1-bit), the diffusion styles a Diffusion amount, and every style Density (more or less ink before dithering) and Contrast. Colors picks black and white, two colors chosen from swatches that preview on the layer, or the picture's own colors, dithered channel by channel. For halftone, patterns and ASCII, Light on Dark draws the marks for the light tones in the light color on the dark, like a glowing screen; off, the marks are the dark tones on the light color, like ink on paper.
 
 ## Painterly
 
