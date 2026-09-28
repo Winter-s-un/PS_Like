@@ -237,4 +237,29 @@ public class CameraRawDialogTests
         Assert.True(session.ActiveLayer!.Pixels!.GetPixel(10, 10).Red > 160);
         _ = result;
     }
+
+    [AvaloniaFact]
+    public void New_canvas_preset_follows_the_typed_size()
+    {
+        var window = new MainWindow { Width = 1280, Height = 800 };
+        window.Show();
+        var task = CanvasDialogs.NewCanvas(window, SKColors.White);
+        Dispatcher.UIThread.RunJobs();
+        var dialog = window.OwnedWindows.Last();
+        var preset = dialog.GetVisualDescendants().OfType<ComboBox>().First();
+        var boxes = dialog.GetVisualDescendants().OfType<NumericUpDown>().ToList();
+        // The default size is the 1080p preset; a typed size matching another preset selects that one, anything else is Custom.
+        Assert.Equal("1080p", ((string)preset.SelectedItem!)[..5]);
+        boxes[0].Value = 1080; boxes[1].Value = 1080;
+        Assert.StartsWith("Instagram Square", (string)preset.SelectedItem!);
+        boxes[1].Value = 1081;
+        Assert.Equal("Custom", (string)preset.SelectedItem!);
+        // Choosing a preset fills in the size.
+        preset.SelectedIndex = Array.FindIndex(CanvasDialogs.Presets, p => p.Name == "4K");
+        Assert.Equal(3840, (double)boxes[0].Value!);
+        Assert.Equal(2160, (double)boxes[1].Value!);
+        dialog.Close(true);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal((3840, 2160), (task.Result!.Width, task.Result.Height));
+    }
 }

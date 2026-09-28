@@ -195,6 +195,7 @@ public sealed partial class MainWindow
             Sub("Show",
                 ViewToggle("Grid", v => v.ShowGrid, v => v with { ShowGrid = !v.ShowGrid }, Key.OemQuotes, ctrl, "Show Grid"),
                 ViewToggle("Guides", v => v.ShowGuides, v => v with { ShowGuides = !v.ShowGuides }, Key.OemSemicolon, ctrl, "Show Guides")),
+            Item("Grid Settings…", () => _ = ShowGridSettings()),
             Line(),
             ViewToggle("Snap", v => v.Snap, v => v with { Snap = !v.Snap }, Key.OemSemicolon, ctrl | shift),
             Sub("Snap To",
@@ -243,35 +244,40 @@ public sealed partial class MainWindow
         return menu;
     }
 
+    // The keys of tools that come in groups, named once for the table and for the groups the tool rail opens. Each is also the
+    // id a rebound key is saved under, so the spelling must not change.
+    private const string MarqueeKey = "Marquee tool (again switches Rectangle and Ellipse)", LassoKey = "Lasso tool (again switches Freehand and Polygonal)",
+        MagicKey = "Magic tool", BrushKey = "Brush tool", EraserKey = "Eraser", SmearKey = "Smear tool (again switches its mode)", ShapeKey = "Shape tool (again switches the shape)";
+
     /// <summary>The keys that pick tools and act on the canvas, kept as a table so the shortcuts window can rebind them.</summary>
     private void BuildToolKeys()
     {
         void Key(string title, Avalonia.Input.Key key, Action run, KeyModifiers modifiers = KeyModifiers.None, bool hidden = false) =>
             toolKeys.Add(new Shortcut(title, title, "Tools and Canvas", new KeyGesture(key, modifiers), run, hidden: hidden));
         Key("Move tool", Avalonia.Input.Key.V, () => SelectTool(Tool.Move));
-        Key("Marquee tool (again switches Rectangle and Ellipse)", Avalonia.Input.Key.M, () =>
+        Key(MarqueeKey, Avalonia.Input.Key.M, () =>
         {
             if (session!.Tool == Tool.Marquee) session.MarqueeKind = session.MarqueeKind == MarqueeKind.Rectangle ? MarqueeKind.Ellipse : MarqueeKind.Rectangle;
             SelectTool(Tool.Marquee);
         });
-        Key("Lasso tool (again switches Freehand and Polygonal)", Avalonia.Input.Key.L, () =>
+        Key(LassoKey, Avalonia.Input.Key.L, () =>
         {
             if (session!.Tool == Tool.Lasso) session.LassoKind = session.LassoKind == LassoKind.Freehand ? LassoKind.Polygonal : LassoKind.Freehand;
             SelectTool(Tool.Lasso);
         });
-        Key("Magic tool", Avalonia.Input.Key.W, () => SelectTool(Tool.Wand));
+        Key(MagicKey, Avalonia.Input.Key.W, () => SelectTool(Tool.Wand));
         Key("Crop tool", Avalonia.Input.Key.C, () => SelectTool(Tool.Crop));
-        Key("Brush tool", Avalonia.Input.Key.B, () => { session!.EraserMode = false; SelectTool(Tool.Brush); });
-        Key("Eraser", Avalonia.Input.Key.E, () => { session!.EraserMode = true; SelectTool(Tool.Brush); });
+        Key(BrushKey, Avalonia.Input.Key.B, () => { session!.EraserMode = false; SelectTool(Tool.Brush); });
+        Key(EraserKey, Avalonia.Input.Key.E, () => { session!.EraserMode = true; SelectTool(Tool.Brush); });
         Key("Spot Healing Brush", Avalonia.Input.Key.J, () => SelectTool(Tool.SpotHealing));
         Key("Clone Stamp", Avalonia.Input.Key.S, () => SelectTool(Tool.CloneStamp));
-        Key("Smear tool (again switches its mode)", Avalonia.Input.Key.R, () =>
+        Key(SmearKey, Avalonia.Input.Key.R, () =>
         {
             if (session!.Tool == Tool.Smear) session.SmearMode = (SmearMode)(((int)session.SmearMode + 1) % 5);
             SelectTool(Tool.Smear);
         });
         Key("Gradient tool", Avalonia.Input.Key.G, () => SelectTool(Tool.Gradient));
-        Key("Shape tool (again switches the shape)", Avalonia.Input.Key.U, () =>
+        Key(ShapeKey, Avalonia.Input.Key.U, () =>
         {
             if (session!.Tool == Tool.Shape) session.ShapeKind = (ShapeKind)(((int)session.ShapeKind + 1) % Enum.GetValues<ShapeKind>().Length);
             SelectTool(Tool.Shape);
@@ -898,6 +904,27 @@ public sealed partial class MainWindow
         if (await CanvasDialogs.ImageSize(this, session.Document.Width, session.Document.Height, session.Document.Resolution) is not { } result) return;
         Busy(() => session.ResizeImage(result.Width, result.Height, result.Resolution));
         canvas.Fit();
+    }
+
+    /// <summary>
+    /// View > Grid Settings: the grid shows while the dialog is open, changing as it is edited, and goes back to how it
+    /// was on Cancel. The settings are the person's, like the other view options: nothing is saved with the project or undone.
+    /// </summary>
+    private async Task ShowGridSettings()
+    {
+        if (session == null) return;
+        var target = session;
+        var original = target.View;
+        void Preview(LayoutGrid grid, GridAppearance appearance)
+        {
+            target.View = target.View with { ShowGrid = true, Grid = grid, GridAppearance = appearance };
+            canvas.InvalidateVisual();
+        }
+        Preview(original.Grid, original.GridAppearance);
+        var result = await GridSettingsDialog.Show(this, original.Grid, original.GridAppearance, Preview);
+        target.View = original with { Grid = result?.Grid ?? original.Grid, GridAppearance = result?.Appearance ?? original.GridAppearance };
+        canvas.InvalidateVisual();
+        RememberToolSettings();
     }
 }
 

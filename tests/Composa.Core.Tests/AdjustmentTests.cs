@@ -33,6 +33,22 @@ public class AdjustmentTests
     }
 
     [Fact]
+    public void Hue_saturation_raises_saturation_as_photoshop_does()
+    {
+        // (191, 64, 64) is half saturated: +50 divides by what is left and takes it all the way, +25 to two thirds.
+        var half = new SKColor(191, 64, 64);
+        HueSaturationAdjustment Shift(double saturation) => new HueSaturationAdjustment().WithShift(HueRange.Master, new HslShift(0, saturation, 0));
+        AssertColor(new SKColor(255, 0, 0), Adjusted(Shift(50), half));
+        AssertColor(new SKColor(212, 43, 43), Adjusted(Shift(25), half));
+        // Below zero it scales toward gray; -100 is gray.
+        AssertColor(new SKColor(159, 96, 96), Adjusted(Shift(-50), half));
+        AssertColor(new SKColor(128, 128, 128), Adjusted(Shift(-100), half));
+        // +100 saturates any color fully, but a neutral gray has no hue to saturate and stays put.
+        AssertColor(new SKColor(255, 3, 3), Adjusted(Shift(100), new SKColor(130, 128, 128)));
+        AssertColor(new SKColor(128, 128, 128), Adjusted(Shift(100), new SKColor(128, 128, 128)));
+    }
+
+    [Fact]
     public void Black_and_white_tint_colors_the_gray_at_its_lightness()
     {
         var sepia = new BlackAndWhiteAdjustment { Tint = true, TintHue = 40, TintSaturation = 20 };

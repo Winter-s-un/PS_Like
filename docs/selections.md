@@ -28,7 +28,7 @@ With any selection tool, Shift adds to the selection, Alt subtracts from it, and
 - **Select > Deselect** (Ctrl+D) drops it. **Select > Inverse** (Ctrl+Shift+I) selects what was not selected; with nothing selected it selects everything.
 - **Select > Expand** and **Contract** grow or shrink the selection by 1 to 500 pixels. **Select > Feather** (Shift+F6) softens its edge by 1 to 250 pixels. The selection tools' options bar has the same three as buttons with a number beside them.
 - The **Feather** slider in the Marquee and Lasso options bar softens new selections as you make them, from 0 to 100 pixels.
-- Drag inside the selection with a selection tool to move its outline, or use the arrow keys (ten pixels with Shift).
+- Drag inside the selection with a selection tool to move its outline (Shift pressed during the drag keeps it on one axis, and its edges snap to the View > Snap To targets unless Ctrl is held), or use the arrow keys (ten pixels with Shift).
 - To move the selected pixels rather than the outline, drag inside the selection with the Move tool, or Ctrl-drag with the Marquee. Alt (or Ctrl and Alt with the Marquee) moves a copy.
 
 ## Using a selection

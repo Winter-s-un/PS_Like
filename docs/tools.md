@@ -2,6 +2,8 @@
 
 The toolbar on the left holds fifteen tools. Each has a single-letter key, and pressing the key of a tool that has modes switches to the next mode; Tab does the same while the tool is active. Below the tools sit the foreground and background swatches: click one to open the color picker, press X to swap them and D to reset them to black and white.
 
+Six buttons hold a group of tools, as in Photoshop, and show a small triangle in their corner: Marquee, Lasso, Magic, Brush and Eraser, Smear, and Shape. A click uses the tool the button shows. Press and hold the button, or right-click it, and the group opens beside it, listing each tool with its icon and key, with a dot at the current one. Click a tool there, or keep the button held, slide onto a tool and let go. The button then shows the tool you picked and the options bar names it.
+
 Tool keys are ignored while you are typing text. While you are dragging, a command from the menu waits until the drag ends.
 
 ## Getting around the canvas
@@ -28,7 +30,7 @@ Moves, resizes, rotates and distorts layers.
 
 ## Marquee (M)
 
-Selects a rectangle or an ellipse; press M again or Tab to switch. Drag to select. Shift adds to the selection, Alt subtracts, Shift and Alt together keep the intersection. With no selection, holding Shift from the start makes a square or a circle; while adding, letting Shift go and pressing it again does the same. Drag inside a selection to move its outline; Ctrl-drag inside to move the pixels, Ctrl and Alt to move a copy. A click without a drag deselects.
+Selects a rectangle or an ellipse; press M again or Tab to switch. Drag to select. Shift adds to the selection, Alt subtracts, Shift and Alt together keep the intersection. With no selection, holding Shift from the start makes a square or a circle; while adding, letting Shift go and pressing it again does the same. Drag inside a selection to move its outline (Shift pressed during the drag keeps it on one axis); Ctrl-drag inside to move the pixels, Ctrl and Alt to move a copy. A click without a drag deselects. The corners of a marquee, and a moved outline's edges, snap to guides, the grid, layer edges and the canvas edges according to View > Snap To; hold Ctrl while dragging to place them freely.
 
 The options bar has a Feather slider for new selections, buttons to expand, contract and feather the current selection by a number of pixels, and Select All, Deselect and Inverse.
 
@@ -38,12 +40,12 @@ Selects a freehand or a polygonal outline; press L again or Tab to switch. Freeh
 
 ## Magic (W)
 
-Two modes, switched with Tab.
+Two modes, Magic Wand and Object Selection, picked from the button's group or switched with Tab.
 
-- **Wand** selects the connected area of similar color under the click. Tolerance (0 to 255, 32 by default) says how different a color may be; Contiguous limits the selection to the connected area.
-- **Object** traces the object under the click: the connected piece of everything that is not the plain backdrop touching the picture's edges. The Edge setting, from -10 to 10, tightens or loosens the outline.
+- **Magic Wand** selects the connected area of similar color under the click. Tolerance (0 to 255, 32 by default) says how different a color may be; Contiguous limits the selection to the connected area.
+- **Object Selection** traces the object under the click: the connected piece of everything that is not the plain backdrop touching the picture's edges. The Edge setting, from -10 to 10, tightens or loosens the outline.
 
-Sample all layers reads the merged picture instead of the active layer alone. Shift adds and Alt subtracts, as with the marquee. Object mode and Select > Subject work from the plain backdrop connected to the picture's edges, so a busy background defeats them.
+Sample all layers reads the merged picture instead of the active layer alone. Shift adds and Alt subtracts, as with the marquee. Object Selection and Select > Subject work from the plain backdrop connected to the picture's edges, so a busy background defeats them.
 
 ## Crop (C)
 
@@ -51,7 +53,7 @@ Drag a box over the area to keep; handles adjust it, dragging inside moves it, a
 
 ## Brush (B) and Eraser (E)
 
-Paints with the foreground color; in Erase mode it clears pixels instead. Size runs from 1 to 500 in the bar (larger with the ] key, up to 2500), Hardness from 0 for a soft edge to 100 for a hard one, and Opacity is the most a whole stroke can cover, so going back over your own stroke never darkens it further. Smoothing, from 0 to 100, makes the brush trail the pointer on a string of that length, so a shaky hand still draws a smooth line.
+Brush and Eraser share a button. The brush paints with the foreground color; the eraser clears pixels instead. Size runs from 1 to 500 in the bar (larger with the ] key, up to 2500), Hardness from 0 for a soft edge to 100 for a hard one, and Opacity is the most a whole stroke can cover, so going back over your own stroke never darkens it further. Smoothing, from 0 to 100, makes the brush trail the pointer on a string of that length, so a shaky hand still draws a smooth line.
 
 Alt-click picks the foreground color from the merged picture. Shift-click draws a straight line from where the last stroke ended. A pen's pressure varies the size. Painting is refused on folders, on adjustment layers without a mask, on hidden layers, and on live text or shapes until you rasterize them (Layer > Rasterize Layer).
 
@@ -65,7 +67,7 @@ Alt-click to set the source, then paint: pixels are copied from the source, whic
 
 ## Smear (R)
 
-One tool with five modes, cycled with R or Tab: Liquify pushes pixels around, Blur softens, Smudge drags color along, Dodge lightens and Burn darkens. Size, Hardness and Strength as for the brush.
+One tool with five modes, picked from the button's group or cycled with R or Tab: Liquify pushes pixels around, Blur softens, Smudge drags color along, Dodge lightens and Burn darkens. Size, Hardness and Strength as for the brush.
 
 ## Gradient (G)
 
@@ -73,7 +75,7 @@ Drag to draw a gradient from the foreground color to the background color, or to
 
 ## Shape (U)
 
-Draws a rectangle, rounded rectangle, ellipse or line in the foreground color, each on its own live shape layer that stays editable: transform it later and it is redrawn sharp. Shift+U or Tab steps through the kinds. Shift makes a square or circle, Alt draws from the center, and a line snaps to 45 degrees with Shift. Rounded rectangles have a corner radius (0 to 400) and lines a width (1 to 100).
+Draws a rectangle, rounded rectangle, ellipse or line in the foreground color, each on its own live shape layer that stays editable: transform it later and it is redrawn sharp. Pick one from the button's group, or step through them with Shift+U or Tab. Shift makes a square or circle, Alt draws from the center, and a line snaps to 45 degrees with Shift. The corners snap to guides, the grid, layer edges and the canvas edges according to View > Snap To; hold Ctrl to draw freely. Rounded rectangles have a corner radius (0 to 400) and lines a width (1 to 100).
 
 ## Type (T)
 
