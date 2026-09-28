@@ -438,6 +438,46 @@ public class EditingTests
     }
 
     [Fact]
+    public void Merge_visible_merges_what_shows_and_keeps_the_hidden_layers()
+    {
+        var session = EditorSession.NewCanvas(20, 20, SKColors.White);
+        var hidden = session.AddImageLayer("hidden", Solid(20, 20, SKColors.Green));
+        session.AddImageLayer("top", Solid(10, 10, SKColors.Blue));
+        session.SetVisible(hidden, false);
+        var before = session.Composite().Bytes;
+        Assert.True(session.CanMergeVisible);
+        session.MergeVisible();
+        Assert.Equal(["hidden", "Background"], session.Document.Layers.Select(l => l.Name));
+        Assert.False(session.Document.Layers[0].Visible);
+        Assert.Same(session.Document.Layers[1], session.ActiveLayer);
+        Assert.Equal(before, session.Composite().Bytes);
+        // One visible layer has nothing to merge with.
+        Assert.False(session.CanMergeVisible);
+        Assert.Equal("Merge Visible", session.History.UndoName);
+        session.Undo();
+        Assert.Equal(3, session.Document.Layers.Count);
+    }
+
+    [Fact]
+    public void Stamp_visible_puts_the_picture_on_a_new_layer_on_top_and_keeps_every_layer()
+    {
+        var session = EditorSession.NewCanvas(20, 20, SKColors.White);
+        var red = session.AddImageLayer("red", Solid(10, 10, SKColors.Red));
+        session.SelectLayer(session.Document.Layers[0].Id);
+        var before = session.Composite().Bytes;
+        session.StampVisible();
+        Assert.Equal(3, session.Document.Layers.Count);
+        var stamp = session.Document.Layers[^1];
+        Assert.Same(stamp, session.ActiveLayer);
+        Assert.Equal("Merged Layer 1", stamp.Name);
+        Assert.Equal(before, stamp.Pixels!.Bytes);
+        Assert.Equal(before, session.Composite().Bytes);
+        Assert.Same(red, session.Document.Layers[1]);
+        session.Undo();
+        Assert.Equal(2, session.Document.Layers.Count);
+    }
+
+    [Fact]
     public void Copy_paste_and_layer_via_copy()
     {
         var session = EditorSession.NewCanvas(40, 40, SKColors.Red);

@@ -157,6 +157,8 @@ public sealed partial class MainWindow
             Item("Move Layer Up", () => session!.MoveActiveLayer(1), Key.OemCloseBrackets, ctrl),
             Item("Move Layer Down", () => session!.MoveActiveLayer(-1), Key.OemOpenBrackets, ctrl),
             mergeItem,
+            Item("Merge Visible", () => session!.MergeVisible(), enabled: () => session!.CanMergeVisible),
+            Item("Stamp Visible", () => session!.StampVisible(), Key.E, ctrl | alt | shift),
             Item("Flatten Image", () => session!.FlattenImage()),
             Line(),
             Sub("Layer Effects", Enum.GetValues<LayerEffectKind>().Select(kind => (object)Item(LayerEffects.DisplayName(kind) + "…", () => _ = NewEffect(kind), enabled: () => session!.ActiveLayer?.Pixels != null, id: "Add " + LayerEffects.DisplayName(kind)))

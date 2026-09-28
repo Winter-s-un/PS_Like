@@ -96,6 +96,8 @@ public class SessionFuzzTests
             ("ungroup", () => { if (session.ActiveLayer is { IsGroup: true } g) session.Ungroup(g); }),
             ("merge", () => session.MergeLayers()),
             ("flatten", () => { if (random.Next(10) == 0) session.FlattenImage(); }),
+            ("merge-visible", () => { if (random.Next(5) == 0) session.MergeVisible(); }),
+            ("stamp-visible", () => { if (random.Next(5) == 0) session.StampVisible(); }),
             ("visible", () => { if (Any() is { } l) session.SetVisible(l, random.Next(2) == 0); }),
             ("opacity", () => { if (Any() is { } l) session.Apply("Opacity", () => session.SetOpacity(l, random.NextDouble())); }),
             ("blend", () => { if (Any() is { } l) session.SetBlend(l, (BlendMode)random.Next(16)); }),

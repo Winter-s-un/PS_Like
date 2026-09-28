@@ -331,6 +331,49 @@ public sealed partial class EditorSession
             var siblings = document.SiblingsOf(roots[0].Id)!;
             roots.Insert(0, siblings[siblings.IndexOf(roots[0]) - 1]);
         }
+        Merge(title, roots);
+    }
+
+    /// <summary>The visible layers at the top of the stack, bottom to top, when there is more than one to merge or a folder to merge on its own.</summary>
+    private List<Layer>? VisibleRoots()
+    {
+        var visible = document.Layers.Where(l => l.Visible).ToList();
+        return visible.Count > 1 || visible is [{ IsGroup: true, Children.Count: > 0 }] ? visible : null;
+    }
+
+    public bool CanMergeVisible => VisibleRoots() != null;
+
+    /// <summary>
+    /// Merges every visible layer into one, as Photoshop's Merge Visible, and leaves the hidden ones as they are. A
+    /// folder counts as one layer and merges as it looks, so a hidden layer inside a visible folder goes with it, as
+    /// in Merge Group.
+    /// </summary>
+    public void MergeVisible()
+    {
+        if (VisibleRoots() is { } roots) Merge("Merge Visible", roots);
+    }
+
+    /// <summary>
+    /// A new layer on top holding the picture as it looks, every other layer left as it is, as Photoshop's Stamp
+    /// Visible. On top of the stack it changes nothing about how the picture looks.
+    /// </summary>
+    public void StampVisible()
+    {
+        Apply("Stamp Visible", () =>
+        {
+            var stamp = Layer.Raster(document.UniqueName("Merged Layer"), DocumentRenderer.Flatten(document));
+            document.Layers.Add(stamp);
+            document.SetActive(stamp.Id);
+            TrimToContent(stamp);
+        });
+        EditingMask = false;
+        InvalidateAll();
+        LayersChanged?.Invoke();
+    }
+
+    /// <summary>Merges sibling-or-root layers, bottom to top, into one raster layer that takes the bottom layer's blend mode and opacity.</summary>
+    private void Merge(string title, List<Layer> roots)
+    {
         Apply(title, () =>
         {
             var bottom = roots[0];
