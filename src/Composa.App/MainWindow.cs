@@ -119,6 +119,7 @@ public sealed partial class MainWindow : Window
                 try
                 {
                     var restored = new EditorSession(Composa.IO.ProjectFile.Load(entry.ProjectPath)) { SuggestedName = entry.Title + " (recovered)" };
+                    restored.History.BaseName = "Recovered";
                     restored.MarkModified();
                     AddSession(restored);
                 }

@@ -648,10 +648,10 @@ public sealed partial class MainWindow
     private async Task<Exception?> Write(EditorSession target, string path)
     {
         var snapshot = target.Document.Clone();
-        var revision = target.Revision;
+        var state = target.History.CurrentId;
         try { await Task.Run(() => ProjectFile.Save(snapshot, path)); }
         catch (Exception error) { return error; }
-        target.MarkSaved(path, revision);
+        target.MarkSaved(path, state);
         recovery?.Forget(target);
         settings.AddRecent(Path.GetFullPath(path));
         return null;
