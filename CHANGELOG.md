@@ -4,6 +4,12 @@ All notable changes to Composa are recorded here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+Catches up with Compositor 1.3.4's per-letter fonts.
+
+### Added
+
+- The font, Bold and Italic can differ from letter to letter: select some of the text while typing and choose a family or tick Bold or Italic, and only those letters take it, as a color already does. The menu says (Multiple) for a selection in several families, and choosing one from it puts them all in that family. Project files that use this are format version 5.
+
 ## [1.2.0] - 2026-09-27
 
 An AI agent can drive Composa, a photo can become a painting, and the catch-up with Compositor 1.2.11 and 1.3.2.

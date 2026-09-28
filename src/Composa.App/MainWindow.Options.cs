@@ -153,11 +153,13 @@ public sealed partial class MainWindow
         var families = EditorSession.FontFamilies;
         var family = families.Contains(style.FontFamily) ? style.FontFamily : families.FirstOrDefault(f => f.Contains("Sans", StringComparison.OrdinalIgnoreCase)) ?? families.FirstOrDefault() ?? style.FontFamily;
         // A long font name is cut off rather than widening the bar.
-        var font = Ui.Combo(families, family, f => f, f => Change(st => st with { FontFamily = f }), 190);
+        // While typing, the family, Bold and Italic land on the selected letters only, as the color does.
+        void ChangeFace(Func<TextFace, TextFace> change) { if (!updating) s.SetTextFace(change); }
+        var font = Ui.Combo(families, family, f => f, f => ChangeFace(face => face with { FontFamily = f }), 190);
         font.MaxWidth = 190;
         var size = Ui.Number(style.Size, 1, 2000, v => Change(st => st with { Size = v }), 1, "0.#", 64);
-        var bold = Ui.Check("Bold", style.Bold, v => Change(st => st with { Bold = v }));
-        var italic = Ui.Check("Italic", style.Italic, v => Change(st => st with { Italic = v }));
+        var bold = Ui.Check("Bold", style.Bold, v => ChangeFace(face => face with { Bold = v }));
+        var italic = Ui.Check("Italic", style.Italic, v => ChangeFace(face => face with { Italic = v }));
         var swatch = new Border { Width = 34, Height = 22, CornerRadius = new Avalonia.CornerRadius(3), BorderBrush = Avalonia.Media.Brushes.White, BorderThickness = new Avalonia.Thickness(1), Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand) };
         ToolTip.SetTip(swatch, "Text color");
         swatch.PointerPressed += async (_, _) =>
@@ -218,8 +220,14 @@ public sealed partial class MainWindow
             size.Value = (decimal)current.Size;
             tracking.Value = (decimal)current.Tracking;
             leading.Value = (decimal)current.Leading;
-            bold.IsChecked = current.Bold;
-            italic.IsChecked = current.Italic;
+            var face = s.CurrentTextFace;
+            bold.IsChecked = face.Bold;
+            italic.IsChecked = face.Italic;
+            // Selected letters in more than one family: the menu says so instead of naming one.
+            var uniform = s.CurrentUniformTextFamily;
+            var index = uniform == null ? -1 : families.ToList().IndexOf(uniform);
+            font.PlaceholderText = uniform ?? "(Multiple)";
+            if (font.SelectedIndex != index) font.SelectedIndex = index;
             swatch.Background = new Avalonia.Media.SolidColorBrush(new SKColor(s.CurrentTextColor).ToAvalonia());
             foreach (var (alignment, button) in alignments) button.IsChecked = current.Alignment == alignment;
             updating = false;

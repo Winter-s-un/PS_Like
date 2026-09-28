@@ -44,7 +44,7 @@ Composa is developed on Linux, on X11 and Wayland (through XWayland), and that i
 - Clone Stamp, aligned or not, sampling one layer or all of them
 - Smear tool: Liquify (push), Blur, Smudge, Dodge and Burn
 - Gradient tool (linear or radial, to background or to transparent) that stays adjustable: drag either end, Enter applies
-- Type tool: type straight onto the canvas as point text or in a dragged-out paragraph box, with font, size, style, color, alignment, tracking and leading in the tool bar; text stays editable and sharp when scaled
+- Type tool: type straight onto the canvas as point text or in a dragged-out paragraph box, with font, size, style, color, alignment, tracking and leading in the tool bar, the font, style and color per letter; text stays editable and sharp when scaled
 - Eyedropper and a full color picker
 - Pen pressure varies the brush size on graphics tablets
 - Every painting tool also works on masks
