@@ -24,9 +24,10 @@ public static class Icons
     public static readonly Icon Stamp = new(null, "M9.5 2.5 H14.5 C15.5 5 14 7.5 14 10.5 H19 C20 10.5 20.5 11 20.5 12 V15.5 H3.5 V12 C3.5 11 4 10.5 5 10.5 H10 C10 7.5 8.5 5 9.5 2.5 Z M4 17.5 H20 V21 H4 Z");
     public static readonly Icon Drop = new("M12 3 C12 3 5.5 10.5 5.5 15 A6.5 6.5 0 0 0 18.5 15 C18.5 10.5 12 3 12 3 Z");
     public static readonly Icon Liquify = new("M12 12 C12 10.5 14 10.5 14 12 C14 14 11 14.5 10 12.5 C8.5 10 11 7.5 13.5 8 C17 8.5 18 12.5 16.5 15 C14.5 18.5 9 18.5 7 15.5 C4.5 12 6 6.5 10 5 C13 4 17 4.5 19.5 7");
-    public static readonly Icon Smudge = new("M11.4 9.4 L4.4 16.4 A2.2 2.2 0 0 0 7.6 19.6 L14.6 12.6 C17 15 21 12 21 8 C21 4.5 18.5 3 16 3 C13.5 3 12 5 11.4 9.4 M16 7 L18 9");
+    // Smudge and Burn are hands, as in Photoshop: a finger pointing down to smear, and fingers closed in a ring to burn through.
+    public static readonly Icon Smudge = new("M14.9 14.9 L9.5 20.3 A1.5 1.5 0 0 1 7.3 18.1 L12 13.4 M11.5 13.9 A1.3 1.3 0 0 1 9.7 12.1 L10.8 11.1 M10.1 11.8 A1.3 1.3 0 0 1 8.2 10 L9.3 8.9 M8.8 9.4 A1.3 1.3 0 0 1 7 7.6 L9.8 4.8 C12.4 2.3 15.8 2.5 17.9 4.6 L18.5 5.2 C20.2 7 20.7 8.7 20.5 11 L20.2 15 A1.3 1.3 0 0 1 17.6 14.7 L17.5 12.3 L14.9 14.9");
     public static readonly Icon Dodge = new("M14.5 3.5 A5 5 0 1 1 14.5 13.5 A5 5 0 1 1 14.5 3.5 Z M11 12.5 L4 21");
-    public static readonly Icon Burn = new("M12 3.5 A3.2 3.2 0 1 1 12 9.9 A3.2 3.2 0 1 1 12 3.5 Z M9 8.8 C6.5 10.3 5.3 12.8 5.5 15.5 C5.8 19.3 8.5 21.5 12 21.5 C15.5 21.5 18.5 19.5 18.5 15.5 C18.5 12.5 17 10.3 15 8.8 M14.8 13 H18.3 M14.8 16.2 H18.5");
+    public static readonly Icon Burn = new("M8 5.6 A3.6 3.6 0 1 1 8 12.8 A3.6 3.6 0 1 1 8 5.6 Z M11.6 9.6 V3.3 A1.3 1.3 0 0 1 14.2 3.3 V9.2 M14.2 9 V4.3 A1.3 1.3 0 0 1 16.8 4.3 V9.6 M16.8 9.4 V6.6 A1.3 1.3 0 0 1 19.4 6.6 V14.8 C19.4 18.8 16.8 21.4 13.4 21.4 H12.2 C8.9 21.4 6.6 19.2 6.4 15.8 L6.4 12.5");
     public static readonly Icon Gradient = new("M3.5 3.5 H20.5 V20.5 H3.5 Z", "M3.5 12 H20.5 V20.5 H3.5 Z");
     public static readonly Icon Shape = new("M3 3 H14 V14 H3 Z M21.5 15.5 A6 6 0 1 1 9.5 15.5 A6 6 0 1 1 21.5 15.5 Z");
     public static readonly Icon Text = new("M5 7 V4.5 H19 V7 M12 4.5 V19.5 M9 19.5 H15");
