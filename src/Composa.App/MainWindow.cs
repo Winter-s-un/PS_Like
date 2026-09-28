@@ -17,6 +17,9 @@ public sealed partial class MainWindow : Window
     private EditorSession? session;
     private readonly CanvasView canvas = new();
     private readonly LayersPanel layers = new() { Width = 296 };
+    private readonly HistoryPanel history = new();
+    /// <summary>The right-hand column: the Layers panel with the panels of the Window menu under it.</summary>
+    private readonly SideDock dock;
     private readonly StackPanel tabs = new() { Orientation = Orientation.Horizontal, Spacing = 2 };
     private readonly Border optionsHost = new() { Height = 40, Background = Palette.Panel, Padding = new Thickness(12, 0) };
     private readonly Dictionary<Tool, ToolButton> toolButtons = [];
@@ -57,7 +60,12 @@ public sealed partial class MainWindow : Window
         AddAt(center, Ui.Separator(), 1).Margin = new Thickness(0);
         AddAt(center, canvasHost, 2);
         AddAt(center, Ui.Separator(), 3).Margin = new Thickness(0);
-        AddAt(center, layers, 4);
+        var historySection = new DockSection("History", history, settings.Dock.GetValueOrDefault("History") ?? new DockPanelState());
+        historySection.Changed += () => { settings.Dock["History"] = historySection.State; settings.Save(); };
+        // The column has the Layers panel's width, so a long step name is cut off rather than widening it.
+        dock = new SideDock(layers, historySection) { Width = layers.Width };
+        AddAt(center, dock, 4);
+        history.GoToRequested += GoToHistory;
 
         // The update notice sits under the menu, where it is visible without covering anything.
         var root = new Grid { RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,Auto,*,Auto,Auto") };
@@ -186,6 +194,7 @@ public sealed partial class MainWindow : Window
         if (session != null) CarryToolState(session, tool);
         canvas.Session = session;
         layers.Session = session;
+        history.Session = session;
         welcome.IsVisible = session == null;
         RebuildTabs();
         RebuildOptions();
@@ -236,6 +245,18 @@ public sealed partial class MainWindow : Window
             tabs.Children.Add(tab);
         }
         Title = session == null ? "Composa" : $"{session.Title}{(session.IsModified ? " •" : "")} - Composa";
+    }
+
+    /// <summary>A click or a scrub in the History panel. Like any command it waits for a drag on the canvas to end.</summary>
+    private void GoToHistory(int index)
+    {
+        if (session == null || canvas.IsDragging) return;
+        var typing = session.IsEditingText;
+        problem = null;
+        session.GoToHistory(index);
+        // Going to another state commits the text being typed, which the Type bar has to hear about.
+        if (typing) RebuildOptions();
+        UpdateStatus();
     }
 
     private async Task<bool> CloseSession(EditorSession item)

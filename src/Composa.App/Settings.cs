@@ -15,6 +15,8 @@ public sealed class Settings
     public bool ShowTransformControls { get; set; } = true;
     public bool AutoSelect { get; set; } = true;
     public Composa.Editing.ViewOptions View { get; set; } = new();
+    /// <summary>The panels under the Layers panel by title: whether each is shown, collapsed to its header, and how tall it is.</summary>
+    public Dictionary<string, DockPanelState> Dock { get; set; } = [];
     /// <summary>Rebound shortcuts by command id: a gesture string, or empty for none. Missing entries keep the default.</summary>
     public Dictionary<string, string> Shortcuts { get; set; } = [];
 
@@ -59,3 +61,6 @@ public sealed class Settings
         Save();
     }
 }
+
+/// <summary>How one panel of the side dock was left: shown or not, collapsed to its header or not, and its height when open.</summary>
+public sealed record DockPanelState(bool Visible = true, bool Collapsed = false, double Height = 220);

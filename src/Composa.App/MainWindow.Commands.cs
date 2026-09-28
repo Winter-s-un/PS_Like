@@ -24,6 +24,8 @@ public sealed partial class MainWindow
     private readonly List<(MenuItem Item, Shortcut Command)> menuItems = [];
     private MenuItem? undoItem, redoItem, mergeItem, clipItem;
     private readonly List<(MenuItem Item, Func<ViewOptions, bool> Checked)> viewToggles = [];
+    /// <summary>The Window menu's checkboxes, by the title of the dock section each shows or hides.</summary>
+    private readonly List<(MenuItem Item, string Section)> panelToggles = [];
     private Guid? optionsLayer;
     private int jpegQuality = 90;
     private MenuItem? recentMenu;
@@ -230,6 +232,15 @@ public sealed partial class MainWindow
         var aiControl = new MenuItem { Header = "Allow AI Control", ToggleType = MenuItemToggleType.CheckBox, IsChecked = settings.AllowAiControl };
         aiControl.Click += async (_, _) => { await SetAiControl(!AiControl); aiControl.IsChecked = settings.AllowAiControl; };
 
+        MenuItem PanelToggle(string title)
+        {
+            var item = Item(title, () => dock.SetVisible(dock.Section(title), !dock.Section(title).State.Visible), needsDocument: false);
+            item.ToggleType = MenuItemToggleType.CheckBox;
+            panelToggles.Add((item, title));
+            return item;
+        }
+        Top("_Window", PanelToggle("History"));
+
         Top("_Help", Item("Keyboard Shortcuts…", () => _ = ShowShortcuts(), Key.F1, needsDocument: false),
             Item("Check for Updates…", () => _ = CheckForUpdatesNow(), needsDocument: false),
             autoUpdates,
@@ -351,6 +362,7 @@ public sealed partial class MainWindow
         }
         foreach (var (item, command) in menuItems) item.IsEnabled = command.Enabled?.Invoke() ?? true;
         foreach (var (item, isChecked) in viewToggles) item.IsChecked = session != null && isChecked(session.View);
+        foreach (var (item, section) in panelToggles) item.IsChecked = dock.Section(section).State.Visible;
         if (session == null) return;
         undoItem!.Header = session.History.CanUndo ? $"Undo {session.History.UndoName}" : "Undo";
         redoItem!.Header = session.History.CanRedo ? $"Redo {session.History.RedoName}" : "Redo";
