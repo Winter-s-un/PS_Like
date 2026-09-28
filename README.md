@@ -8,11 +8,6 @@ The macOS app is written in Swift on top of AppKit, SwiftUI, CoreImage, Metal an
 
 Composa is developed on Linux, on X11 and Wayland (through XWayland), and that is where it gets the most use. Windows builds are published too and the full test suite runs on Windows for every change, but the Windows version is newer and has seen far less real use. A macOS build is planned.
 
-> [!IMPORTANT]
-> This entire codebase was initially created by Claude Code Fable 5.1 in a single prompt.
-> The prompt was `Create a version based on the code of Compositor. I'm going to bed. Don't ask questions and don't finish until you're done.`
-> There's still a lot of work to be done imo. But I always really liked Photoshop and hopefully this can become my new tool in the future.
-
 ## Features
 
 ### Layers
