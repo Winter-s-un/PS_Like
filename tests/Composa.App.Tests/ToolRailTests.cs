@@ -56,6 +56,8 @@ public class ToolRailTests
         Assert.All(items, i => Assert.Equal(new KeyGesture(Key.L), i.InputGesture));
         Assert.All(items, i => Assert.NotNull(i.Icon));
         Assert.Equal([true, false], items.Select(i => i.IsChecked));
+        // Nothing is highlighted until the pointer is over a tool.
+        Assert.All(items, i => Assert.False(i.IsSelected));
         // The group opens on the button's right, level with it, as Photoshop's does.
         var button = lasso.PointToScreen(new Point(lasso.Bounds.Width, 0));
         var first = items[0].PointToScreen(new Point(0, 0));
@@ -159,9 +161,11 @@ public class ToolRailTests
         Assert.Equal("Eraser", brush.Current!.Name);
         Assert.Contains("Eraser", BarTexts());
 
-        smear.OpenGroup();
+        smear.OpenGroup(fromKeyboard: true);
         Dispatcher.UIThread.RunJobs();
         Assert.Equal(["Liquify", "Blur", "Smudge", "Dodge", "Burn"], smear.GroupItems.Select(i => (string)i.Header!));
+        // Opened from the keyboard, the arrow keys start from the current mode.
+        Assert.Equal([false, true, false, false, false], smear.GroupItems.Select(i => i.IsSelected));
         Screenshots.Save(TopLevel.GetTopLevel(smear.GroupItems[0])!, "tool-group-smear");
 
         brush.OpenGroup();

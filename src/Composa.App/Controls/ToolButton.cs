@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Composa.App.Dialogs;
 using Path = Avalonia.Controls.Shapes.Path;
 
@@ -55,7 +56,7 @@ public sealed class ToolButton : ToggleButton
         ContextRequested += (_, e) =>
         {
             if (!HasGroup) return;
-            OpenGroup();
+            OpenGroup(fromKeyboard: !e.TryGetPosition(this, out Point _));
             e.Handled = true;
         };
     }
@@ -83,8 +84,12 @@ public sealed class ToolButton : ToggleButton
         ToolTip.SetTip(this, $"{current.Name}{key} · click and hold for {list}");
     }
 
-    /// <summary>Opens the group beside the button. It is built afresh each time, so it shows the keys as they are bound now.</summary>
-    public void OpenGroup()
+    /// <summary>
+    /// Opens the group beside the button. It is built afresh each time, so it shows the keys as they are bound now. Opened by the
+    /// pointer, no tool is highlighted until the pointer is over one, as in Photoshop; opened from the keyboard, the arrow keys
+    /// start from the current tool.
+    /// </summary>
+    public void OpenGroup(bool fromKeyboard = false)
     {
         if (!HasGroup) return;
         flyout?.Hide();
@@ -101,6 +106,10 @@ public sealed class ToolButton : ToggleButton
             flyout.Items.Add(item);
         }
         flyout.ShowAt(this);
+        // Showing the flyout focuses its first item, which also highlights it.
+        var items = flyout.Items.OfType<MenuItem>().ToList();
+        if (fromKeyboard) items.FirstOrDefault(i => i.IsChecked == true)?.Focus(NavigationMethod.Directional);
+        else if (items.FirstOrDefault()?.FindAncestorOfType<MenuFlyoutPresenter>() is { } presenter) presenter.SelectedIndex = -1;
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
