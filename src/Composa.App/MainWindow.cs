@@ -19,7 +19,7 @@ public sealed partial class MainWindow : Window
     private readonly LayersPanel layers = new() { Width = 296 };
     private readonly StackPanel tabs = new() { Orientation = Orientation.Horizontal, Spacing = 2 };
     private readonly Border optionsHost = new() { Height = 40, Background = Palette.Panel, Padding = new Thickness(12, 0) };
-    private readonly Dictionary<Tool, ToggleButton> toolButtons = [];
+    private readonly Dictionary<Tool, ToolButton> toolButtons = [];
     private readonly TextBlock zoomText = new() { Width = 56, Foreground = Palette.Secondary };
     private readonly TextBlock sizeText = new() { Foreground = Palette.Secondary };
     private readonly TextBlock positionText = new() { Foreground = Palette.Secondary, Width = 96 };
@@ -153,6 +153,8 @@ public sealed partial class MainWindow : Window
     /// <summary>The remembered preferences; tests read them back without anything reaching disk.</summary>
     public Settings Settings => settings;
     public CanvasView Canvas => canvas;
+    /// <summary>The tool rail's button for a tool.</summary>
+    public ToolButton RailButton(Tool tool) => toolButtons[tool];
 
     // ---- Sessions and tabs --------------------------------------------------------------------------------------
 
@@ -208,7 +210,7 @@ public sealed partial class MainWindow : Window
             target.Tool = tool;
         }
         lastToolSource = target;
-        foreach (var (key, button) in toolButtons) button.IsChecked = key == target.Tool;
+        ShowTool(target.Tool);
     }
 
     private void RebuildTabs()
@@ -345,21 +347,61 @@ public sealed partial class MainWindow : Window
 
     private static readonly (Tool Tool, Icons.Icon Icon, string Tip)[] ToolList =
     [
-        (Tool.Move, Icons.Move, "Move / Transform (V)"), (Tool.Marquee, Icons.Marquee, "Marquee (M) · press again for Ellipse"),
-        (Tool.Lasso, Icons.Lasso, "Lasso (L) · press again for Polygonal"), (Tool.Wand, Icons.Wand, "Magic (W) · Tab switches Wand and Object"), (Tool.Crop, Icons.Crop, "Crop (C)"),
-        (Tool.Brush, Icons.Brush, "Brush (B) · Eraser (E)"), (Tool.SpotHealing, Icons.Heal, "Spot Healing Brush (J)"),
-        (Tool.CloneStamp, Icons.Stamp, "Clone Stamp (S) · Alt-click sets the source"), (Tool.Smear, Icons.Drop, "Smear: Liquify, Blur, Smudge, Dodge, Burn (R)"),
-        (Tool.Gradient, Icons.Gradient, "Gradient (G)"), (Tool.Shape, Icons.Shape, "Shape (U) · Shift+U or Tab steps through Rectangle, Rounded Rectangle, Ellipse and Line"),
-        (Tool.Text, Icons.Text, "Type (T) · click for point text, drag a paragraph box, click text to edit it"), (Tool.Eyedropper, Icons.Eyedropper, "Eyedropper (I)"), (Tool.Hand, Icons.Hand, "Hand (H) · hold Space with any tool"), (Tool.Zoom, Icons.Zoom, "Zoom (Z)")
+        (Tool.Move, Icons.Move, "Move / Transform (V)"), (Tool.Marquee, Icons.Marquee, "Marquee (M)"), (Tool.Lasso, Icons.Lasso, "Lasso (L)"),
+        (Tool.Wand, Icons.Wand, "Magic (W)"), (Tool.Crop, Icons.Crop, "Crop (C)"), (Tool.Brush, Icons.Brush, "Brush (B) · Eraser (E)"),
+        (Tool.SpotHealing, Icons.Heal, "Spot Healing Brush (J)"), (Tool.CloneStamp, Icons.Stamp, "Clone Stamp (S) · Alt-click sets the source"),
+        (Tool.Smear, Icons.Drop, "Smear (R)"), (Tool.Gradient, Icons.Gradient, "Gradient (G)"), (Tool.Shape, Icons.Shape, "Shape (U)"),
+        (Tool.Text, Icons.Text, "Type (T) · click for point text, drag a paragraph box, click text to edit it"), (Tool.Eyedropper, Icons.Eyedropper, "Eyedropper (I)"),
+        (Tool.Hand, Icons.Hand, "Hand (H) · hold Space with any tool"), (Tool.Zoom, Icons.Zoom, "Zoom (Z)")
     ];
+
+    /// <summary>
+    /// The tools a rail button holds, which it offers beside itself when held down, as Photoshop groups its tools. Empty for a
+    /// tool on its own. The keys are looked up when the group opens, so a rebound key shows as it is now.
+    /// </summary>
+    private IReadOnlyList<ToolChoice> ToolGroup(Tool tool)
+    {
+        ToolChoice Choice(string name, Icons.Icon icon, string key, Func<EditorSession, bool> isCurrent, Action<EditorSession> apply) => new(
+            name, icon, () => toolKeys.FirstOrDefault(k => k.Id == key)?.Gesture, () => session != null && isCurrent(session),
+            () =>
+            {
+                if (session == null) return;
+                apply(session);
+                SelectTool(tool);
+                canvas.Focus();
+            });
+        ToolChoice[] Kinds<T>(string key, Func<EditorSession, T> get, Action<EditorSession, T> set, params (T Kind, string Name, Icons.Icon Icon)[] kinds) where T : struct, Enum =>
+            kinds.Select(k => Choice(k.Name, k.Icon, key, s => get(s).Equals(k.Kind), s => set(s, k.Kind))).ToArray();
+        return tool switch
+        {
+            Tool.Marquee => Kinds(MarqueeKey, s => s.MarqueeKind, (s, v) => s.MarqueeKind = v,
+                (MarqueeKind.Rectangle, "Rectangle Marquee", Icons.Marquee), (MarqueeKind.Ellipse, "Ellipse Marquee", Icons.MarqueeEllipse)),
+            Tool.Lasso => Kinds(LassoKey, s => s.LassoKind, (s, v) => s.LassoKind = v,
+                (LassoKind.Freehand, "Freehand Lasso", Icons.Lasso), (LassoKind.Polygonal, "Polygonal Lasso", Icons.PolygonLasso)),
+            Tool.Wand => Kinds(MagicKey, s => s.WandMode, (s, v) => s.WandMode = v,
+                (WandMode.Wand, "Magic Wand", Icons.Wand), (WandMode.Object, "Object Selection", Icons.ObjectSelect)),
+            Tool.Brush =>
+            [
+                Choice("Brush", Icons.Brush, BrushKey, s => !s.EraserMode, s => s.EraserMode = false),
+                Choice("Eraser", Icons.Eraser, EraserKey, s => s.EraserMode, s => s.EraserMode = true)
+            ],
+            Tool.Smear => Kinds(SmearKey, s => s.SmearMode, (s, v) => s.SmearMode = v,
+                (SmearMode.Liquify, "Liquify", Icons.Liquify), (SmearMode.Blur, "Blur", Icons.Drop), (SmearMode.Smudge, "Smudge", Icons.Smudge),
+                (SmearMode.Dodge, "Dodge", Icons.Dodge), (SmearMode.Burn, "Burn", Icons.Burn)),
+            Tool.Shape => Kinds(ShapeKey, s => s.ShapeKind, (s, v) => s.ShapeKind = v,
+                (ShapeKind.Rectangle, ShapeStyle.DisplayName(ShapeKind.Rectangle), Icons.Rectangle),
+                (ShapeKind.RoundedRectangle, ShapeStyle.DisplayName(ShapeKind.RoundedRectangle), Icons.RoundedRectangle),
+                (ShapeKind.Ellipse, ShapeStyle.DisplayName(ShapeKind.Ellipse), Icons.Ellipse), (ShapeKind.Line, ShapeStyle.DisplayName(ShapeKind.Line), Icons.Line)),
+            _ => []
+        };
+    }
 
     private Control BuildToolRail()
     {
         var rail = new StackPanel { Spacing = 2, Margin = new Thickness(0, 8, 0, 8), HorizontalAlignment = HorizontalAlignment.Center };
         foreach (var (tool, icon, tip) in ToolList)
         {
-            var button = new ToggleButton { Classes = { "tool" }, Content = Icons.Create(icon, 19) };
-            ToolTip.SetTip(button, tip);
+            var button = new ToolButton(icon, tip, ToolGroup(tool));
             button.Click += (_, _) => SelectTool(tool);
             toolButtons[tool] = button;
             rail.Children.Add(button);
@@ -481,16 +523,15 @@ public sealed partial class MainWindow : Window
         UpdateStatus();
     }
 
-    /// <summary>Marks the tool's button and gives the buttons with variants their current icon.</summary>
+    /// <summary>Marks the tool's button and shows each group's current tool on its button.</summary>
     private void ShowTool(Tool tool)
     {
         if (session == null) return;
-        foreach (var (key, button) in toolButtons) button.IsChecked = key == tool;
-        toolButtons[Tool.Marquee].Content = Icons.Create(session.MarqueeKind == MarqueeKind.Ellipse ? Icons.MarqueeEllipse : Icons.Marquee, 19);
-        toolButtons[Tool.Lasso].Content = Icons.Create(session.LassoKind == LassoKind.Polygonal ? Icons.PolygonLasso : Icons.Lasso, 19);
-        toolButtons[Tool.Brush].Content = Icons.Create(session.EraserMode ? Icons.Eraser : Icons.Brush, 19);
-        toolButtons[Tool.Wand].Content = Icons.Create(session.WandMode == WandMode.Object ? Icons.ObjectSelect : Icons.Wand, 19);
-        toolButtons[Tool.Shape].Content = Icons.Create(session.ShapeKind == ShapeKind.Line ? Icons.Line : Icons.Shape, 19);
+        foreach (var (key, button) in toolButtons)
+        {
+            button.IsChecked = key == tool;
+            button.Refresh();
+        }
     }
 
     private void UpdateStatus()
