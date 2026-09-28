@@ -498,6 +498,34 @@ public class EditingTests
     }
 
     [Fact]
+    public void Reveal_all_grows_the_canvas_back_to_every_layer()
+    {
+        var session = EditorSession.NewCanvas(40, 40, SKColors.White);
+        session.AddImageLayer("red", Solid(20, 20, SKColors.Red));
+        session.Crop(new SKRectI(15, 15, 35, 35));
+        Assert.True(session.CanRevealAll);
+        Assert.True(session.RevealAll());
+        Assert.Equal((40, 40), (session.Document.Width, session.Document.Height));
+        Assert.Equal((0, 0), ((int)session.Document.Layers[0].Transform.X, (int)session.Document.Layers[0].Transform.Y));
+        Assert.Equal("Reveal All", session.History.UndoName);
+        Assert.False(session.CanRevealAll);
+        Assert.False(session.RevealAll());
+    }
+
+    [Fact]
+    public void Reveal_all_refuses_a_canvas_larger_than_a_canvas_can_be()
+    {
+        var session = EditorSession.NewCanvas(40, 40, SKColors.White);
+        var far = session.AddImageLayer("far", Solid(10, 10, SKColors.Red));
+        session.Apply("Move", () => far.Transform = far.Transform.Translated(DocumentLimits.MaxSide, 0));
+        string? problem = null;
+        session.Problem += message => problem = message;
+        Assert.False(session.RevealAll());
+        Assert.NotNull(problem);
+        Assert.Equal((40, 40), (session.Document.Width, session.Document.Height));
+    }
+
+    [Fact]
     public void Copy_paste_and_layer_via_copy()
     {
         var session = EditorSession.NewCanvas(40, 40, SKColors.Red);

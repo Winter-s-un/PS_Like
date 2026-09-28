@@ -127,6 +127,7 @@ public sealed partial class MainWindow
             Item("Canvas Size…", () => _ = CanvasSize(), Key.C, ctrl | alt),
             Item("Image Size…", () => _ = ImageSize(), Key.I, ctrl | alt),
             Item("Trim…", () => _ = Trim()),
+            Item("Reveal All", () => { if (session!.RevealAll()) canvas.Fit(); }, enabled: () => session!.CanRevealAll),
             Item("Duplicate", () => AddSession(session!.Duplicate())),
             Line(),
             Item("Rotate Canvas 90° Clockwise", () => { session!.RotateCanvas(true); canvas.Fit(); }),
