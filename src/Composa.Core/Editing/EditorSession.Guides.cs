@@ -70,8 +70,8 @@ public sealed partial class EditorSession
         // Hidden extras do not snap, matching Photoshop.
         if (View.SnapToGrid && View.ShowGrid)
         {
-            xs.AddRange(LayoutGrid.Lines(document.Width).Select(v => (float)v));
-            ys.AddRange(LayoutGrid.Lines(document.Height).Select(v => (float)v));
+            xs.AddRange(View.Grid.Lines(document.Width).Select(v => (float)v));
+            ys.AddRange(View.Grid.Lines(document.Height).Select(v => (float)v));
         }
         if (View.SnapToGuides && View.ShowGuides)
         {

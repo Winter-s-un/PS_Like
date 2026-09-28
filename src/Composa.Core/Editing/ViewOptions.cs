@@ -1,3 +1,5 @@
+using Composa.Model;
+
 namespace Composa.Editing;
 
 /// <summary>What the View menu shows and snaps to. Carried from tab to tab like the tools; not saved with the project.</summary>
@@ -5,6 +7,10 @@ public sealed record ViewOptions
 {
     /// <summary>Layout grid (View > Show > Grid). Off until turned on; independent of the 800% pixel grid.</summary>
     public bool ShowGrid { get; init; }
+    /// <summary>The layout grid's spacing and subdivisions (View > Grid Settings).</summary>
+    public LayoutGrid Grid { get; init; } = new();
+    /// <summary>The layout grid's color, line style and opacity (View > Grid Settings).</summary>
+    public GridAppearance GridAppearance { get; init; } = new();
     /// <summary>User guides. Hidden extras do not snap.</summary>
     public bool ShowGuides { get; init; } = true;
     public bool ShowRulers { get; init; }

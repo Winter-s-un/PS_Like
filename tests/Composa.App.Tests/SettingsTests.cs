@@ -4,6 +4,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Threading;
 using Composa.Editing;
+using Composa.Model;
 using SkiaSharp;
 
 namespace Composa.App.Tests;
@@ -17,9 +18,16 @@ public class SettingsTests
         var settings = new Settings
         {
             ShowTransformControls = false, AutoSelect = false, ShowPixelGrid = false,
-            View = new ViewOptions { ShowRulers = true, ShowGrid = true, Snap = false, SnapToGrid = true, LockGuides = true }
+            View = new ViewOptions
+            {
+                ShowRulers = true, ShowGrid = true, Snap = false, SnapToGrid = true, LockGuides = true,
+                Grid = new LayoutGrid { Spacing = 50, Subdivisions = 5 },
+                GridAppearance = new GridAppearance { Preset = GridColorPreset.Custom, CustomColor = 0xFF102030, Style = GridStyle.Dots, Opacity = 60 }
+            }
         };
-        var loaded = JsonSerializer.Deserialize<Settings>(JsonSerializer.Serialize(settings))!;
+        var json = JsonSerializer.Serialize(settings);
+        Assert.Contains("\"Dots\"", json); // Named, so the file survives the enums being reordered.
+        var loaded = JsonSerializer.Deserialize<Settings>(json)!;
         Assert.Equal((false, false, false), (loaded.ShowTransformControls, loaded.AutoSelect, loaded.ShowPixelGrid));
         Assert.Equal(settings.View, loaded.View);
         // A settings file from before these were remembered keeps the defaults.

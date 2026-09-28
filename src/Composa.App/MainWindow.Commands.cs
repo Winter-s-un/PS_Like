@@ -194,6 +194,7 @@ public sealed partial class MainWindow
             Sub("Show",
                 ViewToggle("Grid", v => v.ShowGrid, v => v with { ShowGrid = !v.ShowGrid }, Key.OemQuotes, ctrl, "Show Grid"),
                 ViewToggle("Guides", v => v.ShowGuides, v => v with { ShowGuides = !v.ShowGuides }, Key.OemSemicolon, ctrl, "Show Guides")),
+            Item("Grid Settings…", () => _ = ShowGridSettings()),
             Line(),
             ViewToggle("Snap", v => v.Snap, v => v with { Snap = !v.Snap }, Key.OemSemicolon, ctrl | shift),
             Sub("Snap To",
@@ -890,6 +891,27 @@ public sealed partial class MainWindow
         if (await CanvasDialogs.ImageSize(this, session.Document.Width, session.Document.Height, session.Document.Resolution) is not { } result) return;
         Busy(() => session.ResizeImage(result.Width, result.Height, result.Resolution));
         canvas.Fit();
+    }
+
+    /// <summary>
+    /// View > Grid Settings: the grid shows while the dialog is open, changing as it is edited, and goes back to how it
+    /// was on Cancel. The settings are the person's, like the other view options: nothing is saved with the project or undone.
+    /// </summary>
+    private async Task ShowGridSettings()
+    {
+        if (session == null) return;
+        var target = session;
+        var original = target.View;
+        void Preview(LayoutGrid grid, GridAppearance appearance)
+        {
+            target.View = target.View with { ShowGrid = true, Grid = grid, GridAppearance = appearance };
+            canvas.InvalidateVisual();
+        }
+        Preview(original.Grid, original.GridAppearance);
+        var result = await GridSettingsDialog.Show(this, original.Grid, original.GridAppearance, Preview);
+        target.View = original with { Grid = result?.Grid ?? original.Grid, GridAppearance = result?.Appearance ?? original.GridAppearance };
+        canvas.InvalidateVisual();
+        RememberToolSettings();
     }
 }
 

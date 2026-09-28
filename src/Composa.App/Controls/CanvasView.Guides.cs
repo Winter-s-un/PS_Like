@@ -128,24 +128,29 @@ public sealed partial class CanvasView
         var size = new SKSize((float)Bounds.Width, (float)Bounds.Height);
         if (session.View.ShowGrid)
         {
+            var grid = session.View.Grid;
+            var appearance = session.View.GridAppearance;
             var units = (float)UnitsPerPixel;
-            var subdivisions = LayoutGrid.Step * units >= 4;
-            var xs = LayoutGrid.Lines(document.Width).Select(v => (float)v).ToArray();
-            var ys = LayoutGrid.Lines(document.Height).Select(v => (float)v).ToArray();
+            var subdivisions = grid.Step * units >= 4;
+            var xs = grid.Lines(document.Width).Select(v => (float)v).ToArray();
+            var ys = grid.Lines(document.Height).Select(v => (float)v).ToArray();
             float width = document.Width, height = document.Height;
+            var color = appearance.Color;
+            var dashes = GridAppearance.Dashes(appearance.Style);
             steps.Add(canvas =>
             {
-                using var minor = new SKPaint { Color = new SKColor(140, 140, 140, 70), StrokeWidth = hair, PathEffect = SKPathEffect.CreateDash([hair, hair * 2], 0) };
-                using var major = new SKPaint { Color = new SKColor(180, 180, 180, 115), StrokeWidth = hair };
+                // Majors in the chosen style and opacity; subdivisions always dotted and fainter, in the same color.
+                using var minor = new SKPaint { Color = color.WithAlpha((byte)Math.Round(appearance.SubdivisionAlpha * 255)), StrokeWidth = hair, PathEffect = SKPathEffect.CreateDash([hair, hair * 2], 0) };
+                using var major = new SKPaint { Color = color.WithAlpha((byte)Math.Round(appearance.MajorAlpha * 255)), StrokeWidth = hair, PathEffect = dashes.Length == 0 ? null : SKPathEffect.CreateDash(dashes, 0) };
                 foreach (var x in xs)
                 {
-                    var isMajor = LayoutGrid.IsMajor(x);
+                    var isMajor = grid.IsMajor(x);
                     if (!isMajor && !subdivisions) continue;
                     canvas.DrawLine(view.MapPoint(x, 0), view.MapPoint(x, height), isMajor ? major : minor);
                 }
                 foreach (var y in ys)
                 {
-                    var isMajor = LayoutGrid.IsMajor(y);
+                    var isMajor = grid.IsMajor(y);
                     if (!isMajor && !subdivisions) continue;
                     canvas.DrawLine(view.MapPoint(0, y), view.MapPoint(width, y), isMajor ? major : minor);
                 }

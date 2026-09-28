@@ -16,7 +16,9 @@ View > Rulers (Ctrl+R) shows rulers along the top and left of the canvas, in pix
 
 ## Grid
 
-View > Show > Grid (Ctrl+') draws a layout grid over the canvas: a major line every 64 pixels with eight subdivisions. It is only a guide; it is not part of the picture.
+View > Show > Grid (Ctrl+') draws a layout grid over the canvas: a major line every 64 pixels with eight subdivisions, until you change that. It is only a guide; it is not part of the picture.
+
+View > Grid Settings… chooses how the grid is drawn: a color from Photoshop's set or a custom one from the swatch, solid, dashed or dotted major lines, their opacity, how many pixels lie between gridlines (2 to 4096) and how many subdivisions each square gets (1 to 64, never finer than a pixel). The grid shows while the dialog is open and follows every change; Cancel puts it back, and Restore Defaults returns to light gray lines every 64 pixels. Like the other view options, the settings are yours rather than the project's, and they are remembered between launches.
 
 ## Snapping
 
