@@ -4,6 +4,10 @@ All notable changes to Composa are recorded here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Changed
+
+- Tools that come in groups are picked as in Photoshop. Press and hold a toolbar button, or right-click it, and its group opens beside it: each tool with its icon, name and key, and a dot at the current one. Click a tool there, or keep holding, slide onto one and let go. Marquee, Lasso, Magic, Brush and Eraser, Smear and Shape have groups, marked by a small triangle in the button's corner, and each button shows the tool last picked, so Smear and Shape now show their mode and shape too. The options bar no longer has boxes for choosing a variant; it names the tool in use instead. The keys work as before.
+
 ## [1.2.0] - 2026-09-27
 
 An AI agent can drive Composa, a photo can become a painting, and the catch-up with Compositor 1.2.11 and 1.3.2.

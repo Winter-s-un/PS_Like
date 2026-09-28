@@ -15,7 +15,7 @@ The window is laid out as image editors usually are.
 
 - The **menu bar** holds every command, and most commands have a keyboard shortcut you can change (see [Keyboard shortcuts](shortcuts.md)).
 - The **options bar** under the menu shows the settings of the current tool: brush size, marquee feather, text font and so on.
-- The **toolbar** on the left holds the tools, with the foreground and background color swatches below them.
+- The **toolbar** on the left holds the tools, with the foreground and background color swatches below them. A button with a small triangle in its corner holds a group of tools: press and hold it, or right-click it, to pick one.
 - The **canvas** in the middle shows the document. Rulers can be shown around it.
 - The **Layers panel** on the right lists the layers, top layer first, with their blend mode and opacity above the list.
 - The **status bar** at the bottom shows the zoom, the document's size and resolution, the pointer's position in canvas pixels, a hint for the current tool, and "AI connected" while an agent is working in the document.
