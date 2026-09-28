@@ -64,7 +64,7 @@ public class McpTests
         Assert.Equal(
             ["add_line", "add_shape", "add_text", "adjust_black_and_white", "adjust_brightness_contrast", "adjust_color_balance", "adjust_curves", "adjust_exposure", "adjust_gradient_map",
              "adjust_hue_saturation", "adjust_invert", "adjust_levels", "delete_layer", "describe_document", "deselect", "duplicate_layer", "export_image", "fill_layer", "filter_add_noise",
-             "filter_bloom", "filter_blur", "filter_lens_correction", "filter_motion_blur", "filter_painterly", "filter_remove_background", "filter_sharpen", "filter_tonal_contrast", "filter_vignette", "list_documents",
+             "filter_bloom", "filter_blur", "filter_dither", "filter_lens_correction", "filter_motion_blur", "filter_painterly", "filter_remove_background", "filter_sharpen", "filter_tonal_contrast", "filter_vignette", "list_documents",
              "modify_selection", "new_document", "new_layer", "open_document", "paint_stroke", "paint_strokes", "place_image", "render", "reorder_layer", "sample_color", "save_document", "select_all", "select_color_range", "select_inverse",
              "select_layer", "select_layer_pixels", "select_object", "select_shape", "select_subject", "select_wand", "set_layer", "trace_edges", "transform_layer", "undo"],
             tools.Select(t => t.Name).Order());
@@ -237,6 +237,12 @@ public class McpTests
         Assert.Equal("Undid Painterly.", Text(await Pumped(client.CallToolAsync("undo"))));
         var badStyle = await Pumped(client.CallToolAsync("filter_painterly", new Dictionary<string, object?> { ["style"] = "cubist" }));
         Assert.Equal(true, badStyle.IsError);
+        var dithered = await Pumped(client.CallToolAsync("filter_dither", new Dictionary<string, object?> { ["style"] = "halftone dots", ["pixelSize"] = 1, ["colors"] = "two_colors", ["dark"] = "#102030", ["light"] = "#FFE080", ["layer"] = "Background" }));
+        Assert.Equal("Applied Dither to \"Background\".", Text(dithered));
+        Assert.Equal("Dither", session.History.UndoName);
+        Assert.Equal("Undid Dither.", Text(await Pumped(client.CallToolAsync("undo"))));
+        var badDither = await Pumped(client.CallToolAsync("filter_dither", new Dictionary<string, object?> { ["style"] = "atkinson", ["colors"] = "sepia" }));
+        Assert.Equal(true, badDither.IsError);
         var badRange = await Pumped(client.CallToolAsync("adjust_hue_saturation", new Dictionary<string, object?> { ["hue"] = 30, ["range"] = "purples" }));
         Assert.Equal(true, badRange.IsError);
         var byColor = await Pumped(client.CallToolAsync("select_color_range", new Dictionary<string, object?> { ["colors"] = new[] { "#808080" }, ["fuzziness"] = 200 }));
