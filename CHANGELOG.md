@@ -4,10 +4,11 @@ All notable changes to Composa are recorded here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
-Catches up with the smaller items of Compositor 1.3.3 to 1.4.
+Catches up with Compositor 1.3.3 to 1.4: Select > Color Range and the smaller items.
 
 ### Added
 
+- Select > Color Range: click a color in the image to select it everywhere, then adjust Fuzziness and add or remove colors with the eyedroppers, or with Shift and Alt. Invert selects everything else, such as the subject in front of a green screen. The panel sits beside the canvas rather than over it, shows the selection in black and white, and the marching ants follow on the canvas as you go; OK keeps the selection as one undo step. An agent gets it as the select_color_range tool.
 - View > Grid Settings: the layout grid's color (Photoshop's set or a custom one), solid, dashed or dotted lines, their opacity, the pixels between gridlines (2 to 4096) and the subdivisions per square (1 to 64, never finer than a pixel). The grid shows while the dialog is open and follows every change; Cancel puts it back. The settings are remembered between launches like the other view options.
 - Marquees, shapes and a selection outline being moved snap to the View > Snap To targets (guides, the grid, layer edges and the canvas edges), as moved layers and crop boxes already did. Ctrl places them freely, and Shift pressed while moving an outline keeps it on one axis.
 - New Canvas presets for screens and social formats: 4K, 1440p and 1080p; iPhone, MacBook Pro and Studio Display; Instagram Square, Portrait and Story and a YouTube thumbnail, with the print sizes kept. The preset follows a typed size.

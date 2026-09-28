@@ -139,6 +139,8 @@ public sealed partial class EditorSession
     /// </summary>
     private void FinishInteraction()
     {
+        // Color Range's panel is not modal, so another edit can begin while it is open; that keeps what it shows.
+        if (ColorRange != null) CommitColorRange();
         if (TextEdit != null) FinishText();
         else if (stroke != null) EndStroke();
         else if (floatLayer != null) EndMovePixels(keep: true);

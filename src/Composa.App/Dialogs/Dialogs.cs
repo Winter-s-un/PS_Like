@@ -23,12 +23,12 @@ public class DialogWindow : Window
         CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ShowInTaskbar = false;
-        ok = Ui.TextButton(okText, () => Close(true), accent: true);
+        ok = Ui.TextButton(okText, Accept, accent: true);
         ok.IsDefault = true;
         Buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
         if (cancellable)
         {
-            var cancel = Ui.TextButton("Cancel", () => Close(false));
+            var cancel = Ui.TextButton("Cancel", Reject);
             cancel.IsCancel = true;
             Buttons.Children.Add(cancel);
         }
@@ -40,11 +40,16 @@ public class DialogWindow : Window
 
     public async Task<bool> Ask(Window owner) => await ShowDialog<bool?>(owner) == true;
 
+    /// <summary>OK and Enter. A panel shown without <see cref="Ask"/> overrides these to act instead of closing with a result.</summary>
+    protected virtual void Accept() => Close(true);
+    /// <summary>Cancel and Escape.</summary>
+    protected virtual void Reject() => Close(false);
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
         if (e.Handled) return;
-        if (e.Key == Key.Escape) { Close(false); e.Handled = true; }
+        if (e.Key == Key.Escape) { Reject(); e.Handled = true; }
     }
 }
 

@@ -126,6 +126,7 @@ public sealed partial class CanvasView
         {
             if (spaceDown || drag == Drag.Pan) type = StandardCursorType.Hand;
             else if (temporaryMove || (controlHover && drag == Drag.None)) type = StandardCursorType.SizeAll; // The four-way move arrow says what Ctrl will do.
+            else if (session.ColorRange != null) type = StandardCursorType.Cross; // Every click picks a color while the panel is open.
             else type = session.Tool switch
             {
                 Tool.Hand => StandardCursorType.Hand,
@@ -177,6 +178,14 @@ public sealed partial class CanvasView
         var alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
         var control = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+
+        // While Select > Color Range is open every click picks a color, whatever the tool: Shift adds it, Alt takes it away.
+        if (session.ColorRange != null)
+        {
+            session.SampleColorRange((int)Math.Floor(pressDocument.X), (int)Math.Floor(pressDocument.Y), alt ? ColorRangeSample.Remove : shift ? ColorRangeSample.Add : null);
+            e.Pointer.Capture(null);
+            return;
+        }
 
         snapFrom = snapTo = pressDocument;
         selectionOffset = SKPointI.Empty;
@@ -855,6 +864,12 @@ public sealed partial class CanvasView
     {
         if (session == null) return false;
         if (session.TextEdit is { } editor) return HandleTextKey(editor, e);
+        if (session.ColorRange != null && drag == Drag.None)
+        {
+            // The panel's OK and Cancel, reached from the canvas too.
+            if (e.Key == Key.Escape) { session.CancelColorRange(); return true; }
+            if (e.Key == Key.Enter) { session.CommitColorRange(); return true; }
+        }
         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
         if (HasPendingGradient && drag == Drag.None)
         {

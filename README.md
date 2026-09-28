@@ -35,7 +35,7 @@ Composa is developed on Linux, on X11 and Wayland (through XWayland), and that i
 ### Selections
 - Rectangle and Ellipse Marquee, Freehand and Polygonal Lasso, Magic tool with Wand (similar colors) and Object (the thing under the click) modes
 - Add, subtract and intersect; move the outline; move or duplicate the pixels inside
-- Select All, Inverse, Subject, Expand, Contract, Feather (also as buttons with amounts in the tool bar); load a layer's pixels or mask as a selection
+- Select All, Inverse, Subject, Color Range (click colors on the canvas, with fuzziness and invert), Expand, Contract, Feather (also as buttons with amounts in the tool bar); load a layer's pixels or mask as a selection
 - Content-Aware Fill, which can also extend an image past its edges
 
 ### Painting and retouching

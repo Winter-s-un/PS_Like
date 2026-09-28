@@ -178,6 +178,7 @@ public sealed partial class MainWindow : Window
             canvas.CancelInteraction();
             if (session.IsPreviewing) session.CancelPreview();
             if (session.IsEditingText) session.FinishText();
+            if (session.ColorRange != null) session.CommitColorRange();
         }
         var tool = session?.Tool ?? Tool.Move;
         session = next;

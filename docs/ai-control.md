@@ -37,7 +37,7 @@ Some clients only read the tool list when they start. If a client shows no tools
 
 ## What an agent can do
 
-An agent gets fifty-two tools, covering most of what you can do from the menus:
+An agent gets fifty-three tools, covering most of what you can do from the menus:
 
 - **Documents**: create a canvas, open a project or image, list and describe the open documents, save the project, export a PNG, JPEG or WebP, and render the document to see it.
 - **Layers**: add a layer, place an image or SVG file as a layer, select, rename, hide, reorder, duplicate and delete layers, move, resize and rotate them, and set opacity and blend mode.

@@ -65,7 +65,7 @@ public class McpTests
             ["add_line", "add_shape", "add_text", "adjust_black_and_white", "adjust_brightness_contrast", "adjust_color_balance", "adjust_curves", "adjust_exposure", "adjust_gradient_map",
              "adjust_hue_saturation", "adjust_invert", "adjust_levels", "delete_layer", "describe_document", "deselect", "duplicate_layer", "export_image", "fill_layer", "filter_add_noise",
              "filter_bloom", "filter_blur", "filter_lens_correction", "filter_motion_blur", "filter_painterly", "filter_remove_background", "filter_sharpen", "filter_tonal_contrast", "filter_vignette", "list_documents",
-             "modify_selection", "new_document", "new_layer", "open_document", "paint_stroke", "paint_strokes", "place_image", "render", "reorder_layer", "sample_color", "save_document", "select_all", "select_inverse",
+             "modify_selection", "new_document", "new_layer", "open_document", "paint_stroke", "paint_strokes", "place_image", "render", "reorder_layer", "sample_color", "save_document", "select_all", "select_color_range", "select_inverse",
              "select_layer", "select_layer_pixels", "select_object", "select_shape", "select_subject", "select_wand", "set_layer", "trace_edges", "transform_layer", "undo"],
             tools.Select(t => t.Name).Order());
 
@@ -239,6 +239,12 @@ public class McpTests
         Assert.Equal(true, badStyle.IsError);
         var badRange = await Pumped(client.CallToolAsync("adjust_hue_saturation", new Dictionary<string, object?> { ["hue"] = 30, ["range"] = "purples" }));
         Assert.Equal(true, badRange.IsError);
+        var byColor = await Pumped(client.CallToolAsync("select_color_range", new Dictionary<string, object?> { ["colors"] = new[] { "#808080" }, ["fuzziness"] = 200 }));
+        Assert.StartsWith("Selected the area", Text(byColor));
+        Assert.Equal("Color Range", session.History.UndoName);
+        var noneNear = await Pumped(client.CallToolAsync("select_color_range", new Dictionary<string, object?> { ["colors"] = new[] { "#010203" }, ["fuzziness"] = 0 }));
+        Assert.StartsWith("No pixels are near", Text(noneNear));
+        Assert.Null(session.Selection);
 
         // Selections.
         var rect = await Pumped(client.CallToolAsync("select_shape", new Dictionary<string, object?> { ["kind"] = "rectangle", ["x"] = 0, ["y"] = 0, ["width"] = 100, ["height"] = 80 }));
