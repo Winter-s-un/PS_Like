@@ -19,6 +19,8 @@ public sealed partial class MainWindow
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14, VerticalAlignment = VerticalAlignment.Center, Classes = { "options" } };
         void Add(params Control[] controls) => row.Children.AddRange(controls);
         Control Title(string text) => Ui.Label(text, weight: Avalonia.Media.FontWeight.SemiBold);
+        // A tool that comes in a group is picked from its rail button, so the bar only names the one in use.
+        string Chosen() => toolButtons[s.Tool].Current!.Name;
 
         switch (s.Tool)
         {
@@ -27,11 +29,7 @@ public sealed partial class MainWindow
                 BuildTransformFields(row);
                 break;
             case Tool.Brush or Tool.SpotHealing or Tool.CloneStamp or Tool.Smear:
-                Add(Title(s.Tool switch { Tool.SpotHealing => "Spot Healing", Tool.CloneStamp => "Clone Stamp", Tool.Smear => "Smear", _ => "Brush" }));
-                if (s.Tool == Tool.Brush)
-                    Add(Ui.Combo(new[] { "Paint", "Erase" }, s.EraserMode ? "Erase" : "Paint", v => v, v => { s.EraserMode = v == "Erase"; SelectTool(Tool.Brush); }, 90));
-                if (s.Tool == Tool.Smear)
-                    Add(Ui.Combo(Enum.GetValues<SmearMode>(), s.SmearMode, v => v.ToString(), v => { s.SmearMode = v; UpdateStatus(); }, 100));
+                Add(Title(s.Tool switch { Tool.SpotHealing => "Spot Healing", Tool.CloneStamp => "Clone Stamp", _ => Chosen() }));
                 var size = Ui.SliderField("Size", s.Brush.Size, 1, 500, v => s.Brush = s.Brush with { Size = v });
                 var hardness = Ui.SliderField("Hardness", s.Brush.Hardness * 100, 0, 100, v => s.Brush = s.Brush with { Hardness = v / 100 });
                 Add(size, hardness);
@@ -61,14 +59,9 @@ public sealed partial class MainWindow
                 };
                 break;
             case Tool.Marquee or Tool.Lasso or Tool.Wand:
-                Add(Title(s.Tool == Tool.Marquee ? "Marquee" : s.Tool == Tool.Lasso ? "Lasso" : "Magic"));
-                if (s.Tool == Tool.Marquee) Add(Ui.Combo(Enum.GetValues<MarqueeKind>(), s.MarqueeKind, v => v.ToString(), v => { s.MarqueeKind = v; SelectTool(Tool.Marquee); }, 110));
-                if (s.Tool == Tool.Lasso) Add(Ui.Combo(Enum.GetValues<LassoKind>(), s.LassoKind, v => v.ToString(), v => { s.LassoKind = v; SelectTool(Tool.Lasso); }, 110));
+                Add(Title(Chosen()));
                 if (s.Tool == Tool.Wand)
                 {
-                    var mode = Ui.Combo(Enum.GetValues<WandMode>(), s.WandMode, v => v.ToString(), v => { s.WandMode = v; SelectTool(Tool.Wand); }, 96);
-                    ToolTip.SetTip(mode, "Wand selects similar colors; Object traces the object under the click. Tab switches.");
-                    Add(mode);
                     if (s.WandMode == WandMode.Wand)
                         Add(Ui.SliderField("Tolerance", s.WandTolerance, 0, 255, v => s.WandTolerance = (int)v, width: 130), Ui.Check("Contiguous", s.WandContiguous, v => s.WandContiguous = v));
                     else
@@ -105,7 +98,7 @@ public sealed partial class MainWindow
                 refreshOptions = () => gradientOpacity.Value = s.GradientOpacity * 100;
                 break;
             case Tool.Shape:
-                Add(Title("Shape"), Ui.Combo(Enum.GetValues<ShapeKind>(), s.ShapeKind, ShapeStyle.DisplayName, v => { s.ShapeKind = v; SelectTool(Tool.Shape); }, 160));
+                Add(Title(Chosen()));
                 if (s.ShapeKind == ShapeKind.Line) Add(Ui.SliderField("Width", s.ShapeLineWidth, 1, 100, v => s.ShapeLineWidth = v));
                 else if (s.ShapeKind == ShapeKind.RoundedRectangle) Add(Ui.SliderField("Corner radius", s.ShapeCornerRadius, 0, 400, v => s.ShapeCornerRadius = v, width: 150));
                 Add(Ui.Label(s.ShapeKind == ShapeKind.Line ? "Draws in the foreground color · Shift snaps to 45°" : "Fills with the foreground color", Palette.Secondary));
