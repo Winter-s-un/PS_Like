@@ -24,7 +24,7 @@ With nothing open, the canvas area shows a welcome screen: "Create a canvas, ope
 
 ## Your first document
 
-Choose File > New Canvas (Ctrl+N). The "New Canvas" dialog offers presets (HD 1920 by 1080, 4K, a 2048 square, an Instagram portrait, A4 at 300 ppi and a 6000 by 4000 photo) or a custom width and height from 1 to 30,000 pixels each. The background can be transparent, white or the current background color. Create makes the document and opens it in a new tab.
+Choose File > New Canvas (Ctrl+N). The "New Canvas" dialog offers presets (4K, 1440p and 1080p; iPhone, MacBook Pro and Studio Display screens; Instagram Square, Portrait and Story and a YouTube thumbnail; A4 at 300 ppi and a 6000 by 4000 photo) or a custom width and height from 1 to 30,000 pixels each. The background can be transparent, white or the current background color. Create makes the document and opens it in a new tab.
 
 You can also open an image (File > Open) and it becomes a document with one layer named after the file, or drop image files onto the window.
 

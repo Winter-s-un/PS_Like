@@ -1,7 +1,11 @@
 using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
+using Avalonia.VisualTree;
 using Avalonia.Threading;
 using Composa.App.Controls;
 using Composa.Editing;
@@ -90,5 +94,55 @@ public class GuidesUiTests
         Assert.False(session.View.Snap);
         window.KeyPressQwerty(PhysicalKey.Semicolon, RawInputModifiers.Control | RawInputModifiers.Alt);
         Assert.True(session.View.LockGuides);
+    }
+
+    [AvaloniaFact]
+    public void Grid_settings_show_on_the_canvas_as_they_change_and_cancel_puts_them_back()
+    {
+        session.View = session.View with { ShowGrid = false };
+        var original = session.View;
+        var item = window.GetLogicalDescendants().OfType<MenuItem>().Single(m => m.Header as string == "Grid Settings…");
+        Window Open()
+        {
+            item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+            return window.OwnedWindows.Last();
+        }
+
+        var dialog = Open();
+        Assert.True(session.View.ShowGrid); // The grid shows while the dialog is open, whatever View > Show says.
+        var boxes = dialog.GetVisualDescendants().OfType<NumericUpDown>().ToList();
+        var combos = dialog.GetVisualDescendants().OfType<ComboBox>().ToList();
+        var ok = dialog.GetVisualDescendants().OfType<Button>().Single(b => b.Content as string == "OK");
+        boxes[0].Value = 100;
+        combos[0].SelectedIndex = (int)GridColorPreset.Cyan;
+        combos[1].SelectedIndex = (int)GridStyle.Dots;
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(new LayoutGrid { Spacing = 100, Subdivisions = 8 }, session.View.Grid); // Every change previews at once.
+        Assert.Equal((GridColorPreset.Cyan, GridStyle.Dots), (session.View.GridAppearance.Preset, session.View.GridAppearance.Style));
+        Screenshots.Save(dialog, "31-grid-settings");
+        Screenshots.Save(window, "25b-grid-cyan-dots");
+        // More subdivisions than pixels between gridlines cannot be accepted, and the canvas keeps the last good grid.
+        boxes[0].Value = 4;
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(ok.IsEnabled);
+        Assert.Equal(100, session.View.Grid.Spacing);
+        dialog.GetVisualDescendants().OfType<Button>().Single(b => b.Content as string == "Restore Defaults").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(ok.IsEnabled);
+        Assert.Equal(new LayoutGrid(), session.View.Grid);
+        Assert.Equal(GridColorPreset.LightGray, session.View.GridAppearance.Preset);
+        dialog.Close(false);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(original, session.View); // Cancel: the grid is hidden again and drawn as before.
+
+        // OK keeps the settings, still without showing the grid, and remembers them for the next launch.
+        dialog = Open();
+        dialog.GetVisualDescendants().OfType<NumericUpDown>().First().Value = 32;
+        dialog.Close(true);
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(session.View.ShowGrid);
+        Assert.Equal(32, session.View.Grid.Spacing);
+        Assert.Equal(32, window.Settings.View.Grid.Spacing);
     }
 }

@@ -5,6 +5,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Threading;
 using Composa.Editing;
+using Composa.Model;
 using Composa.Selections;
 using SkiaSharp;
 
@@ -57,6 +58,46 @@ public class ToolInputTests
         Assert.Equal(new SKRectI(120, 110, 220, 190), SelectionMask.Bounds(session.Selection!));
         Click(500, 350);
         Assert.Null(session.Selection);
+    }
+
+    [AvaloniaFact]
+    public void Marquees_shapes_and_selection_moves_snap_to_the_targets_unless_ctrl_is_held()
+    {
+        session.AddGuide(GuideAxis.Vertical, 250);
+        session.AddGuide(GuideAxis.Vertical, 300);
+        window.SelectTool(Tool.Marquee);
+        // The dragged corner lands 3 pixels short of the guide and is pulled onto it.
+        Drag(new SKPoint(100, 100), new SKPoint(247, 180));
+        Assert.Equal(new SKRectI(100, 100, 250, 180), SelectionMask.Bounds(session.Selection!));
+        // The outline moved by 47 brings its right edge within reach of the second guide; Shift keeps the move on one axis.
+        Drag(new SKPoint(150, 150), new SKPoint(197, 152));
+        Assert.Equal(new SKRectI(150, 102, 300, 182), SelectionMask.Bounds(session.Selection!));
+        window.MouseDown(At(200, 150), MouseButton.Left); // Shift at the press would add a marquee instead; it locks the axis once the drag is under way.
+        window.MouseMove(At(190, 148), RawInputModifiers.LeftMouseButton | RawInputModifiers.Shift);
+        window.MouseMove(At(180, 145), RawInputModifiers.LeftMouseButton | RawInputModifiers.Shift);
+        window.MouseUp(At(180, 145), MouseButton.Left, RawInputModifiers.Shift);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(new SKRectI(130, 102, 280, 182), SelectionMask.Bounds(session.Selection!));
+        // Ctrl pressed during the drag (at the press it would move pixels or the layer) draws the marquee where the pointer is.
+        session.Deselect();
+        window.MouseDown(At(100, 100), MouseButton.Left);
+        window.MouseMove(At(200, 150), RawInputModifiers.LeftMouseButton | RawInputModifiers.Control);
+        window.MouseMove(At(247, 180), RawInputModifiers.LeftMouseButton | RawInputModifiers.Control);
+        window.MouseUp(At(247, 180), MouseButton.Left, RawInputModifiers.Control);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(new SKRectI(100, 100, 247, 180), SelectionMask.Bounds(session.Selection!));
+        session.Deselect();
+
+        // A shape's corners snap the same way: the start onto the canvas edge, the far corner onto the guide.
+        window.SelectTool(Tool.Shape);
+        session.ShapeKind = ShapeKind.Rectangle;
+        Drag(new SKPoint(3, 50), new SKPoint(247, 120));
+        var shape = Assert.Single(session.Document.Layers, l => l.Shape != null);
+        Assert.Equal((0d, 50d, 250d, 70d), (shape.Transform.X, shape.Transform.Y, shape.Transform.Width, shape.Transform.Height));
+        session.View = session.View with { Snap = false };
+        Drag(new SKPoint(300, 50), new SKPoint(347, 120));
+        var free = session.Document.Layers.Last(l => l.Shape != null);
+        Assert.Equal((300d, 47d), (free.Transform.X, free.Transform.Width));
     }
 
     [AvaloniaFact]
