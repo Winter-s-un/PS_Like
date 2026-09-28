@@ -587,9 +587,11 @@ public sealed partial class EditorSession
         return true;
     }
 
-    public bool CopyMerged()
+    /// <summary>Copies the merged picture: the selected part of it, or all of it with nothing selected or when <paramref name="whole"/> asks for all of it regardless.</summary>
+    public bool CopyMerged(bool whole = false)
     {
-        if (Grab(Composite(), document.Bounds) is not { } image) return false;
+        var image = whole ? new ClipboardImage(Pixels.Clone(Composite()), new SKPointI(0, 0)) : Grab(Composite(), document.Bounds);
+        if (image == null) return false;
         Clipboard = image;
         CopiedLayers = null;
         return true;

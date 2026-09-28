@@ -373,7 +373,7 @@ public sealed partial class MainWindow
     private void Execute(Shortcut command)
     {
         if (command.Enabled?.Invoke() == false || canvas.IsDragging) return;
-        problem = null;
+        problem = note = null;
         try { command.Run(); }
         catch (Exception error) { _ = Prompts.Alert(this, command.Title, error.Message); }
         UpdateStatus();
@@ -435,7 +435,7 @@ public sealed partial class MainWindow
             ?? (e.KeyModifiers == KeyModifiers.Shift ? toolKeys.FirstOrDefault(c => c.Gesture is { KeyModifiers: KeyModifiers.None } g && g.Key == e.Key) : null);
         if (tool == null) return;
         e.Handled = true;
-        problem = null;
+        problem = note = null;
         tool.Run();
         UpdateStatus();
     }
@@ -701,6 +701,7 @@ public sealed partial class MainWindow
     private async Task Copy(bool merged)
     {
         if (session == null || !(merged ? session.CopyMerged() : session.Copy())) { ShowProblem("There is nothing to copy here."); return; }
+        ShowCopied();
         if (EditorSession.Clipboard == null) { await ClearExternalClipboard(); return; }
         await PublishClipboard();
     }
@@ -709,7 +710,24 @@ public sealed partial class MainWindow
     {
         if (session == null) return;
         session.Cut();
+        ShowCopied();
         await PublishClipboard();
+    }
+
+    /// <summary>Copies a document's whole flattened picture, whatever is selected in it: the tab menu's Copy Image.</summary>
+    private async Task CopyImage(EditorSession item)
+    {
+        problem = note = null;
+        item.CopyMerged(whole: true);
+        ShowCopied();
+        await PublishClipboard();
+    }
+
+    /// <summary>Says what went to the clipboard, because a copy is otherwise silent and the first thing anyone doubts.</summary>
+    private void ShowCopied()
+    {
+        if (EditorSession.CopiedLayers is { Layers.Count: var count }) ShowNote(count == 1 ? "Copied 1 layer" : $"Copied {count} layers");
+        else if (EditorSession.Clipboard is { } image) ShowNote($"Copied {image.Pixels.Width} × {image.Pixels.Height} px");
     }
 
     /// <summary>Shares the copied pixels with other apps.</summary>

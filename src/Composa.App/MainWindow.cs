@@ -4,6 +4,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Composa.App.Controls;
 using Composa.Editing;
 using Composa.Model;
@@ -36,7 +37,8 @@ public sealed partial class MainWindow : Window
     private Action? refreshOptions;
     private readonly Settings settings = Settings.Load();
     private readonly Recovery? recovery = Settings.Persist ? new Recovery() : null;
-    private string? problem;
+    // The status bar shows a problem in orange, or a note in the hint's color, in place of the tool hint until the next command.
+    private string? problem, note;
 
     public MainWindow()
     {
@@ -239,9 +241,12 @@ public sealed partial class MainWindow : Window
             };
             tab.PointerPressed += (_, e) =>
             {
-                if (e.GetCurrentPoint(tab).Properties.IsMiddleButtonPressed) _ = CloseSession(item);
-                else if (item != session) SetSession(item);
+                // A right-click opens the tab's menu without switching to it, as browsers do.
+                var pressed = e.GetCurrentPoint(tab).Properties;
+                if (pressed.IsMiddleButtonPressed) _ = CloseSession(item);
+                else if (pressed.IsLeftButtonPressed && item != session) SetSession(item);
             };
+            tab.ContextMenu = TabMenu(item);
             tabs.Children.Add(tab);
         }
         Title = session == null ? "Composa" : $"{session.Title}{(session.IsModified ? " •" : "")} - Composa";
@@ -252,11 +257,49 @@ public sealed partial class MainWindow : Window
     {
         if (session == null || canvas.IsDragging) return;
         var typing = session.IsEditingText;
-        problem = null;
+        problem = note = null;
         session.GoToHistory(index);
         // Going to another state commits the text being typed, which the Type bar has to hear about.
         if (typing) RebuildOptions();
         UpdateStatus();
+    }
+
+    /// <summary>What a right-click on a tab offers, for that document whether or not it is the current one.</summary>
+    private ContextMenu TabMenu(EditorSession item)
+    {
+        MenuItem Entry(string header, Action run, bool enabled = true)
+        {
+            var entry = new MenuItem { Header = header, IsEnabled = enabled };
+            entry.Click += (_, _) => run();
+            return entry;
+        }
+        return new ContextMenu
+        {
+            Items =
+            {
+                Entry("Copy Image", () => _ = CopyImage(item)),
+                new Separator(),
+                Entry("Open Containing Folder", () => _ = OpenContainingFolder(item.FilePath!), item.FilePath != null),
+                new Separator(),
+                Entry("Close", () => _ = CloseSession(item)),
+                Entry("Close Others", () => _ = CloseOthers(item), sessions.Count > 1)
+            }
+        };
+    }
+
+    /// <summary>Closes every other document, each asking about unsaved changes as Close does; a Cancel stops there.</summary>
+    private async Task CloseOthers(EditorSession keep)
+    {
+        foreach (var other in sessions.Where(s => s != keep).ToList())
+            if (!await CloseSession(other)) return;
+        if (session != keep && sessions.Contains(keep)) SetSession(keep);
+    }
+
+    private async Task OpenContainingFolder(string path)
+    {
+        var folder = Path.GetDirectoryName(Path.GetFullPath(path));
+        if (folder == null || !Directory.Exists(folder) || !await Launcher.LaunchDirectoryInfoAsync(new DirectoryInfo(folder)))
+            ShowProblem("Couldn't open the folder " + (folder ?? path) + ".");
     }
 
     private async Task<bool> CloseSession(EditorSession item)
@@ -539,7 +582,7 @@ public sealed partial class MainWindow : Window
     {
         if (session == null) { foreach (var button in toolButtons.Values) button.IsChecked = false; return; }
         session.Tool = tool;
-        problem = null;
+        problem = note = null;
         ShowTool(tool);
         canvas.ToolChanged();
         RebuildOptions();
@@ -568,7 +611,7 @@ public sealed partial class MainWindow : Window
         }
         zoomText.Text = canvas.Zoom >= 0.1 ? $"{canvas.Zoom * 100:0.#}%" : $"{canvas.Zoom * 100:0.##}%";
         sizeText.Text = $"{session.Document.Width} × {session.Document.Height} px · {session.Document.Resolution:0.#} ppi · sRGB";
-        hintText.Text = problem ?? (saving.Count > 0 ? "Saving " + string.Join(", ", saving.Values.Select(w => Path.GetFileName(w.Path))) + "…" : Hint(session));
+        hintText.Text = problem ?? (saving.Count > 0 ? "Saving " + string.Join(", ", saving.Values.Select(w => Path.GetFileName(w.Path))) + "…" : note ?? Hint(session));
         hintText.Foreground = problem != null ? new SolidColorBrush(Color.Parse("#FFB454")) : Palette.Secondary;
     }
 
@@ -618,6 +661,12 @@ public sealed partial class MainWindow : Window
     public void ShowProblem(string message)
     {
         problem = message;
+        UpdateStatus();
+    }
+
+    private void ShowNote(string message)
+    {
+        note = message;
         UpdateStatus();
     }
 }
