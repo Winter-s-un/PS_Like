@@ -161,6 +161,31 @@ public sealed partial class ComposaTools
     }
 
     /// <summary>What is selected now, as the bounds of the selection.</summary>
+    [McpServerTool(Name = "select_color_range")]
+    [Description("Color Range: selects every pixel near the given colors anywhere in the picture, as Select > Color Range does. Fuzziness says how far a color may be on each channel and still count; invert selects everything else, such as the subject in front of a green screen.")]
+    public Task<string> SelectColorRange(
+        [Description("The colors to select, as #RRGGBB or names")] string[] colors,
+        [Description("Colors to leave out even when they are near the selected ones")] string[]? exclude = null,
+        [Description("0 to 200, 40 by default")] int fuzziness = ColorRange.DefaultFuzziness,
+        bool invert = false,
+        [Description(Mode)] string mode = "replace",
+        int? document = null) => OnUi(() =>
+    {
+        var s = Editable(document);
+        if (colors == null || colors.Length == 0) throw new McpException("Give at least one color to select.");
+        var how = ParseMode(mode);
+        var (mask, count) = ColorRange.Match(s.Composite(), colors.Select(ParseColor).ToList(), (exclude ?? []).Select(ParseColor).ToList(),
+            Math.Clamp(fuzziness, ColorRange.MinFuzziness, ColorRange.MaxFuzziness), invert);
+        if (count == 0)
+        {
+            mask.Dispose();
+            if (how == SelectionMode.Replace) s.Deselect();
+            return "No pixels are near those colors. " + Selected(s);
+        }
+        s.Select(mask, how, "Color Range");
+        return Selected(s);
+    });
+
     private static string Selected(EditorSession s)
     {
         if (s.Selection == null) return "Nothing is selected.";

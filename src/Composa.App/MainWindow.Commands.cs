@@ -103,6 +103,7 @@ public sealed partial class MainWindow
             Item("Layer's Pixels", () => session!.SelectLayerPixels(session.ActiveLayer!), enabled: () => session!.ActiveLayer?.Pixels != null),
             Item("Layer's Mask", () => session!.SelectLayerMask(session.ActiveLayer!), enabled: () => session!.ActiveLayer?.Mask != null),
             Item("Subject", SelectSubject, Key.A, ctrl | alt),
+            Item("Color Range…", ShowColorRange, enabled: () => session!.CanSelectColorRange),
             Line(),
             Item("Expand…", () => _ = ModifySelection("Expand Selection", "Expand by", () => session!.SelectionExpandAmount, 500, v => { session!.SelectionExpandAmount = v; session.ExpandSelection(v); }), enabled: () => session!.Selection != null),
             Item("Contract…", () => _ = ModifySelection("Contract Selection", "Contract by", () => session!.SelectionContractAmount, 500, v => { session!.SelectionContractAmount = v; session.ContractSelection(v); }), enabled: () => session!.Selection != null),
@@ -744,6 +745,13 @@ public sealed partial class MainWindow
     }
 
     /// <summary>Select > Subject: what the picture shows in front of its plain backdrop.</summary>
+    /// <summary>Select > Color Range: the panel is not modal, so the colors are clicked on the canvas while it is open.</summary>
+    private void ShowColorRange()
+    {
+        if (session == null || !session.BeginColorRange()) return;
+        ColorRangeWindow.Open(this, session);
+    }
+
     private void SelectSubject()
     {
         if (session == null) return;

@@ -92,6 +92,7 @@ public sealed partial class CanvasView : Control
                 CancelInteraction();
                 session.CanvasChanged -= OnCanvasChanged;
                 session.SelectionChanged -= OnSelectionChanged;
+                session.ColorRangeChanged -= OnColorRangeChanged;
                 session.LayersChanged -= OnLayersChanged;
             }
             session = value;
@@ -99,6 +100,7 @@ public sealed partial class CanvasView : Control
             {
                 session.CanvasChanged += OnCanvasChanged;
                 session.SelectionChanged += OnSelectionChanged;
+                session.ColorRangeChanged += OnColorRangeChanged;
                 session.LayersChanged += OnLayersChanged;
             }
             // A crop rectangle belongs to the document it was drawn on.
@@ -128,6 +130,9 @@ public sealed partial class CanvasView : Control
         InvalidateVisual();
         if (area == null) ViewChanged?.Invoke();
     }
+
+    /// <summary>Color Range opening or closing changes what a click does, so the cursor says so.</summary>
+    private void OnColorRangeChanged() => UpdateCursor();
 
     private void OnSelectionChanged()
     {

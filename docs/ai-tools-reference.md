@@ -72,6 +72,8 @@ The selection tools take `mode`: replace (the default), add, subtract or interse
 
 **select_subject**: everything in the picture that is not the plain backdrop connected to its edges. Parameters: `mode`.
 
+**select_color_range**: every pixel near the given colors anywhere in the picture, as Select > Color Range does. Parameters: `colors`, a list of colors as `#RRGGBB` or names; `exclude`, colors to leave out; `fuzziness` from 0 to 200, 40 by default; `invert`, to select everything else; `mode`.
+
 **select_layer_pixels**: selects the shape of a layer's pixels, or of its mask with `fromMask`. Parameters: `layer`; `fromMask`; `mode`.
 
 **select_all**, **deselect** and **select_inverse**: select the whole canvas, drop the selection, or select what was not selected.

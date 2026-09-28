@@ -10,9 +10,14 @@ A selection limits what the next edit touches: a fill, a filter, an adjustment, 
 - **Object**: the object under the click, traced against the plain backdrop.
 - **Select > All** (Ctrl+A): the whole canvas.
 - **Select > Subject** (Ctrl+Alt+A): everything that is not the plain backdrop connected to the picture's edges.
+- **Select > Color Range**: every pixel near a color, anywhere in the picture. Described below.
 - **Select > Layer's Pixels** and **Layer's Mask**: the shape of the active layer's pixels, or of its mask. Ctrl-click a mask thumbnail in the Layers panel for the same, and the layer's context menu has Select Pixels and Select Mask.
 
 Each tool is described in [Tools](tools.md).
+
+## Color Range
+
+Select > Color Range opens a panel beside the canvas and turns every click on the canvas into a color pick, whatever tool is chosen. Click a color in the image to select it everywhere; Shift-click adds another color and Alt-click takes one away, or choose the Add or Remove eyedropper in the panel and click without a modifier. Fuzziness (0 to 200) says how far a color may be from the picked ones on each channel and still be selected; Invert selects everything else, such as the subject in front of a green screen. The panel shows the selection in black and white, and the marching ants follow on the canvas as you go. OK keeps the selection as one undo step and Cancel or Escape puts back the one there was. Starting any other edit while the panel is open keeps the selection shown.
 
 ## Combining
 
