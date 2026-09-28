@@ -152,6 +152,7 @@ public class SessionFuzzTests
             ("rotate-layer", () => session.RotateLayers(random.Next(2) == 0 ? 90 : -90)),
             ("move-pixels", () => { if (session.BeginMovePixels(random.Next(2) == 0)) { session.MovePixelsBy(random.Next(-30, 30), random.Next(-30, 30)); session.MovePixelsBy(random.Next(-30, 30), random.Next(-30, 30)); session.EndMovePixels(random.Next(4) != 0); } }),
             ("copy-paste", () => { if (random.Next(2) == 0) session.Copy(); else session.CopyMerged(); session.Paste(); }),
+            ("paste-special", () => { if (random.Next(2) == 0) session.PasteInPlace(); else session.PasteInto(); }),
             ("cut", () => session.Cut()),
             ("via-copy", () => session.LayerViaCopy()),
             ("crop", () => { if (random.Next(6) == 0) { var r = R(); if (r.Width > 8 && r.Height > 8) session.Crop(Geometry.RoundOut(r)); } }),

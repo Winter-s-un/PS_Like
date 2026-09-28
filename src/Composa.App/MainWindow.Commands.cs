@@ -89,6 +89,9 @@ public sealed partial class MainWindow
             Item("Copy", () => _ = Copy(merged: false), Key.C, ctrl, () => session!.CanCopy),
             Item("Copy Merged", () => _ = Copy(merged: true), Key.C, ctrl | shift),
             Item("Paste", () => _ = Paste(), Key.V, ctrl),
+            Sub("Paste Special",
+                Item("Paste in Place", () => _ = Paste(PasteKind.InPlace), Key.V, ctrl | shift),
+                Item("Paste Into", () => _ = Paste(PasteKind.Into), Key.V, ctrl | alt | shift, () => session!.Selection != null)),
             Line(),
             Item("Fill with Foreground Color", () => session!.Fill(session.Foreground, "Fill"), Key.Back, alt, () => session!.CanFill),
             Item("Fill with Background Color", () => session!.Fill(session.Background, "Fill"), Key.Back, ctrl, () => session!.CanFill),
@@ -756,7 +759,9 @@ public sealed partial class MainWindow
         catch { /* Nothing to share; the in-app clipboard still has the layers. */ }
     }
 
-    private async Task Paste()
+    private enum PasteKind { Normal, InPlace, Into }
+
+    private async Task Paste(PasteKind kind = PasteKind.Normal)
     {
         if (session == null) return;
         ClipboardImage? external = null;
@@ -774,7 +779,13 @@ public sealed partial class MainWindow
             }
         }
         catch { /* Fall back to the in-app clipboard. */ }
-        if (session.Paste(external) == null) ShowProblem("The clipboard has no image.");
+        var pasted = kind switch
+        {
+            PasteKind.InPlace => session.PasteInPlace(external),
+            PasteKind.Into => session.PasteInto(external),
+            _ => session.Paste(external)
+        };
+        if (pasted == null) ShowProblem("The clipboard has no image.");
         else SelectTool(Tool.Move);
     }
 

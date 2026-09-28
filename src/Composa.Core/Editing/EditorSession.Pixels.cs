@@ -607,14 +607,23 @@ public sealed partial class EditorSession
     /// Pastes as a new layer: where it was copied from when that still fits the canvas, otherwise centered. Layers
     /// copied whole come back complete instead; an image handed in from another app always pastes as pixels.
     /// </summary>
-    public Layer? Paste(ClipboardImage? image = null, string name = "Pasted Layer")
+    public Layer? Paste(ClipboardImage? image = null, string name = "Pasted Layer") => Paste(image, name, inPlace: false);
+
+    /// <summary>
+    /// Paste in Place: where it was copied from even when that lies partly outside the canvas, and layers copied
+    /// whole keep their positions in another project too. Only what would land entirely off the canvas, or an image
+    /// from another app, which has no place, is centered.
+    /// </summary>
+    public Layer? PasteInPlace(ClipboardImage? image = null) => Paste(image, "Pasted Layer", inPlace: true);
+
+    private Layer? Paste(ClipboardImage? image, string name, bool inPlace)
     {
-        if (image == null && CopiedLayers is { } layers) return PasteLayers(layers);
+        if (image == null && CopiedLayers is { } layers) return PasteLayers(layers, inPlace);
         image ??= Clipboard;
         if (image == null) return null;
         var pixels = Pixels.Clone(image.Pixels);
         var placed = new SKRectI(image.Origin.X, image.Origin.Y, image.Origin.X + pixels.Width, image.Origin.Y + pixels.Height);
-        var fits = document.Bounds.Contains(placed);
+        var fits = inPlace ? document.Bounds.IntersectsWith(placed) : document.Bounds.Contains(placed);
         var layer = Layer.Raster(document.UniqueName(name), pixels,
             fits ? placed.Left : Math.Round((document.Width - pixels.Width) / 2.0),
             fits ? placed.Top : Math.Round((document.Height - pixels.Height) / 2.0));
@@ -630,11 +639,11 @@ public sealed partial class EditorSession
     /// place, like Duplicate Layer; in another they are centered on the canvas together, keeping their positions
     /// relative to each other. Returns the topmost pasted layer, which becomes active with every copy selected.
     /// </summary>
-    private Layer? PasteLayers(ClipboardLayers copied)
+    private Layer? PasteLayers(ClipboardLayers copied, bool inPlace)
     {
         if (copied.Layers.Count == 0) return null;
         var pasted = copied.Layers.Select(l => l.Clone(newIds: true)).ToList();
-        if (copied.Source != this)
+        if (copied.Source != this && !inPlace)
         {
             // Centered on this canvas: a single layer by its own center, several by the center of what they cover.
             var pictured = pasted.SelectMany(l => Document.Flatten([l])).Where(l => l.Pixels != null).Select(l => l.Bounds).ToList();
@@ -664,6 +673,32 @@ public sealed partial class EditorSession
         InvalidateAll();
         LayersChanged?.Invoke();
         return pasted[^1];
+    }
+
+    /// <summary>
+    /// Paste Into: the clipboard's pixels on a new layer centered on the selection and masked by it, as Photoshop's
+    /// Paste Into, so the picture shows only inside the selection. Layers copied whole paste as the pixels they showed.
+    /// The mask moves with the layer, since Composa's masks are not unlinked.
+    /// </summary>
+    public Layer? PasteInto(ClipboardImage? image = null)
+    {
+        if (document.Selection is not { } selection || (image ??= Clipboard) == null) return null;
+        var bounds = SelectionMask.Bounds(selection);
+        var pixels = Pixels.Clone(image.Pixels);
+        var layer = Layer.Raster(document.UniqueName("Pasted Layer"), pixels,
+            Math.Round((bounds.Left + bounds.Right - pixels.Width) / 2.0), Math.Round((bounds.Top + bounds.Bottom - pixels.Height) / 2.0));
+        Apply("Paste Into", () =>
+        {
+            document.InsertAboveActive(layer);
+            layer.Mask = SelectionInLayerSpace(layer);
+            layer.MaskEnabled = true;
+            document.Selection = null;
+        });
+        EditingMask = false;
+        Invalidate(AffectedArea(layer));
+        LayersChanged?.Invoke();
+        SelectionChanged?.Invoke();
+        return layer;
     }
 
     /// <summary>Ctrl+J: the selected pixels on a new layer, or a duplicate of the layer when nothing is selected.</summary>

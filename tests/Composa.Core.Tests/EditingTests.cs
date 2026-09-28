@@ -526,6 +526,45 @@ public class EditingTests
     }
 
     [Fact]
+    public void Paste_in_place_keeps_the_place_even_partly_off_the_canvas()
+    {
+        var session = EditorSession.NewCanvas(40, 40, SKColors.White);
+        var overhanging = new ClipboardImage(Solid(20, 20, SKColors.Blue), new SKPointI(30, 30));
+        Assert.Equal(10, session.Paste(overhanging)!.Transform.X);
+        Assert.Equal(30, session.PasteInPlace(overhanging)!.Transform.X);
+        // Wholly off the canvas, or from another app, it has no place here and is centered.
+        Assert.Equal(10, session.PasteInPlace(new ClipboardImage(Solid(20, 20, SKColors.Blue), new SKPointI(int.MinValue / 2, int.MinValue / 2)))!.Transform.X);
+
+        // Layers copied whole keep their positions in another project too.
+        var source = EditorSession.NewCanvas(100, 100, SKColors.White);
+        source.AddImageLayer("blue", Solid(10, 10, SKColors.Blue));
+        Assert.True(source.Copy());
+        var target = EditorSession.NewCanvas(60, 60, SKColors.White);
+        Assert.Equal(25, target.Paste()!.Transform.X);
+        Assert.Equal(45, target.PasteInPlace()!.Transform.X);
+    }
+
+    [Fact]
+    public void Paste_into_masks_the_pasted_pixels_by_the_selection()
+    {
+        var session = EditorSession.NewCanvas(40, 40, SKColors.White);
+        var image = new ClipboardImage(Solid(20, 20, SKColors.Blue), new SKPointI(0, 0));
+        Assert.Null(session.PasteInto(image));
+        session.SelectRect(new SKRect(20, 20, 30, 30));
+        var layer = session.PasteInto(image)!;
+        // Centered on the selection, showing only inside it.
+        Assert.Equal((15, 15), ((int)layer.Transform.X, (int)layer.Transform.Y));
+        Assert.NotNull(layer.Mask);
+        Assert.Null(session.Selection);
+        AssertColor(SKColors.Blue, session.Composite().GetPixel(25, 25));
+        AssertColor(SKColors.White, session.Composite().GetPixel(17, 17));
+        Assert.Equal("Paste Into", session.History.UndoName);
+        session.Undo();
+        Assert.NotNull(session.Selection);
+        Assert.Single(session.Document.Layers);
+    }
+
+    [Fact]
     public void Copy_paste_and_layer_via_copy()
     {
         var session = EditorSession.NewCanvas(40, 40, SKColors.Red);
