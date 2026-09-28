@@ -8,11 +8,6 @@ The macOS app is written in Swift on top of AppKit, SwiftUI, CoreImage, Metal an
 
 Composa is developed on Linux, on X11 and Wayland (through XWayland), and that is where it gets the most use. Windows builds are published too and the full test suite runs on Windows for every change, but the Windows version is newer and has seen far less real use. A macOS build is planned.
 
-> [!IMPORTANT]
-> This entire codebase was initially created by Claude Code Fable 5.1 in a single prompt.
-> The prompt was `Create a version based on the code of Compositor. I'm going to bed. Don't ask questions and don't finish until you're done.`
-> There's still a lot of work to be done imo. But I always really liked Photoshop and hopefully this can become my new tool in the future.
-
 ## Features
 
 ### Layers
@@ -74,6 +69,7 @@ Composa is developed on Linux, on X11 and Wayland (through XWayland), and that i
 - Open Photoshop files, `.psd` and Large Document `.psb`: layers, folders, masks, clipping, opacity, blend modes, solid fill shapes, adjustments and simple horizontal text come in editable, and a report lists everything that has to be converted before anything is applied; dropped onto an open document, a Photoshop file arrives inside a folder
 - Export PNG, JPEG (with a live preview of the compression and the file size) and WebP; Copy Merged
 - Undo history limited by memory, not by a fixed step count
+- Tools that come in groups open beside their toolbar button when it is held or right-clicked, as in Photoshop: the marquees, the lassos, Magic Wand and Object Selection, Brush and Eraser, the Smear modes and the shapes
 - Tool settings stick between launches: Auto Select, the transform controls, the pixel grid, rulers, guides, the grid and its settings, Snap and the Snap To options keep what you last set them to
 - Autosave for crash recovery: unsaved work is copied to `~/.cache/composa/recovery` every two minutes and offered back after an unclean exit
 
@@ -239,7 +235,7 @@ dotnet test
 | V M L W C | Move, Marquee, Lasso, Magic, Crop (M and L again switch variants) |
 | B E J S R | Brush, Eraser, Spot Healing, Clone Stamp, Smear |
 | G U T I H Z | Gradient, Shape, Type, Eyedropper, Hand, Zoom |
-| Tab | Switch the current tool's mode (Wand/Object, Paint/Erase, the shape, and so on) |
+| Tab | Switch the current tool's mode (Wand/Object, Brush/Eraser, the shape, and so on) |
 | Ctrl+drag | Move the current layer with any tool |
 | Space, middle button, Ctrl+wheel | Pan, zoom at the cursor |
 | Ctrl+0, Ctrl+1 | Fit canvas, actual pixels |
