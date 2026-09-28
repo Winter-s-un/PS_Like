@@ -35,7 +35,7 @@ Composa is developed on Linux, on X11 and Wayland (through XWayland), and that i
 - Snapping to canvas and layer edges and centers, with guides
 - Exact values for position, size and angle; arrow keys nudge (Shift for 10 px)
 - Live shape layers (rectangle, rounded rectangle, ellipse, line) that are redrawn sharp when scaled
-- Rulers, guides dragged out of them, a layout grid, and snapping to guides, grid, layers and the canvas (View > Snap To)
+- Rulers, guides dragged out of them, a layout grid with its own color, style, spacing and subdivisions (View > Grid Settings), and snapping of moves, marquees, shapes, selection outlines and crops to guides, grid, layers and the canvas (View > Snap To)
 
 ### Selections
 - Rectangle and Ellipse Marquee, Freehand and Polygonal Lasso, Magic tool with Wand (similar colors) and Object (the thing under the click) modes
@@ -74,7 +74,7 @@ Composa is developed on Linux, on X11 and Wayland (through XWayland), and that i
 - Open Photoshop files, `.psd` and Large Document `.psb`: layers, folders, masks, clipping, opacity, blend modes, solid fill shapes, adjustments and simple horizontal text come in editable, and a report lists everything that has to be converted before anything is applied; dropped onto an open document, a Photoshop file arrives inside a folder
 - Export PNG, JPEG (with a live preview of the compression and the file size) and WebP; Copy Merged
 - Undo history limited by memory, not by a fixed step count
-- Tool settings stick between launches: Auto Select, the transform controls, the pixel grid, rulers, guides, the grid, Snap and the Snap To options keep what you last set them to
+- Tool settings stick between launches: Auto Select, the transform controls, the pixel grid, rulers, guides, the grid and its settings, Snap and the Snap To options keep what you last set them to
 - Autosave for crash recovery: unsaved work is copied to `~/.cache/composa/recovery` every two minutes and offered back after an unclean exit
 
 A user guide covering every tool, menu and the AI control is in [docs/](docs/README.md).
