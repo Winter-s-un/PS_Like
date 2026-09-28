@@ -23,7 +23,7 @@ public sealed partial class CanvasView
         if (drag == Drag.Shape && session.ShapeKind == Model.ShapeKind.Line)
         {
             var shift = dragModifiers.HasFlag(Avalonia.Input.KeyModifiers.Shift);
-            SKPoint from = view.MapPoint(pressDocument), to = view.MapPoint(ConstrainAngle(pressDocument, currentDocument, shift));
+            SKPoint from = view.MapPoint(snapFrom), to = view.MapPoint(LineEnd(shift));
             var width = (float)Math.Max(1, session.ShapeLineWidth * UnitsPerPixel);
             var color = session.Foreground;
             steps.Add(canvas =>
@@ -58,7 +58,7 @@ public sealed partial class CanvasView
 
         if (drag == Drag.MoveSelection && AntsOutline() is { } outline)
         {
-            var shift = SKMatrix.CreateTranslation(MathF.Round(currentDocument.X - pressDocument.X), MathF.Round(currentDocument.Y - pressDocument.Y));
+            var shift = SKMatrix.CreateTranslation(selectionOffset.X, selectionOffset.Y);
             var moved = shift.PostConcat(view);
             steps.Add(canvas => DrawAnts(canvas, outline, moved, phase, scaling));
         }

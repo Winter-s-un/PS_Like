@@ -23,12 +23,12 @@ public class DialogWindow : Window
         CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ShowInTaskbar = false;
-        ok = Ui.TextButton(okText, () => Close(true), accent: true);
+        ok = Ui.TextButton(okText, Accept, accent: true);
         ok.IsDefault = true;
         Buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
         if (cancellable)
         {
-            var cancel = Ui.TextButton("Cancel", () => Close(false));
+            var cancel = Ui.TextButton("Cancel", Reject);
             cancel.IsCancel = true;
             Buttons.Children.Add(cancel);
         }
@@ -40,11 +40,16 @@ public class DialogWindow : Window
 
     public async Task<bool> Ask(Window owner) => await ShowDialog<bool?>(owner) == true;
 
+    /// <summary>OK and Enter. A panel shown without <see cref="Ask"/> overrides these to act instead of closing with a result.</summary>
+    protected virtual void Accept() => Close(true);
+    /// <summary>Cancel and Escape.</summary>
+    protected virtual void Reject() => Close(false);
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
         if (e.Handled) return;
-        if (e.Key == Key.Escape) { Close(false); e.Handled = true; }
+        if (e.Key == Key.Escape) { Reject(); e.Handled = true; }
     }
 }
 
@@ -114,11 +119,20 @@ public sealed record NewCanvasResult(int Width, int Height, SKColor? Background)
 
 public static class CanvasDialogs
 {
-    private static readonly (string Name, int W, int H)[] Presets =
+    /// <summary>
+    /// Preset sizes, as the macOS app groups them: resolutions, screens and social formats, plus two print sizes. The
+    /// first entry is Custom; the combo shows the one the typed size matches.
+    /// </summary>
+    public static readonly (string Name, int W, int H)[] Presets =
     [
-        ("Custom", 0, 0), ("HD 1920 × 1080", 1920, 1080), ("4K 3840 × 2160", 3840, 2160), ("Square 2048 × 2048", 2048, 2048),
-        ("Instagram 1080 × 1350", 1080, 1350), ("A4 at 300 ppi", 2480, 3508), ("Photo 6000 × 4000", 6000, 4000)
+        ("Custom", 0, 0),
+        ("4K", 3840, 2160), ("1440p", 2560, 1440), ("1080p", 1920, 1080),
+        ("iPhone 18 Pro", 1206, 2622), ("iPhone 18 Pro Max", 1320, 2868), ("MacBook Pro 14\"", 3024, 1964), ("MacBook Pro 16\"", 3456, 2234), ("Studio Display", 5120, 2880),
+        ("Instagram Square", 1080, 1080), ("Instagram Portrait", 1080, 1350), ("Instagram Story", 1080, 1920), ("YouTube Thumb", 1080, 608),
+        ("A4 at 300 ppi", 2480, 3508), ("Photo 6000 × 4000", 6000, 4000)
     ];
+
+    private static string PresetLabel((string Name, int W, int H) preset) => preset.W == 0 || preset.Name.Contains('×') ? preset.Name : $"{preset.Name}  {preset.W} × {preset.H}";
 
     public static async Task<NewCanvasResult?> NewCanvas(Window owner, SKColor backgroundColor, (int W, int H)? clipboardSize = null)
     {
@@ -126,11 +140,25 @@ public static class CanvasDialogs
         var fill = 0;
         var widthBox = Ui.Number(width, 1, DocumentLimits.MaxSide, v => width = (int)v, width: 120);
         var heightBox = Ui.Number(height, 1, DocumentLimits.MaxSide, v => height = (int)v, width: 120);
-        var preset = Ui.Combo(Presets, Presets[clipboardSize == null ? 1 : 0], p => p.Name, p =>
+        var applying = false;
+        ComboBox preset = null!;
+        preset = Ui.Combo(Presets, Presets.FirstOrDefault(p => p.W == width && p.H == height, Presets[0]), PresetLabel, p =>
         {
-            if (p.W == 0) return;
+            if (p.W == 0 || applying) return;
+            applying = true;
             widthBox.Value = p.W; heightBox.Value = p.H;
+            applying = false;
         }, 220);
+        // A typed size shows the preset it matches, or Custom.
+        void FollowSize(object? _, NumericUpDownValueChangedEventArgs __)
+        {
+            if (applying) return;
+            applying = true;
+            preset.SelectedIndex = Math.Max(0, Array.FindIndex(Presets, p => p.W == width && p.H == height));
+            applying = false;
+        }
+        widthBox.ValueChanged += FollowSize;
+        heightBox.ValueChanged += FollowSize;
         var background = Ui.Combo(new[] { "Transparent", "White", "Background color" }, "Transparent", s => s, s => fill = s == "White" ? 1 : s == "Transparent" ? 0 : 2, 220);
         var grid = Form(("Preset", preset), ("Width", Ui.Row(6, widthBox, Ui.Label("px", Palette.Secondary))), ("Height", Ui.Row(6, heightBox, Ui.Label("px", Palette.Secondary))), ("Background", background));
         if (!await new DialogWindow("New Canvas", grid, "Create").Ask(owner)) return null;

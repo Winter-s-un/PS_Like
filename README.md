@@ -30,12 +30,12 @@ Composa is developed on Linux, on X11 and Wayland (through XWayland), and that i
 - Snapping to canvas and layer edges and centers, with guides
 - Exact values for position, size and angle; arrow keys nudge (Shift for 10 px)
 - Live shape layers (rectangle, rounded rectangle, ellipse, line) that are redrawn sharp when scaled
-- Rulers, guides dragged out of them, a layout grid, and snapping to guides, grid, layers and the canvas (View > Snap To)
+- Rulers, guides dragged out of them, a layout grid with its own color, style, spacing and subdivisions (View > Grid Settings), and snapping of moves, marquees, shapes, selection outlines and crops to guides, grid, layers and the canvas (View > Snap To)
 
 ### Selections
 - Rectangle and Ellipse Marquee, Freehand and Polygonal Lasso, Magic tool with Wand (similar colors) and Object (the thing under the click) modes
 - Add, subtract and intersect; move the outline; move or duplicate the pixels inside
-- Select All, Inverse, Subject, Expand, Contract, Feather (also as buttons with amounts in the tool bar); load a layer's pixels or mask as a selection
+- Select All, Inverse, Subject, Color Range (click colors on the canvas, with fuzziness and invert), Expand, Contract, Feather (also as buttons with amounts in the tool bar); load a layer's pixels or mask as a selection
 - Content-Aware Fill, which can also extend an image past its edges
 
 ### Painting and retouching
@@ -69,7 +69,8 @@ Composa is developed on Linux, on X11 and Wayland (through XWayland), and that i
 - Open Photoshop files, `.psd` and Large Document `.psb`: layers, folders, masks, clipping, opacity, blend modes, solid fill shapes, adjustments and simple horizontal text come in editable, and a report lists everything that has to be converted before anything is applied; dropped onto an open document, a Photoshop file arrives inside a folder
 - Export PNG, JPEG (with a live preview of the compression and the file size) and WebP; Copy Merged
 - Undo history limited by memory, not by a fixed step count
-- Tool settings stick between launches: Auto Select, the transform controls, the pixel grid, rulers, guides, the grid, Snap and the Snap To options keep what you last set them to
+- Tools that come in groups open beside their toolbar button when it is held or right-clicked, as in Photoshop: the marquees, the lassos, Magic Wand and Object Selection, Brush and Eraser, the Smear modes and the shapes
+- Tool settings stick between launches: Auto Select, the transform controls, the pixel grid, rulers, guides, the grid and its settings, Snap and the Snap To options keep what you last set them to
 - Autosave for crash recovery: unsaved work is copied to `~/.cache/composa/recovery` every two minutes and offered back after an unclean exit
 
 A user guide covering every tool, menu and the AI control is in [docs/](docs/README.md).
@@ -234,7 +235,7 @@ dotnet test
 | V M L W C | Move, Marquee, Lasso, Magic, Crop (M and L again switch variants) |
 | B E J S R | Brush, Eraser, Spot Healing, Clone Stamp, Smear |
 | G U T I H Z | Gradient, Shape, Type, Eyedropper, Hand, Zoom |
-| Tab | Switch the current tool's mode (Wand/Object, Paint/Erase, the shape, and so on) |
+| Tab | Switch the current tool's mode (Wand/Object, Brush/Eraser, the shape, and so on) |
 | Ctrl+drag | Move the current layer with any tool |
 | Space, middle button, Ctrl+wheel | Pan, zoom at the cursor |
 | Ctrl+0, Ctrl+1 | Fit canvas, actual pixels |

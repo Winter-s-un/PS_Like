@@ -677,8 +677,16 @@ public sealed record HueSaturationAdjustment : Adjustment
         };
     }
 
-    private static double ApplySaturation(double s, double amount) =>
-        Math.Clamp(amount >= 0 ? s * (1 + amount / 100 * 2) : s * (1 + amount / 100), 0, 1);
+    /// <summary>
+    /// Photoshop's Saturation: below 0 it scales toward gray (-100 is gray); above 0 it divides by what is left, so
+    /// +50 doubles it and +100 takes any color all the way. Multiplicative both ways, so neutral grays stay neutral.
+    /// </summary>
+    internal static double ApplySaturation(double s, double amount)
+    {
+        var a = Math.Clamp(amount / 100, -1, 1);
+        if (a <= 0) return Math.Max(0, s * (1 + a));
+        return a >= 1 ? (s > 0 ? 1 : 0) : Math.Min(1, s / (1 - a));
+    }
 
     private static double ApplyLightness(double l, double amount) =>
         amount >= 0 ? l + (1 - l) * amount / 100 : l * (1 + amount / 100);

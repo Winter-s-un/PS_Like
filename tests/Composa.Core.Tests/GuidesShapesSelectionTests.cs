@@ -110,13 +110,67 @@ public class GuideTests
     }
 
     [Fact]
+    public void Points_and_selection_moves_snap_each_axis_on_its_own_without_centers()
+    {
+        var session = EditorSession.NewCanvas(400, 300);
+        session.AddGuide(GuideAxis.Vertical, 250);
+        // A corner near the guide takes its X and keeps its own Y; the canvas center (200) is not a target for points.
+        var (point, snapX, snapY) = session.SnapPoint(new SKPoint(247, 150), 6);
+        Assert.Equal((new SKPoint(250, 150), 250f, (float?)null), (point, snapX, snapY));
+        Assert.Equal(new SKPoint(203, 2), session.SnapPoint(new SKPoint(203, 2), 6).Point with { Y = 2 });
+        Assert.Equal(0, session.SnapPoint(new SKPoint(203, 2), 6).SnapY);
+        session.View = session.View with { Snap = false };
+        Assert.Null(session.SnapPoint(new SKPoint(247, 150), 6).SnapX);
+        session.View = session.View with { Snap = true };
+        // A selection box 100-200 moved by 47 has its right edge 3 short of the guide and is pulled over; Shift's lock on that axis stops it.
+        var box = SKRect.Create(100, 100, 100, 50);
+        Assert.Equal((50f, 0f, 250f, (float?)null), session.SnapSelectionMove(box, 47, 0, 6));
+        Assert.Equal((47f, 0f, (float?)null, (float?)null), session.SnapSelectionMove(box, 47, 0, 6, horizontal: false));
+    }
+
+    [Fact]
     public void Layout_grid_lines_include_majors_and_subdivisions()
     {
-        var lines = LayoutGrid.Lines(64).ToList();
+        var grid = new LayoutGrid();
+        var lines = grid.Lines(64).ToList();
         Assert.Equal(0, lines.First());
         Assert.Equal(64, lines.Last());
         Assert.Contains(8, lines);
-        Assert.True(LayoutGrid.IsMajor(0) && LayoutGrid.IsMajor(64) && !LayoutGrid.IsMajor(8));
+        Assert.True(grid.IsMajor(0) && grid.IsMajor(64) && !grid.IsMajor(8));
+    }
+
+    [Fact]
+    public void Layout_grid_settings_are_clamped_and_an_uneven_step_stays_on_the_majors()
+    {
+        // Ten pixels in three parts: counted from the origin, the ninth subdivision is the third major, not 9.999.
+        var grid = new LayoutGrid { Spacing = 10, Subdivisions = 3 };
+        Assert.True(grid.IsValid);
+        Assert.Equal([0, 3, 7, 10, 13, 17, 20, 23, 27, 30], grid.Lines(30).ToArray());
+        Assert.True(grid.IsMajor(30) && !grid.IsMajor(27));
+        // Subdivisions never go finer than a pixel, and both fields stay within their limits.
+        Assert.False(new LayoutGrid { Spacing = 4, Subdivisions = 8 }.IsValid);
+        Assert.Equal(new LayoutGrid { Spacing = 4, Subdivisions = 4 }, new LayoutGrid { Spacing = 4, Subdivisions = 8 }.Normalized());
+        Assert.Equal(new LayoutGrid { Spacing = LayoutGrid.MaxSpacing, Subdivisions = 1 }, new LayoutGrid { Spacing = 99999, Subdivisions = 0 }.Normalized());
+        // A settings file with an impossible grid still draws and snaps to something sensible.
+        Assert.Equal([0, 1, 2, 3, 4], new LayoutGrid { Spacing = 4, Subdivisions = 8 }.Lines(4).ToArray());
+        var session = EditorSession.NewCanvas(100, 100);
+        session.View = session.View with { ShowGrid = true, SnapToGrid = true, SnapToLayers = false, SnapToDocumentBounds = false, Grid = grid };
+        Assert.Equal([0, 3, 7, 10, 13, 17, 20, 23, 27, 30], session.SnapTargets().Xs.Take(10).ToArray());
+    }
+
+    [Fact]
+    public void Grid_appearance_takes_the_preset_color_and_fades_subdivisions()
+    {
+        var appearance = new GridAppearance();
+        Assert.Equal(new SKColor(179, 179, 179), appearance.Color);
+        Assert.Equal(0.45, appearance.MajorAlpha, 3);
+        Assert.Equal(0.28, appearance.SubdivisionAlpha, 3);
+        var custom = appearance with { Preset = GridColorPreset.Custom, CustomColor = 0xFF123456, Opacity = 250 };
+        Assert.Equal(new SKColor(0xFF123456), custom.Color);
+        Assert.Equal(GridAppearance.MaxOpacity, custom.Normalized().Opacity);
+        Assert.Equal(new SKColor(0, 255, 255), (custom with { Preset = GridColorPreset.Cyan }).Color);
+        Assert.Empty(GridAppearance.Dashes(GridStyle.Lines));
+        Assert.Equal("Dashed Lines", GridAppearance.DisplayName(GridStyle.DashedLines));
     }
 
     [Fact]
