@@ -470,7 +470,7 @@ public sealed partial class MainWindow
 
     private async Task NewCanvas()
     {
-        var result = await CanvasDialogs.NewCanvas(this, session?.Background ?? SKColors.White);
+        var result = await CanvasDialogs.NewCanvas(this, session?.Background ?? SKColors.White, await ClipboardImageSize());
         if (result != null) AddSession(EditorSession.NewCanvas(result.Width, result.Height, result.Background));
     }
 
@@ -740,18 +740,52 @@ public sealed partial class MainWindow
         ClipboardImage? external = null;
         try
         {
-            // Pixels copied in this app keep their position; anything newer from another app wins.
-            if (Clipboard != null && await Clipboard.TryGetInProcessDataAsync() == null && await Clipboard.TryGetBitmapAsync() is { } bitmap)
+            if (await ExternalClipboardBitmap() is { } bitmap)
             {
-                using var stream = new MemoryStream();
-                bitmap.Save(stream, Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
-                stream.Position = 0;
-                external = new ClipboardImage(ImageFiles.Load(stream, "clipboard"), new SKPointI(int.MinValue / 2, int.MinValue / 2));
+                using (bitmap)
+                {
+                    using var stream = new MemoryStream();
+                    bitmap.Save(stream, Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
+                    stream.Position = 0;
+                    external = new ClipboardImage(ImageFiles.Load(stream, "clipboard"), new SKPointI(int.MinValue / 2, int.MinValue / 2));
+                }
             }
         }
         catch { /* Fall back to the in-app clipboard. */ }
         if (session.Paste(external) == null) ShowProblem("The clipboard has no image.");
         else SelectTool(Tool.Move);
+    }
+
+    /// <summary>
+    /// The image another app put on the clipboard, or null when the clipboard holds what was copied here, or no image.
+    /// Pixels copied in this app keep their position; anything newer from another app wins. Paste and New Canvas both
+    /// decide through this, so the size New Canvas offers is the size a paste brings.
+    /// </summary>
+    private async Task<Bitmap?> ExternalClipboardBitmap()
+    {
+        if (Clipboard == null) return null;
+        try { return await Clipboard.TryGetInProcessDataAsync() == null ? await Clipboard.TryGetBitmapAsync() : null; }
+        catch { return null; } // The in-app clipboard still works when the desktop's does not.
+    }
+
+    /// <summary>How long New Canvas waits for another app's clipboard before opening without its size.</summary>
+    private static readonly TimeSpan ClipboardPatience = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// The size of the image Paste would paste, for New Canvas to offer. A desktop clipboard that has not answered in
+    /// time offers nothing rather than the in-app clipboard, which may be older than what it holds.
+    /// </summary>
+    private async Task<(int W, int H)?> ClipboardImageSize()
+    {
+        var external = ExternalClipboardBitmap();
+        if (await Task.WhenAny(external, Task.Delay(ClipboardPatience)) != external)
+        {
+            _ = external.ContinueWith(late => late.Result?.Dispose(), TaskContinuationOptions.OnlyOnRanToCompletion);
+            return null;
+        }
+        if (await external is { } bitmap)
+            using (bitmap) return (bitmap.PixelSize.Width, bitmap.PixelSize.Height);
+        return EditorSession.Clipboard is { } image ? (image.Pixels.Width, image.Pixels.Height) : null;
     }
 
     // ---- Dialog-driven edits ------------------------------------------------------------------------------------

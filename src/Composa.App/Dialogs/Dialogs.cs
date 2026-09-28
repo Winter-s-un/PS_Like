@@ -134,15 +134,23 @@ public static class CanvasDialogs
 
     private static string PresetLabel((string Name, int W, int H) preset) => preset.W == 0 || preset.Name.Contains('×') ? preset.Name : $"{preset.Name}  {preset.W} × {preset.H}";
 
+    /// <summary>
+    /// With the size of the image on the clipboard, the dialog opens on a Clipboard preset of that size, listed first,
+    /// so what is pasted next fills the new canvas exactly; every other preset is still a choice away. An image too
+    /// large for a canvas offers no preset.
+    /// </summary>
     public static async Task<NewCanvasResult?> NewCanvas(Window owner, SKColor backgroundColor, (int W, int H)? clipboardSize = null)
     {
+        if (clipboardSize is { } clip && !DocumentLimits.FitsSurface(clip.W, clip.H)) clipboardSize = null;
+        var presets = clipboardSize is { } size ? Presets.Prepend(("Clipboard", size.W, size.H)).ToArray() : Presets;
+        var custom = Array.FindIndex(presets, p => p.W == 0);
         int width = clipboardSize?.W ?? 1920, height = clipboardSize?.H ?? 1080;
         var fill = 0;
         var widthBox = Ui.Number(width, 1, DocumentLimits.MaxSide, v => width = (int)v, width: 120);
         var heightBox = Ui.Number(height, 1, DocumentLimits.MaxSide, v => height = (int)v, width: 120);
         var applying = false;
         ComboBox preset = null!;
-        preset = Ui.Combo(Presets, Presets.FirstOrDefault(p => p.W == width && p.H == height, Presets[0]), PresetLabel, p =>
+        preset = Ui.Combo(presets, presets.FirstOrDefault(p => p.W == width && p.H == height, presets[custom]), PresetLabel, p =>
         {
             if (p.W == 0 || applying) return;
             applying = true;
@@ -154,7 +162,8 @@ public static class CanvasDialogs
         {
             if (applying) return;
             applying = true;
-            preset.SelectedIndex = Math.Max(0, Array.FindIndex(Presets, p => p.W == width && p.H == height));
+            var match = Array.FindIndex(presets, p => p.W == width && p.H == height);
+            preset.SelectedIndex = match >= 0 ? match : custom;
             applying = false;
         }
         widthBox.ValueChanged += FollowSize;

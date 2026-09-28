@@ -3,12 +3,15 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Composa.App.Controls;
 using Composa.App.Dialogs;
 using Composa.Editing;
 using Composa.Filters;
+using Composa.Model;
 using SkiaSharp;
 
 namespace Composa.App.Tests;
@@ -261,5 +264,70 @@ public class CameraRawDialogTests
         dialog.Close(true);
         Dispatcher.UIThread.RunJobs();
         Assert.Equal((3840, 2160), (task.Result!.Width, task.Result.Height));
+    }
+
+    /// <summary>With the size of an image on the clipboard the dialog opens on it, listed first; every other preset is still a choice away.</summary>
+    [AvaloniaFact]
+    public void New_canvas_opens_on_the_clipboard_size()
+    {
+        var window = new MainWindow { Width = 1280, Height = 800 };
+        window.Show();
+        var task = CanvasDialogs.NewCanvas(window, SKColors.White, (1234, 567));
+        Dispatcher.UIThread.RunJobs();
+        var dialog = window.OwnedWindows.Last();
+        var preset = dialog.GetVisualDescendants().OfType<ComboBox>().First();
+        var boxes = dialog.GetVisualDescendants().OfType<NumericUpDown>().ToList();
+        Assert.Equal(0, preset.SelectedIndex);
+        Assert.Equal("Clipboard  1234 × 567", (string)preset.SelectedItem!);
+        Assert.Equal((1234, 567), ((int)boxes[0].Value!, (int)boxes[1].Value!));
+        Screenshots.Save(dialog, "15b-new-canvas-clipboard");
+        // Another preset replaces the size; typing the clipboard's size again finds its entry, anything else is Custom.
+        preset.SelectedIndex = preset.Items.Cast<string>().ToList().FindIndex(i => i.StartsWith("4K"));
+        Assert.Equal((3840, 2160), ((int)boxes[0].Value!, (int)boxes[1].Value!));
+        boxes[0].Value = 1234;
+        Assert.Equal("Custom", (string)preset.SelectedItem!);
+        boxes[1].Value = 567;
+        Assert.StartsWith("Clipboard", (string)preset.SelectedItem!);
+        dialog.Close(true);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal((1234, 567), (task.Result!.Width, task.Result.Height));
+    }
+
+    [AvaloniaFact]
+    public void New_canvas_offers_no_clipboard_size_too_large_for_a_canvas()
+    {
+        var window = new MainWindow { Width = 1280, Height = 800 };
+        window.Show();
+        _ = CanvasDialogs.NewCanvas(window, SKColors.White, (DocumentLimits.MaxSide + 1, 100));
+        Dispatcher.UIThread.RunJobs();
+        var dialog = window.OwnedWindows.Last();
+        var preset = dialog.GetVisualDescendants().OfType<ComboBox>().First();
+        Assert.DoesNotContain(preset.Items.Cast<string>(), i => i.StartsWith("Clipboard"));
+        Assert.StartsWith("1080p", (string)preset.SelectedItem!);
+        dialog.Close();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>File > New Canvas offers the size of what was copied, which is the size a paste brings, so the paste fills the canvas.</summary>
+    [AvaloniaFact]
+    public void New_canvas_takes_the_size_of_the_copied_image()
+    {
+        var window = new MainWindow { Width = 1280, Height = 800 };
+        window.Show();
+        window.AddSession(EditorSession.NewCanvas(320, 200, SKColors.White));
+        void Click(string header)
+        {
+            window.GetLogicalDescendants().OfType<MenuItem>().Single(m => m.Header as string == header).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            for (var i = 0; i < 5; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(10); }
+        }
+
+        Click("Copy Merged");
+        Click("New Canvas…");
+        var dialog = window.OwnedWindows.Last();
+        Assert.Equal("Clipboard  320 × 200", (string)dialog.GetVisualDescendants().OfType<ComboBox>().First().SelectedItem!);
+        dialog.Close(true);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(2, window.Sessions.Count);
+        Assert.Equal((320, 200), (window.Sessions[1].Document.Width, window.Sessions[1].Document.Height));
     }
 }
