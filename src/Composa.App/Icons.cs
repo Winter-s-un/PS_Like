@@ -23,6 +23,10 @@ public static class Icons
     public static readonly Icon Heal = new("M3.8 14.2 L14.2 3.8 A4.2 4.2 0 0 1 20.2 9.8 L9.8 20.2 A4.2 4.2 0 0 1 3.8 14.2 Z M8.5 9.5 L14.5 15.5 M9.5 8.5 L15.5 14.5", "M11.2 12 A0.8 0.8 0 1 1 12.8 12 A0.8 0.8 0 1 1 11.2 12 Z");
     public static readonly Icon Stamp = new(null, "M9.5 2.5 H14.5 C15.5 5 14 7.5 14 10.5 H19 C20 10.5 20.5 11 20.5 12 V15.5 H3.5 V12 C3.5 11 4 10.5 5 10.5 H10 C10 7.5 8.5 5 9.5 2.5 Z M4 17.5 H20 V21 H4 Z");
     public static readonly Icon Drop = new("M12 3 C12 3 5.5 10.5 5.5 15 A6.5 6.5 0 0 0 18.5 15 C18.5 10.5 12 3 12 3 Z");
+    public static readonly Icon Liquify = new("M12 12 C12 10.5 14 10.5 14 12 C14 14 11 14.5 10 12.5 C8.5 10 11 7.5 13.5 8 C17 8.5 18 12.5 16.5 15 C14.5 18.5 9 18.5 7 15.5 C4.5 12 6 6.5 10 5 C13 4 17 4.5 19.5 7");
+    public static readonly Icon Smudge = new("M11.4 9.4 L4.4 16.4 A2.2 2.2 0 0 0 7.6 19.6 L14.6 12.6 C17 15 21 12 21 8 C21 4.5 18.5 3 16 3 C13.5 3 12 5 11.4 9.4 M16 7 L18 9");
+    public static readonly Icon Dodge = new("M14.5 3.5 A5 5 0 1 1 14.5 13.5 A5 5 0 1 1 14.5 3.5 Z M11 12.5 L4 21");
+    public static readonly Icon Burn = new("M12 3.5 A3.2 3.2 0 1 1 12 9.9 A3.2 3.2 0 1 1 12 3.5 Z M9 8.8 C6.5 10.3 5.3 12.8 5.5 15.5 C5.8 19.3 8.5 21.5 12 21.5 C15.5 21.5 18.5 19.5 18.5 15.5 C18.5 12.5 17 10.3 15 8.8 M14.8 13 H18.3 M14.8 16.2 H18.5");
     public static readonly Icon Gradient = new("M3.5 3.5 H20.5 V20.5 H3.5 Z", "M3.5 12 H20.5 V20.5 H3.5 Z");
     public static readonly Icon Shape = new("M3 3 H14 V14 H3 Z M21.5 15.5 A6 6 0 1 1 9.5 15.5 A6 6 0 1 1 21.5 15.5 Z");
     public static readonly Icon Text = new("M5 7 V4.5 H19 V7 M12 4.5 V19.5 M9 19.5 H15");
@@ -45,6 +49,9 @@ public static class Icons
     public static readonly Icon EyeOff = new("M3 3 L21 21 M10.6 5.3 C11 5.1 11.5 5 12 5 C15.5 5 19 6.5 22 12 C21.2 13.5 20.3 14.7 19.3 15.6 M6.6 6.6 C4.8 7.8 3.3 9.6 2 12 C5 17.5 8.5 19 12 19 C13.9 19 15.7 18.6 17.4 17.4 M9.9 9.9 A3 3 0 0 0 14.1 14.1");
     public static readonly Icon ObjectSelect = new("M3 8 V3 H8 M16 3 H21 V8 M21 16 V21 H16 M8 21 H3 V16", "M10 7 L10 17 L12.7 14.4 L14.5 18.2 L16.4 17.3 L14.6 13.5 L18 13.5 Z");
     public static readonly Icon Line = new("M4 20 L20 4");
+    public static readonly Icon Rectangle = new("M3.5 6 H20.5 V18 H3.5 Z");
+    public static readonly Icon RoundedRectangle = new("M8 6 H16 A4.5 4.5 0 0 1 20.5 10.5 V13.5 A4.5 4.5 0 0 1 16 18 H8 A4.5 4.5 0 0 1 3.5 13.5 V10.5 A4.5 4.5 0 0 1 8 6 Z");
+    public static readonly Icon Ellipse = new("M12 6 A8.5 6 0 1 1 12 18 A8.5 6 0 1 1 12 6 Z");
     public static readonly Icon AlignLeft = new("M4 6 H20 M4 10 H14 M4 14 H20 M4 18 H12");
     public static readonly Icon AlignCenter = new("M4 6 H20 M7 10 H17 M4 14 H20 M8 18 H16");
     public static readonly Icon AlignRight = new("M4 6 H20 M10 10 H20 M4 14 H20 M12 18 H20");
