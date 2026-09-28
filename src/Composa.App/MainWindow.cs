@@ -278,6 +278,7 @@ public sealed partial class MainWindow : Window
             Items =
             {
                 Entry("Copy Image", () => _ = CopyImage(item)),
+                Entry("Duplicate", () => AddSession(item.Duplicate())),
                 new Separator(),
                 Entry("Open Containing Folder", () => _ = OpenContainingFolder(item.FilePath!), item.FilePath != null),
                 new Separator(),

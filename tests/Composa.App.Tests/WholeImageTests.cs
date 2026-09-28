@@ -31,7 +31,7 @@ public class WholeImageTests
     }
 
     private static void Menu(MainWindow window, string header) =>
-        Click(window.GetLogicalDescendants().OfType<MenuItem>().Single(m => m.Header as string == header));
+        Click(window.GetLogicalDescendants().OfType<Menu>().First().GetLogicalDescendants().OfType<MenuItem>().Single(m => m.Header as string == header));
 
     private static string Status(MainWindow window) => string.Join(" | ", window.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text));
 
@@ -96,5 +96,21 @@ public class WholeImageTests
         Click(menu.Single(i => i.Header as string == "Close Others"));
         Assert.Equal([first], window.Sessions);
         Assert.False(TabMenu(window, first).Single(i => i.Header as string == "Close Others").IsEnabled);
+    }
+
+    [AvaloniaFact]
+    public void Duplicate_opens_a_copy_in_a_new_tab_from_the_menu_and_from_the_tab()
+    {
+        var window = Open();
+        var original = EditorSession.NewCanvas(320, 200, SKColors.White);
+        original.SuggestedName = "Poster";
+        window.AddSession(original);
+
+        Menu(window, "Duplicate");
+        Assert.Equal(["Poster", "Poster copy"], window.Sessions.Select(s => s.Title));
+        Assert.Same(window.Sessions[1], window.Session);
+        Click(TabMenu(window, original).Single(i => i.Header as string == "Duplicate"));
+        Assert.Equal(["Poster", "Poster copy", "Poster copy"], window.Sessions.Select(s => s.Title));
+        Assert.Equal((320, 200), (window.Session!.Document.Width, window.Session.Document.Height));
     }
 }

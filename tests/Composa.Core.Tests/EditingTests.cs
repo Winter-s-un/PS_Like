@@ -478,6 +478,26 @@ public class EditingTests
     }
 
     [Fact]
+    public void Duplicate_copies_the_document_into_a_session_of_its_own()
+    {
+        var session = EditorSession.NewCanvas(30, 20, SKColors.White);
+        session.SuggestedName = "Poster";
+        Assert.False(session.Duplicate().IsModified); // A copy of what is on disk loses nothing when it is closed.
+        session.AddImageLayer("red", Solid(10, 10, SKColors.Red));
+        var copy = session.Duplicate();
+        Assert.Equal("Poster copy", copy.Title);
+        Assert.True(copy.IsModified);
+        Assert.False(copy.History.CanUndo);
+        Assert.Equal(["Duplicate"], copy.History.Steps.Select(s => s.Name));
+        var original = session.Composite().Bytes;
+        Assert.Equal(original, copy.Composite().Bytes);
+        // Each goes its own way afterwards.
+        copy.Fill(SKColors.Blue);
+        Assert.Equal(original, session.Composite().Bytes);
+        AssertColor(SKColors.Blue, copy.Composite().GetPixel(15, 10));
+    }
+
+    [Fact]
     public void Copy_paste_and_layer_via_copy()
     {
         var session = EditorSession.NewCanvas(40, 40, SKColors.Red);

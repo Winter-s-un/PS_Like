@@ -245,6 +245,20 @@ public sealed partial class EditorSession
         HistoryChanged?.Invoke();
     }
 
+    /// <summary>
+    /// Image > Duplicate: a copy of the document as a new session named after this one, with a history of its own. The
+    /// copy shares the committed bitmaps, which never change. It needs saving only when this document did: a copy of
+    /// a file as it is on disk loses nothing when it is closed. Its History panel starts from a row named Duplicate.
+    /// </summary>
+    public EditorSession Duplicate()
+    {
+        if (IsEditingText) FinishText();
+        var copy = new EditorSession(document.Clone()) { SuggestedName = Title + " copy" };
+        copy.History.BaseName = "Duplicate";
+        if (IsModified) copy.MarkModified();
+        return copy;
+    }
+
     public void MarkSaved(string path) => MarkSaved(path, History.CurrentId);
 
     /// <summary>
