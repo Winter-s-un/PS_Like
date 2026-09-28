@@ -471,7 +471,7 @@ public class TextColorTests
         stream.Position = 0;
         using (var zip = new System.IO.Compression.ZipArchive(stream, System.IO.Compression.ZipArchiveMode.Read, leaveOpen: true))
         using (var reader = new StreamReader(zip.GetEntry("manifest.json")!.Open()))
-            Assert.Contains("\"version\": 4", reader.ReadToEnd());              // Letters in their own colors arrived in version 4.
+            Assert.Contains($"\"version\": {ProjectFile.Version}", reader.ReadToEnd());
         stream.Position = 0;
         var loaded = ProjectFile.Read(stream).Find(layer.Id)!.Text!;
         Assert.Equal(layer.Text, loaded);
@@ -541,5 +541,118 @@ public class TextColorTests
         Assert.Equal(a, a with { ColorRuns = [new TextColorRun(1, 1, Red)] });
         Assert.NotEqual(a, a with { ColorRuns = [new TextColorRun(1, 1, Blue)] });
         Assert.NotEqual(a, a with { ColorRuns = null });
+    }
+}
+
+/// <summary>Letters in their own faces: family, weight and slant per letter, following the letters as the colors do.</summary>
+public class TextFaceTests
+{
+    private static readonly string Family = EditorSession.FontFamilies.FirstOrDefault(f => f.Contains("Sans", StringComparison.OrdinalIgnoreCase)) ?? EditorSession.FontFamilies.First();
+    /// <summary>A second family with visibly different widths, for layouts that must change when a letter changes face.</summary>
+    private static readonly string Other = EditorSession.FontFamilies.FirstOrDefault(f => f.Contains("Mono", StringComparison.OrdinalIgnoreCase) && f != Family)
+        ?? EditorSession.FontFamilies.First(f => f != Family);
+
+    [Fact]
+    public void Faces_stay_on_their_letters_while_typing()
+    {
+        var editor = new TextEditor(new TextStyle { Text = "Hello world", FontFamily = Family });
+        var bold = new TextFace(Family, true, false);
+        editor.MoveHorizontal(-1, select: true, word: true);                 // "world"
+        editor.SetFace(f => f with { Bold = true });
+        Assert.Equal([new TextFontRun(6, 5, Family, true, false)], editor.Style.FontRuns);
+        Assert.False(editor.Style.Bold);                                     // The style's own face is untouched.
+        Assert.Equal(bold, editor.FaceAtCaret);                              // The first selected letter's.
+        Assert.Equal(Family, editor.UniformFamilyInSelection);
+        editor.MoveTo(4, select: false);
+        editor.MoveTo(8, select: true);                                      // "o w": regular and bold, one family still.
+        Assert.Equal(Family, editor.UniformFamilyInSelection);
+        Assert.Equal(new TextFace(Family, false, false), editor.FaceAtCaret);
+        editor.MoveToDocumentEdge(end: true, select: false);
+        editor.Insert("!");                                                  // Typing takes the face of the letter before it.
+        Assert.Equal([new TextFontRun(6, 6, Family, true, false)], editor.Style.FontRuns);
+        editor.MoveToDocumentEdge(end: false, select: false);
+        editor.Insert("Oh ");
+        Assert.Equal([new TextFontRun(9, 6, Family, true, false)], editor.Style.FontRuns);
+        editor.MoveTo(12, select: false);
+        editor.Backspace();                                                  // Removing a bold letter shrinks its run.
+        Assert.Equal([new TextFontRun(9, 5, Family, true, false)], editor.Style.FontRuns);
+        // Another family on the bold letters keeps them bold; the whole text taking a family keeps the bold too.
+        editor.MoveTo(9, select: false);
+        editor.MoveTo(14, select: true);
+        editor.SetFace(f => f with { FontFamily = Other });
+        Assert.Equal([new TextFontRun(9, 5, Other, true, false)], editor.Style.FontRuns);
+        editor.MoveTo(8, select: false);
+        editor.MoveTo(11, select: true);                                     // Two families: the menu can name none.
+        Assert.Null(editor.UniformFamilyInSelection);
+        editor.SelectAll();
+        editor.SetFace(f => f with { FontFamily = Other });
+        Assert.Equal(Other, editor.Style.FontFamily);
+        Assert.Equal([new TextFontRun(9, 5, Other, true, false)], editor.Style.FontRuns);
+        editor.MoveTo(0, select: false);
+        editor.SetFace(f => f with { Italic = true });                       // Nothing selected: every letter, the style included.
+        Assert.True(editor.Style.Italic);
+        Assert.Equal([new TextFontRun(9, 5, Other, true, true)], editor.Style.FontRuns);
+        editor.SelectAll();
+        editor.SetFace(f => f with { Bold = false, Italic = false });        // Every letter alike again: no runs.
+        Assert.Null(editor.Style.FontRuns);
+        Assert.True(editor.Undo());
+        Assert.Equal([new TextFontRun(9, 5, Other, true, true)], editor.Style.FontRuns);
+        Assert.Null(editor.Style.AsDefaults().FontRuns);
+    }
+
+    [Fact]
+    public void Damaged_runs_are_dropped_and_a_bad_family_is_refused()
+    {
+        var style = new TextStyle { Text = "abc", FontFamily = Family, FontRuns = [new TextFontRun(2, 5, Other, false, false)] }.Clamped();
+        Assert.Null(style.FontRuns);
+        style = new TextStyle { Text = "abc", FontFamily = Family, FontRuns = [new TextFontRun(0, 1, "", false, false)] }.Clamped();
+        Assert.Null(style.FontRuns);
+        var kept = new TextStyle { Text = "abc", FontFamily = Family, FontRuns = [new TextFontRun(1, 1, Other, true, false)] }.Clamped();
+        Assert.Equal([new TextFontRun(1, 1, Other, true, false)], kept.FontRuns);
+        Assert.Same(kept, kept.WithFace(f => f with { FontFamily = "" }, 0, 1));
+        Assert.Equal(new TextFace(Other, true, false), kept.FaceAt(1));
+        Assert.Equal(new TextFace(Family, false, false), kept.FaceAt(2));
+        Assert.NotEqual(kept, kept with { FontRuns = null });
+    }
+
+    [Fact]
+    public void Letters_in_another_face_are_measured_and_drawn_with_it_and_round_trip_through_the_project()
+    {
+        var plain = new TextStyle { Text = "iiii", FontFamily = Family, Size = 60 };
+        var mixed = plain with { FontRuns = [new TextFontRun(2, 2, Other, false, false)] };
+        var plainLayout = new TextLayout(plain);
+        var mixedLayout = new TextLayout(mixed);
+        // The first two letters advance as before; the monospaced ones differ, so the line's width changes with them.
+        Assert.Equal(plainLayout.Lines[0].Positions[2], mixedLayout.Lines[0].Positions[2]);
+        Assert.NotEqual(plainLayout.Lines[0].VisibleWidth, mixedLayout.Lines[0].VisibleWidth);
+        Assert.Equal(plainLayout.Ascent, mixedLayout.Ascent);                // Line metrics stay the style's own face's.
+        using var regular = new TextLayout(plain).Render();
+        using var partlyBold = new TextLayout(plain with { FontRuns = [new TextFontRun(2, 2, Family, true, false)] }).Render();
+        int Ink(SKBitmap bitmap, int from, int to) { var n = 0; for (var y = 0; y < bitmap.Height; y++) for (var x = from; x < Math.Min(to, bitmap.Width); x++) if (bitmap.GetPixel(x, y).Alpha > 0) n++; return n; }
+        var split = (int)(mixedLayout.Lines[0].X + plainLayout.Lines[0].Positions[2]);
+        Assert.Equal(Ink(regular, 0, split), Ink(partlyBold, 0, split));    // The first letters are drawn as before,
+        Assert.True(Ink(partlyBold, split, partlyBold.Width) > Ink(regular, split, regular.Width)); // the bold ones with more ink.
+
+        var session = EditorSession.NewCanvas(400, 120, SKColors.White);
+        var layer = session.AddText(new SKPoint(10, 10), mixed);
+        using var stream = new MemoryStream();
+        ProjectFile.Write(session.Document, stream);
+        stream.Position = 0;
+        using (var zip = new System.IO.Compression.ZipArchive(stream, System.IO.Compression.ZipArchiveMode.Read, leaveOpen: true))
+        using (var reader = new StreamReader(zip.GetEntry("manifest.json")!.Open()))
+            Assert.Contains("\"version\": 5", reader.ReadToEnd());              // Letters in their own faces arrived in version 5.
+        stream.Position = 0;
+        var loaded = ProjectFile.Read(stream).Find(layer.Id)!.Text!;
+        Assert.Equal(layer.Text, loaded);
+        Assert.Equal([new TextFontRun(2, 2, Other, false, false)], loaded.FontRuns);
+
+        // The bar without typing restyles the whole layer, keeping each letter's own weight.
+        session.SelectLayer(layer.Id);
+        session.SetTextFace(f => f with { Bold = true });
+        var restyled = session.Document.Find(layer.Id)!.Text!;
+        Assert.True(restyled.Bold);
+        Assert.Equal([new TextFontRun(2, 2, Other, true, false)], restyled.FontRuns);
+        Assert.Equal(new TextFace(Family, true, false), session.CurrentTextFace);
+        Assert.Equal(Family, session.CurrentUniformTextFamily);
     }
 }

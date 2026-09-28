@@ -42,41 +42,53 @@ public sealed class TextLayout
     /// <summary>Paragraph text that does not fit its box; the lines beyond it are laid out but clipped.</summary>
     public bool Overflows { get; }
 
-    private readonly SKTypeface typeface;
+    /// <summary>Faces looked up once per process: matching a family through the font manager is slow, and a layout asks for every stretch it draws.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<TextFace, SKTypeface> typefaces = new();
 
     /// <summary>
     /// The closest face in the family. A family Skia does not know (Inter is Avalonia's font for the interface and is
     /// not installed for Skia) goes through the platform's substitution, which keeps the weight and slant; the plain
     /// default typeface would drop both.
     /// </summary>
-    public static SKTypeface TypefaceFor(TextStyle style) =>
-        SKFontManager.Default.MatchFamily(style.FontFamily, FontStyle(style)) ?? SKTypeface.FromFamilyName(style.FontFamily, FontStyle(style)) ?? SKTypeface.Default;
+    public static SKTypeface TypefaceFor(TextStyle style) => TypefaceFor(style.Face);
 
-    private static SKFontStyle FontStyle(TextStyle style) => new(
-        style.Bold ? SKFontStyleWeight.Bold : SKFontStyleWeight.Normal, SKFontStyleWidth.Normal,
-        style.Italic ? SKFontStyleSlant.Italic : SKFontStyleSlant.Upright);
+    public static SKTypeface TypefaceFor(TextFace face) => typefaces.GetOrAdd(face, static f =>
+        SKFontManager.Default.MatchFamily(f.FontFamily, FontStyle(f)) ?? SKTypeface.FromFamilyName(f.FontFamily, FontStyle(f)) ?? SKTypeface.Default);
+
+    private static SKFontStyle FontStyle(TextFace face) => new(
+        face.Bold ? SKFontStyleWeight.Bold : SKFontStyleWeight.Normal, SKFontStyleWidth.Normal,
+        face.Italic ? SKFontStyleSlant.Italic : SKFontStyleSlant.Upright);
 
     /// <summary>The font for layout and drawing alike. A face without a bold or italic variant gets them synthesized, as Photoshop's faux styles do.</summary>
-    private SKFont MakeFont()
+    private SKFont MakeFont(TextFace face)
     {
+        var typeface = TypefaceFor(face);
         var font = new SKFont(typeface, (float)Math.Clamp(Style.Size, 1, 4000)) { Subpixel = true, Edging = SKFontEdging.Antialias, Hinting = SKFontHinting.None };
-        if (Style.Bold && typeface.FontWeight < (int)SKFontStyleWeight.SemiBold) font.Embolden = true;
-        if (Style.Italic && typeface.FontSlant == SKFontStyleSlant.Upright) font.SkewX = -0.25f;
+        if (face.Bold && typeface.FontWeight < (int)SKFontStyleWeight.SemiBold) font.Embolden = true;
+        if (face.Italic && typeface.FontSlant == SKFontStyleSlant.Upright) font.SkewX = -0.25f;
         return font;
+    }
+
+    /// <summary>One font per face the text uses, made as they are needed and disposed together.</summary>
+    private sealed class Fonts(TextLayout layout) : IDisposable
+    {
+        private readonly Dictionary<TextFace, SKFont> fonts = [];
+        public SKFont For(TextFace face) => fonts.TryGetValue(face, out var font) ? font : fonts[face] = layout.MakeFont(face);
+        public void Dispose() { foreach (var font in fonts.Values) font.Dispose(); }
     }
 
     public TextLayout(TextStyle style)
     {
         Style = style = style.Clamped();
         Text = style.Text.Replace("\r", "");
-        typeface = TypefaceFor(style);
-        using var font = MakeFont();
-        var metrics = font.Metrics;
+        using var fonts = new Fonts(this);
+        // Line metrics are the style's own face's, whatever faces the letters are in, so lines do not shift as letters change.
+        var metrics = fonts.For(style.Face).Metrics;
         Ascent = -metrics.Ascent;
         Descent = metrics.Descent;
         LineHeight = (float)style.LineHeight;
         var tracking = (float)style.Tracking;
-        var advances = Advances(font, Text, tracking);
+        var advances = Advances(fonts, Text, tracking);
 
         var available = style.IsBox ? (float)Math.Max(1, style.BoxWidth!.Value - 2 * Padding) : float.PositiveInfinity;
         var ranges = new List<(int Start, int End)>();
@@ -132,18 +144,25 @@ public sealed class TextLayout
         Overflows = style.IsBox && lines.Count > 0 && lines[^1].Baseline + Descent > Height - Padding + 0.5f;
     }
 
-    /// <summary>The advance of every character (a surrogate pair's second half advances nothing), tracking included.</summary>
-    private static float[] Advances(SKFont font, string text, float tracking)
+    /// <summary>The advance of every character (a surrogate pair's second half advances nothing), tracking included, each stretch of one face measured with its own font.</summary>
+    private float[] Advances(Fonts fonts, string text, float tracking)
     {
         var advances = new float[text.Length];
-        if (text.Length == 0) return advances;
-        var glyphs = font.GetGlyphs(text);
-        var widths = font.GetGlyphWidths(glyphs);
-        var glyph = 0;
-        for (var i = 0; i < text.Length && glyph < widths.Length; i++)
+        for (var start = 0; start < text.Length;)
         {
-            advances[i] = widths[glyph++] + tracking;
-            if (char.IsHighSurrogate(text[i]) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1])) i++;
+            var face = Style.FaceAt(start);
+            var end = start + 1;
+            while (end < text.Length && Style.FaceAt(end) == face) end++;
+            var font = fonts.For(face);
+            var segment = text.Substring(start, end - start);
+            var widths = font.GetGlyphWidths(font.GetGlyphs(segment));
+            var glyph = 0;
+            for (var i = 0; i < segment.Length && glyph < widths.Length; i++)
+            {
+                advances[start + i] = widths[glyph++] + tracking;
+                if (char.IsHighSurrogate(segment[i]) && i + 1 < segment.Length && char.IsLowSurrogate(segment[i + 1])) i++;
+            }
+            start = end;
         }
         return advances;
     }
@@ -196,43 +215,42 @@ public sealed class TextLayout
 
     public void Draw(SKCanvas canvas)
     {
-        using var font = MakeFont();
+        using var fonts = new Fonts(this);
         using var paint = new SKPaint { IsAntialias = true };
         canvas.Save();
         if (Style.IsBox) canvas.ClipRect(new SKRect(0, 0, Width, Height));
-        // Letters are drawn a stretch at a time, one stretch per color; text in one color is one stretch per line.
-        var glyphs = new List<ushort>();
-        var positions = new List<SKPoint>();
-        void Flush(uint color)
-        {
-            if (glyphs.Count == 0) return;
-            using var builder = new SKTextBlobBuilder();
-            var run = builder.AllocatePositionedRun(font, glyphs.Count);
-            run.SetGlyphs(glyphs.ToArray());
-            run.SetPositions(positions.ToArray());
-            using var blob = builder.Build();
-            paint.Color = new SKColor(color);
-            if (blob != null) canvas.DrawText(blob, 0, 0, paint);
-            glyphs.Clear();
-            positions.Clear();
-        }
+        // Letters are drawn a stretch at a time, one stretch per face and color; text in one face and color is one stretch per line.
         foreach (var line in Lines)
         {
             if (line.Length == 0) continue;
-            var segment = Text.Substring(line.Start, line.Length);
-            var lineGlyphs = font.GetGlyphs(segment);
-            if (lineGlyphs.Length == 0) continue;
-            var glyph = 0;
-            var color = Style.ColorAt(line.Start);
-            for (var k = 0; k < segment.Length && glyph < lineGlyphs.Length; k++)
+            for (var k = 0; k < line.Length;)
             {
-                var next = Style.ColorAt(line.Start + k);
-                if (next != color) { Flush(color); color = next; }
-                glyphs.Add(lineGlyphs[glyph++]);
-                positions.Add(new SKPoint(line.X + line.Positions[k], line.Baseline));
-                if (char.IsHighSurrogate(segment[k]) && k + 1 < segment.Length && char.IsLowSurrogate(segment[k + 1])) k++;
+                var face = Style.FaceAt(line.Start + k);
+                var color = Style.ColorAt(line.Start + k);
+                var end = k + 1;
+                while (end < line.Length && Style.FaceAt(line.Start + end) == face && Style.ColorAt(line.Start + end) == color) end++;
+                var font = fonts.For(face);
+                var segment = Text.Substring(line.Start + k, end - k);
+                var glyphs = font.GetGlyphs(segment);
+                if (glyphs.Length > 0)
+                {
+                    var positions = new SKPoint[glyphs.Length];
+                    var glyph = 0;
+                    for (var i = 0; i < segment.Length && glyph < glyphs.Length; i++)
+                    {
+                        positions[glyph++] = new SKPoint(line.X + line.Positions[k + i], line.Baseline);
+                        if (char.IsHighSurrogate(segment[i]) && i + 1 < segment.Length && char.IsLowSurrogate(segment[i + 1])) i++;
+                    }
+                    using var builder = new SKTextBlobBuilder();
+                    var run = builder.AllocatePositionedRun(font, glyphs.Length);
+                    run.SetGlyphs(glyphs);
+                    run.SetPositions(positions);
+                    using var blob = builder.Build();
+                    paint.Color = new SKColor(color);
+                    if (blob != null) canvas.DrawText(blob, 0, 0, paint);
+                }
+                k = end;
             }
-            Flush(color);
         }
         canvas.Restore();
     }

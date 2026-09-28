@@ -231,6 +231,22 @@ public sealed partial class EditorSession
     /// <summary>The color the Type bar's swatch shows: the letter at the caret while typing, otherwise the style's own.</summary>
     public uint CurrentTextColor => TextEdit?.ColorAtCaret ?? CurrentTextStyle.Color;
 
+    /// <summary>The face the Type bar's Bold and Italic show: the selected letters' first while typing, the text's own otherwise.</summary>
+    public TextFace CurrentTextFace => TextEdit?.FaceAtCaret ?? CurrentTextStyle.Face;
+
+    /// <summary>The family the Type bar's font menu shows: null while the selected letters mix families, so the menu can say so.</summary>
+    public string? CurrentUniformTextFamily => TextEdit != null ? TextEdit.UniformFamilyInSelection : CurrentTextStyle.FontFamily;
+
+    /// <summary>
+    /// A font, Bold or Italic change in the Type bar: on the selected letters of the text being typed (all of them
+    /// when nothing is selected), or on the whole of a selected text layer, or on the next text.
+    /// </summary>
+    public void SetTextFace(Func<TextFace, TextFace> change)
+    {
+        if (TextEdit is { } editor) { editor.SetFace(change); return; }
+        ChangeTextStyle(st => st.WithFace(change, 0, 0));
+    }
+
     /// <summary>
     /// A color picked in the Type bar (or as the foreground while typing): paints the selected letters of the text
     /// being typed, or all of the text when nothing is selected or no text is open, which drops its per-letter colors.

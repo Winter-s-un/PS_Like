@@ -105,6 +105,21 @@ public sealed class TextEditor
     /// <summary>The color the Type bar shows: the first selected letter's, otherwise the letter before the caret's, which is what typing next takes.</summary>
     public uint ColorAtCaret => Style.ColorAt(HasSelection ? SelectionStart : Math.Max(0, Caret - 1));
 
+    /// <summary>Changes the face (family, weight or slant) of the selected letters, or of all of the text when nothing is selected. Undoable within the editor.</summary>
+    public void SetFace(Func<TextFace, TextFace> change)
+    {
+        var next = Style.WithFace(change, SelectionStart, SelectionEnd);
+        if (next == Style) return;
+        Record(typing: false);
+        Apply(next, Caret, Anchor);
+    }
+
+    /// <summary>The face the Type bar's Bold and Italic show: the first selected letter's, otherwise the letter before the caret's.</summary>
+    public TextFace FaceAtCaret => Style.FaceAt(HasSelection ? SelectionStart : Math.Max(0, Caret - 1));
+
+    /// <summary>The family the Type bar's font menu shows: the one every selected letter is in, or null when they mix families.</summary>
+    public string? UniformFamilyInSelection => HasSelection ? Style.UniformFamilyIn(SelectionStart, SelectionEnd) : FaceAtCaret.FontFamily;
+
     // ---- Caret ----------------------------------------------------------------------------------------------------
 
     public void MoveTo(int index, bool select)
