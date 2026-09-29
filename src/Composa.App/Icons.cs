@@ -57,6 +57,9 @@ public static class Icons
     public static readonly Icon AlignCenter = new("M4 6 H20 M7 10 H17 M4 14 H20 M8 18 H16");
     public static readonly Icon AlignRight = new("M4 6 H20 M10 10 H20 M4 14 H20 M12 18 H20");
     public static readonly Icon Ruler = new("M3 8 H21 V16 H3 Z M7 8 V12 M11 8 V14 M15 8 V12 M19 8 V14");
+    public static readonly Icon Layers = new("M12 3.5 L21 8 L12 12.5 L3 8 Z M3 12 L12 16.5 L21 12 M3 16 L12 20.5 L21 16");
+    public static readonly Icon Document = new("M6 3 H14 L19 8 V21 H6 Z M14 3 V8 H19");
+    public static readonly Icon Disk = new("M5 3.5 H16.5 L20.5 7.5 V20.5 H5 Z M8.5 3.5 V8.5 H15.5 V3.5 M8.5 20.5 V14 H16 V20.5");
     public static readonly Icon Swap = new("M5 9 C5 6 7 5 10 5 H17 M14 2 L17 5 L14 8 M19 15 C19 18 17 19 14 19 H7 M10 16 L7 19 L10 22");
 
     public static Control Create(Icon icon, double size = 18, IBrush? brush = null)

@@ -83,7 +83,7 @@ public sealed partial class EditorSession
             if (problem != null) return (painted, problem);
             painted++;
             // A stroke that touched nothing left no entry; every other one folds into the first.
-            if (painted > 1 && History.Count == entries + 1) History.MergeLast("Brush Strokes");
+            if (painted > 1 && History.Count == entries + 1) FoldLastStep("Brush Strokes");
         }
         return (painted, null);
     }

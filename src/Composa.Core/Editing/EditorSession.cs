@@ -29,6 +29,7 @@ public sealed partial class EditorSession
     {
         this.document = document;
         dirty = document.Bounds;
+        savedState = History.CurrentId;
     }
 
     public static EditorSession NewCanvas(int width, int height, SKColor? background = null)
@@ -39,13 +40,22 @@ public sealed partial class EditorSession
         var layer = Layer.Raster(background == null ? "Layer 1" : "Background", pixels);
         document.Layers.Add(layer);
         document.SetActive(layer.Id);
-        return new EditorSession(document);
+        var session = new EditorSession(document);
+        session.History.BaseName = "New Canvas";
+        return session;
     }
 
     public Document Document => document;
     public History History { get; } = new();
     public string? FilePath { get; set; }
-    public bool IsModified { get; private set; }
+    /// <summary>
+    /// Whether the document differs from its file: true in any state but the one saved, so undoing back to where the
+    /// document was saved makes it unmodified again. A new canvas starts unmodified; a recovered copy never is until
+    /// it is saved.
+    /// </summary>
+    public bool IsModified => History.CurrentId != savedState;
+    /// <summary>The history state that is on disk, or null when none is.</summary>
+    private long? savedState;
     /// <summary>Counts every change to the document, so autosave can tell whether anything happened since its last copy.</summary>
     public int Revision { get; private set; }
     /// <summary>The name shown for a project that has not been saved yet.</summary>
@@ -157,7 +167,6 @@ public sealed partial class EditorSession
         if (pendingBefore == null) return;
         History.Push(pendingName, pendingBefore);
         pendingBefore = null;
-        IsModified = true;
         Revision++;
         HistoryChanged?.Invoke();
     }
@@ -185,7 +194,6 @@ public sealed partial class EditorSession
     {
         if (!CanUndo) return;
         if (History.Undo(document.Clone()) is { } state) Restore(state);
-        IsModified = true;
         Revision++;
         HistoryChanged?.Invoke();
     }
@@ -194,7 +202,27 @@ public sealed partial class EditorSession
     {
         if (!CanRedo) return;
         if (History.Redo(document.Clone()) is { } state) Restore(state);
-        IsModified = true;
+        Revision++;
+        HistoryChanged?.Invoke();
+    }
+
+    /// <summary>Folds the step just committed into the one before it, and says so, since the list of steps changed after the commit announced it.</summary>
+    private void FoldLastStep(string name)
+    {
+        History.MergeLast(name);
+        HistoryChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Goes to the state at <paramref name="index"/> in <see cref="History.Steps"/> in one move, however many steps
+    /// away it is, as a click in the History panel does. What is still open is finished first, as a new command would
+    /// finish it; text being typed then adds its step, and an index past what is left goes nowhere.
+    /// </summary>
+    public void GoToHistory(int index)
+    {
+        FinishInteraction();
+        if (History.GoTo(index, document.Clone()) is not { } state) return;
+        Restore(state);
         Revision++;
         HistoryChanged?.Invoke();
     }
@@ -212,23 +240,27 @@ public sealed partial class EditorSession
     /// <summary>Marks a document that did not come from a saved file (a recovered copy) as needing a save.</summary>
     public void MarkModified()
     {
-        IsModified = true;
+        savedState = null;
         Revision++;
         HistoryChanged?.Invoke();
     }
 
-    public void MarkSaved(string path) => MarkSaved(path, Revision);
+    public void MarkSaved(string path) => MarkSaved(path, History.CurrentId);
 
     /// <summary>
-    /// Records that the document as it was at <paramref name="revision"/> is on disk at <paramref name="path"/>. A
-    /// save writes a snapshot off the UI thread, so an edit made while it was writing keeps the document modified.
+    /// Records that the document in history state <paramref name="state"/> (<see cref="History.CurrentId"/> when the
+    /// snapshot was taken) is on disk at <paramref name="path"/>. A save writes a snapshot off the UI thread, so an
+    /// edit made while it was writing keeps the document modified, and undoing that edit makes it saved again.
     /// </summary>
-    public void MarkSaved(string path, int revision)
+    public void MarkSaved(string path, long state)
     {
         FilePath = path;
-        IsModified = Revision != revision;
+        savedState = state;
         HistoryChanged?.Invoke();
     }
+
+    /// <summary>Whether <paramref name="state"/> is the one on disk, for the History panel's mark.</summary>
+    public bool IsSavedState(long state) => savedState == state && FilePath != null;
 
     // ---- Flattened preview --------------------------------------------------------------------------------------
 

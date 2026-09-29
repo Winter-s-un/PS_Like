@@ -159,6 +159,7 @@ public class SessionFuzzTests
             ("solo", () => session.SoloLayerId = random.Next(3) == 0 ? Any()?.Id : null),
             ("undo", () => { for (var i = random.Next(1, 5); i > 0; i--) session.Undo(); }),
             ("redo", () => { for (var i = random.Next(1, 4); i > 0; i--) session.Redo(); }),
+            ("history", () => session.GoToHistory(random.Next(session.History.Steps.Count + 1))),
             ("roundtrip", () => { if (random.Next(10) != 0) return; using var ms = new MemoryStream(); Composa.IO.ProjectFile.Write(session.Document, ms); ms.Position = 0; var doc = Composa.IO.ProjectFile.Read(ms); using var a = DocumentRenderer.Flatten(session.Document); using var b = DocumentRenderer.Flatten(doc); if (!a.Bytes.AsSpan().SequenceEqual(b.Bytes)) throw new Exception("round trip changed the picture"); }),
         };
 

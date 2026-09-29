@@ -17,7 +17,7 @@ The window is laid out as image editors usually are.
 - The **options bar** under the menu shows the settings of the current tool: brush size, marquee feather, text font and so on.
 - The **toolbar** on the left holds the tools, with the foreground and background color swatches below them. A button with a small triangle in its corner holds a group of tools: press and hold it, or right-click it, to pick one.
 - The **canvas** in the middle shows the document. Rulers can be shown around it.
-- The **Layers panel** on the right lists the layers, top layer first, with their blend mode and opacity above the list.
+- The **Layers panel** on the right lists the layers, top layer first, with their blend mode and opacity above the list. Under it the **History panel** lists the steps you can go back to; Window > History shows or hides it.
 - The **status bar** at the bottom shows the zoom, the document's size and resolution, the pointer's position in canvas pixels, a hint for the current tool, and "AI connected" while an agent is working in the document.
 
 With nothing open, the canvas area shows a welcome screen: "Create a canvas, open a project or image, or drop files here", with buttons for a new canvas and for opening files, and your six most recent files.
@@ -37,6 +37,10 @@ Tool settings, the current colors and the view options carry over from one tab t
 ## Undo
 
 Every change is an undoable step: Edit > Undo (Ctrl+Z) and Edit > Redo (Ctrl+Shift+Z or Ctrl+Y). The menu names the step it will undo. Composa keeps up to a hundred steps.
+
+The History panel under the Layers panel lists every step, oldest first, named as the Edit menu names it, under a first row that says how the document began. Click a step to go back or forward to it in one move, however many steps away it is, or press on the list and drag up and down to scrub through the steps while the canvas follows. The steps after the current one are dimmed and in italics: Redo brings them back, and the next change drops them. The step that is in the saved file carries a small disk, and going back to it clears the tab's unsaved-changes dot, so closing the document then asks nothing. Once more than a hundred steps have been made the oldest go, and the panel says so above the list.
+
+Click the panel's header to collapse it to its title, drag the line above it to make it taller or shorter, and use Window > History to hide or show it. Composa remembers how you left it.
 
 ## Recovery
 
