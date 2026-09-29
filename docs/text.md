@@ -22,4 +22,8 @@ A change in the bar applies to the text you are typing, or to the active text la
 
 While typing, select some of the text and pick a color from the bar's swatch or the foreground swatch, and only those letters take it. With nothing selected, or on a text layer that is not open for typing, the color goes on all of the text. New letters take the color of the letter before them, and the swatch shows the color at the caret. Fill with Foreground Color or Fill with Background Color recolors the whole text and keeps it editable.
 
+## Letters in their own fonts
+
+The font, Bold and Italic work the same way: while typing, select some of the text and choose a family from the menu or tick Bold or Italic, and only those letters change. With nothing selected the change goes on all of the text, and a family chosen for all of it keeps the letters that were bold or italic as they were. When the selected letters use more than one family the menu says (Multiple), and choosing one from it puts all of them in that family. New letters take the face of the letter before them. Projects that use this are format version 5 and need Composa 1.3 or later to open.
+
 If a font has no bold or italic face, Composa substitutes one or synthesizes the weight and slant, so Bold and Italic always show.

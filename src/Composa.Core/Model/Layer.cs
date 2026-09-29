@@ -29,9 +29,20 @@ public sealed record TextColorRun(int Start, int Length, uint Color)
     [System.Text.Json.Serialization.JsonIgnore] public int End => Start + Length;
 }
 
+/// <summary>A font family with its weight and slant: what one letter is set in.</summary>
+public readonly record struct TextFace(string FontFamily, bool Bold, bool Italic);
+
+/// <summary>Letters set in a face other than their style's own: a character range into the text (end exclusive) and the face.</summary>
+public sealed record TextFontRun(int Start, int Length, string FontFamily, bool Bold, bool Italic)
+{
+    [System.Text.Json.Serialization.JsonIgnore] public int End => Start + Length;
+    [System.Text.Json.Serialization.JsonIgnore] public TextFace Face => new(FontFamily, Bold, Italic);
+}
+
 /// <summary>Live text: kept as characters and redrawn sharp whenever it is edited or its layer is scaled.</summary>
 public sealed record TextStyle
 {
+    public const int MaxFamilyName = 200;
     public const int MaxLength = 100_000;
     public const double MinBox = 16, MaxBox = DocumentLimits.MaxSide;
 
@@ -55,7 +66,14 @@ public sealed record TextStyle
     /// overlapping. Null when the whole text is one color, which is what every style starts as.
     /// </summary>
     public IReadOnlyList<TextColorRun>? ColorRuns { get; init; }
+    /// <summary>
+    /// Letters in a face other than the style's own (<see cref="FontFamily"/>, <see cref="Bold"/>, <see cref="Italic"/>),
+    /// as character indices into <see cref="Text"/>, sorted and not overlapping. Null when the whole text is one face.
+    /// </summary>
+    public IReadOnlyList<TextFontRun>? FontRuns { get; init; }
 
+    /// <summary>The style's own face, which every letter outside a font run is set in.</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public TextFace Face => new(FontFamily, Bold, Italic);
     [System.Text.Json.Serialization.JsonIgnore] public double LineHeight => Leading > 0 ? Leading : Size * 1.2;
     [System.Text.Json.Serialization.JsonIgnore] public bool IsBox => BoxWidth != null && BoxHeight != null;
 
@@ -73,8 +91,64 @@ public sealed record TextStyle
             BoxWidth = box ? Math.Clamp(Math.Round(BoxWidth!.Value), MinBox, MaxBox) : null,
             BoxHeight = box ? Math.Clamp(Math.Round(BoxHeight!.Value), MinBox, MaxBox) : null,
             Color = Color | 0xFF000000,
-            ColorRuns = ValidRuns(ColorRuns, text.Length)
+            ColorRuns = ValidRuns(ColorRuns, text.Length),
+            FontRuns = ValidFontRuns(FontRuns, text.Length)
         };
+    }
+
+    /// <summary>The font runs when they are sorted, disjoint, inside the text and name a plausible family; otherwise none.</summary>
+    private static IReadOnlyList<TextFontRun>? ValidFontRuns(IReadOnlyList<TextFontRun>? runs, int length)
+    {
+        if (runs == null || runs.Count == 0) return null;
+        var end = 0;
+        foreach (var run in runs)
+        {
+            if (run.Start < end || run.Length <= 0 || run.Start > length - run.Length || !IsFamilyName(run.FontFamily)) return null;
+            end = run.End;
+        }
+        return runs;
+    }
+
+    public static bool IsFamilyName(string? family) => !string.IsNullOrWhiteSpace(family) && family.Length <= MaxFamilyName && !family.Contains('\n') && !family.Contains('\r');
+
+    /// <summary>The face of the character at an index: its run's, or the style's own.</summary>
+    public TextFace FaceAt(int index)
+    {
+        if (FontRuns != null)
+            foreach (var run in FontRuns)
+                if (run.Start <= index && index < run.End) return run.Face;
+        return Face;
+    }
+
+    /// <summary>The one family every character from <paramref name="start"/> to <paramref name="end"/> is set in, whatever their weight and slant, or null when the range is empty or mixes families.</summary>
+    public string? UniformFamilyIn(int start, int end)
+    {
+        start = Math.Clamp(start, 0, Text.Length);
+        end = Math.Clamp(end, start, Text.Length);
+        if (start == end) return null;
+        var family = FaceAt(start).FontFamily;
+        for (var i = start + 1; i < end; i++)
+            if (FaceAt(i).FontFamily != family) return null;
+        return family;
+    }
+
+    /// <summary>
+    /// Changes the face of the characters from <paramref name="start"/> to <paramref name="end"/> (exclusive): the family,
+    /// the weight or the slant, whichever the change touches. An empty range, or one covering the whole text, changes
+    /// every letter and the style's own face the same way, so letters that were bold stay bold when all of the text
+    /// takes another family.
+    /// </summary>
+    public TextStyle WithFace(Func<TextFace, TextFace> change, int start, int end)
+    {
+        var count = Text.Length;
+        start = Math.Clamp(start, 0, count);
+        end = Math.Clamp(end, start, count);
+        var all = start == end || (start == 0 && end == count);
+        var faces = UnitFaces();
+        for (var i = all ? 0 : start; i < (all ? count : end); i++) faces[i] = change(faces[i]);
+        var face = all ? change(Face) : Face;
+        if (!IsFamilyName(face.FontFamily) || faces.Any(f => !IsFamilyName(f.FontFamily))) return this;
+        return this with { FontFamily = face.FontFamily, Bold = face.Bold, Italic = face.Italic, FontRuns = FontRunsOf(faces, face) };
     }
 
     /// <summary>The runs as they are when they are sorted, disjoint and inside the text, with their colors opaque; otherwise none, since a damaged file cannot say which letter has which color.</summary>
@@ -122,18 +196,52 @@ public sealed record TextStyle
     /// </summary>
     public TextStyle WithReplacedCharacters(int start, int end, int length)
     {
-        if (ColorRuns == null) return this;
-        var colors = UnitColors();
-        start = Math.Clamp(start, 0, colors.Count);
-        end = Math.Clamp(end, start, colors.Count);
-        var inherited = start > 0 ? colors[start - 1] : end > start ? colors[start] : colors.Count > 0 ? colors[0] : Color;
-        colors.RemoveRange(start, end - start);
-        colors.InsertRange(start, Enumerable.Repeat(inherited, Math.Max(0, length)));
-        return this with { ColorRuns = Runs(colors, Color) };
+        if (ColorRuns == null && FontRuns == null) return this;
+        var count = Text.Length;
+        start = Math.Clamp(start, 0, count);
+        end = Math.Clamp(end, start, count);
+        var result = this;
+        if (ColorRuns != null)
+        {
+            var colors = UnitColors();
+            var inherited = start > 0 ? colors[start - 1] : end > start ? colors[start] : colors.Count > 0 ? colors[0] : Color;
+            colors.RemoveRange(start, end - start);
+            colors.InsertRange(start, Enumerable.Repeat(inherited, Math.Max(0, length)));
+            result = result with { ColorRuns = Runs(colors, Color) };
+        }
+        if (FontRuns != null)
+        {
+            var faces = UnitFaces();
+            var inherited = start > 0 ? faces[start - 1] : end > start ? faces[start] : faces.Count > 0 ? faces[0] : Face;
+            faces.RemoveRange(start, end - start);
+            faces.InsertRange(start, Enumerable.Repeat(inherited, Math.Max(0, length)));
+            result = result with { FontRuns = FontRunsOf(faces, Face) };
+        }
+        return result;
     }
 
-    /// <summary>The style the next text takes: the same look, without this text's wording, box and per-letter colors.</summary>
-    public TextStyle AsDefaults() => this with { Text = "", BoxWidth = null, BoxHeight = null, ColorRuns = null };
+    /// <summary>The style the next text takes: the same look, without this text's wording, box and per-letter colors and faces.</summary>
+    public TextStyle AsDefaults() => this with { Text = "", BoxWidth = null, BoxHeight = null, ColorRuns = null, FontRuns = null };
+
+    private List<TextFace> UnitFaces()
+    {
+        var faces = Enumerable.Repeat(Face, Text.Length).ToList();
+        foreach (var run in FontRuns ?? [])
+            for (var i = Math.Max(0, run.Start); i < Math.Min(faces.Count, run.End); i++) faces[i] = run.Face;
+        return faces;
+    }
+
+    private static IReadOnlyList<TextFontRun>? FontRunsOf(List<TextFace> faces, TextFace baseFace)
+    {
+        var runs = new List<TextFontRun>();
+        for (var i = 0; i < faces.Count; i++)
+        {
+            if (faces[i] == baseFace) continue;
+            if (runs.Count > 0 && runs[^1].End == i && runs[^1].Face == faces[i]) runs[^1] = runs[^1] with { Length = runs[^1].Length + 1 };
+            else runs.Add(new TextFontRun(i, 1, faces[i].FontFamily, faces[i].Bold, faces[i].Italic));
+        }
+        return runs.Count == 0 ? null : runs;
+    }
 
     private List<uint> UnitColors()
     {
@@ -161,10 +269,11 @@ public sealed record TextStyle
         other is not null && Text == other.Text && FontFamily == other.FontFamily && Size == other.Size && Color == other.Color
         && Bold == other.Bold && Italic == other.Italic && Alignment == other.Alignment && Tracking == other.Tracking && Leading == other.Leading
         && BoxWidth == other.BoxWidth && BoxHeight == other.BoxHeight
-        && (ColorRuns == null ? other.ColorRuns == null : other.ColorRuns != null && ColorRuns.SequenceEqual(other.ColorRuns));
+        && (ColorRuns == null ? other.ColorRuns == null : other.ColorRuns != null && ColorRuns.SequenceEqual(other.ColorRuns))
+        && (FontRuns == null ? other.FontRuns == null : other.FontRuns != null && FontRuns.SequenceEqual(other.FontRuns));
 
     public override int GetHashCode() =>
-        HashCode.Combine(Text, FontFamily, Size, Color, Bold, Italic, Alignment, HashCode.Combine(Tracking, Leading, BoxWidth, BoxHeight, ColorRuns?.Count ?? 0));
+        HashCode.Combine(Text, FontFamily, Size, Color, Bold, Italic, Alignment, HashCode.Combine(Tracking, Leading, BoxWidth, BoxHeight, ColorRuns?.Count ?? 0, FontRuns?.Count ?? 0));
 
     /// <summary>The same text drawn <paramref name="factor"/> times as large: size, spacing and box together.</summary>
     public TextStyle Scaled(double factor) => Scaled(factor, factor);
