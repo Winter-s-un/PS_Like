@@ -352,6 +352,102 @@ public static class AdjustmentDialogs
                     Foreground = Palette.Secondary, MaxWidth = 380, TextWrapping = TextWrapping.Wrap
                 });
                 break;
+            case FilterKind.Dither:
+            {
+                // The controls follow the style and the colors, so the section is rebuilt when a menu changes them;
+                // the pixel shape row stays and is only enabled while the pixels are chunky, so a slider drag never
+                // rebuilds the slider under the pointer.
+                var section = new StackPanel { Spacing = 8 };
+                panel.Children.Add(section);
+                var styles = DitherSettings.Groups.SelectMany(g => g).ToList();
+                var defaults = new DitherSettings();
+                Control? shapeRow = null;
+                void Set(Func<DitherSettings, DitherSettings> change)
+                {
+                    Update(current with { Dither = change(current.Dither) });
+                    if (shapeRow != null) shapeRow.IsEnabled = current.Dither.PixelSize > 1;
+                }
+                void Rebuild()
+                {
+                    var d = current.Dither;
+                    section.Children.Clear();
+                    shapeRow = null;
+                    void DitherSlider(string label, double value, double min, double max, Func<double, DitherSettings, DitherSettings> apply, double reset) =>
+                        section.Children.Add(Ui.SliderField(label, value, min, max, v => Set(dd => apply(v, dd)), 1, "0", FieldWidth, reset: reset));
+                    Control Swatch(string title, Func<DitherSettings, uint> get, Func<uint, DitherSettings, DitherSettings> apply)
+                    {
+                        var swatch = new Border { Width = 44, Height = 24, CornerRadius = new CornerRadius(3), BorderBrush = Brushes.White, BorderThickness = new Thickness(1), Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand) };
+                        void Paint() => swatch.Background = new SolidColorBrush(new SKColor(get(current.Dither)).ToAvalonia());
+                        Paint();
+                        ToolTip.SetTip(swatch, $"Choose the {title.ToLowerInvariant()} color");
+                        swatch.PointerPressed += async (_, _) =>
+                        {
+                            // The picker shows on the layer as it goes; Cancel puts the color back.
+                            var before = current.Dither;
+                            var picked = await Prompts.Color(owner, title + " Color", new SKColor(get(before)), color => { Set(dd => apply((uint)color | 0xFF000000, dd)); Paint(); });
+                            Set(_ => picked is { } color ? apply((uint)color | 0xFF000000, before) : before);
+                            Paint();
+                        };
+                        return swatch;
+                    }
+
+                    section.Children.Add(Ui.Row(10, Ui.Label("Style", Palette.Secondary),
+                        Ui.Combo(styles, d.Style, DitherSettings.DisplayName, v => { Set(dd => dd with { Style = v }); Rebuild(); }, 200)));
+                    if (d.Style != DitherStyle.Ascii) DitherSlider("Pixel Size", d.PixelSize, DitherSettings.MinPixelSize, DitherSettings.MaxPixelSize, (v, dd) => dd with { PixelSize = (int)Math.Round(v) }, defaults.PixelSize);
+                    else DitherSlider("Text Size", d.TextSize, DitherSettings.MinTextSize, DitherSettings.MaxTextSize, (v, dd) => dd with { TextSize = (int)Math.Round(v) }, defaults.TextSize);
+                    if (d.IsHalftone)
+                    {
+                        DitherSlider("Cell Size", d.CellSize, DitherSettings.MinCellSize, DitherSettings.MaxCellSize, (v, dd) => dd with { CellSize = (int)Math.Round(v) }, defaults.CellSize);
+                        section.Children.Add(Ui.AngleField("Angle", d.Angle, -90, 90, v => Set(dd => dd with { Angle = v }), FieldWidth, Controls.AngleDialStyle.Line, defaults.Angle));
+                    }
+                    if (d.Style == DitherStyle.Ascii)
+                    {
+                        var characters = new TextBox { Text = d.Characters, Width = FieldWidth - 90, FontFamily = new FontFamily("monospace") };
+                        ToolTip.SetTip(characters, "The characters to draw with, in any order: each spot gets the one whose ink best matches its tone");
+                        // The property rather than TextChanged, which the box raises only after it has been through the input loop.
+                        characters.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty) Set(dd => dd with { Characters = characters.Text ?? "" }); };
+                        section.Children.Add(Ui.Row(10, Ui.Label("Characters", Palette.Secondary), characters));
+                    }
+                    if (d.HasTones) DitherSlider("Tones", d.Levels, DitherSettings.MinLevels, DitherSettings.MaxLevels, (v, dd) => dd with { Levels = (int)Math.Round(v) }, defaults.Levels);
+                    if (d.Diffuses) DitherSlider("Diffusion", d.Diffusion, 0, 100, (v, dd) => dd with { Diffusion = v }, defaults.Diffusion);
+                    DitherSlider("Density", d.Density, -100, 100, (v, dd) => dd with { Density = v }, defaults.Density);
+                    DitherSlider("Contrast", d.Contrast, -100, 100, (v, dd) => dd with { Contrast = v }, defaults.Contrast);
+                    var colorsRow = new List<Control>
+                    {
+                        Ui.Label("Colors", Palette.Secondary),
+                        Ui.Combo(Enum.GetValues<DitherColors>(), d.Colors, DitherSettings.DisplayName, v => { Set(dd => dd with { Colors = v }); Rebuild(); }, 140)
+                    };
+                    if (d.Colors == DitherColors.TwoColors)
+                    {
+                        colorsRow.Add(Ui.Label("Dark", Palette.Secondary));
+                        colorsRow.Add(Swatch("Dark", dd => dd.Dark, (c, dd) => dd with { Dark = c }));
+                        colorsRow.Add(Ui.Label("Light", Palette.Secondary));
+                        colorsRow.Add(Swatch("Light", dd => dd.Light, (c, dd) => dd with { Light = c }));
+                    }
+                    section.Children.Add(Ui.Row(10, colorsRow.ToArray()));
+                    if (d.Style != DitherStyle.Ascii)
+                    {
+                        shapeRow = Ui.Row(10, Ui.Label("Pixel Shape", Palette.Secondary),
+                            Ui.Combo(Enum.GetValues<DitherPixelShape>(), d.PixelShape, DitherSettings.DisplayName, v => Set(dd => dd with { PixelShape = v }), 140));
+                        ToolTip.SetTip(shapeRow, "Draw each chunky pixel as a solid square, or as a round dot like a dot-matrix screen");
+                        shapeRow.IsEnabled = d.PixelSize > 1;
+                        section.Children.Add(shapeRow);
+                    }
+                    if (d.DrawsMarks)
+                    {
+                        var lightOnDark = Ui.Check("Light on Dark", d.LightOnDark, v => Set(dd => dd with { LightOnDark = v }));
+                        ToolTip.SetTip(lightOnDark, "Draw the marks for the light tones on the dark color, like a glowing screen");
+                        section.Children.Add(lightOnDark);
+                    }
+                }
+                Rebuild();
+                panel.Children.Add(new TextBlock
+                {
+                    Text = "Turns the layer into dithered pixels. Diffusion and Bayer styles quantize to a number of tones; halftone shapes, Mac patterns and ASCII draw marks that cover as much of each cell as the tone calls for. Pixel Size makes chunky pixels. Density adds or removes ink before dithering.",
+                    Foreground = Palette.Secondary, MaxWidth = 380, TextWrapping = TextWrapping.Wrap
+                });
+                break;
+            }
             case FilterKind.RemoveBackground:
                 Slider("Tolerance", initial.Amount, 1, 100, v => current with { Amount = v });
                 panel.Children.Add(new TextBlock

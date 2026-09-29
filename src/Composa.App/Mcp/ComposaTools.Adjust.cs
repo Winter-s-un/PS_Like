@@ -175,6 +175,47 @@ public sealed partial class ComposaTools
         });
     }
 
+    [McpServerTool(Name = "filter_dither")]
+    [Description("Dither: turns the layer into dithered pixels, from the classic Mac's Atkinson look to Bayer grids, halftone dots, lines and diamonds, old Mac fill patterns and ASCII drawn as readable text. Colors can be black and white, two colors you pick, or the image's own.")]
+    public Task<string> FilterDither(
+        [Description("atkinson, floyd_steinberg, bayer2, bayer4, bayer8, halftone_dots, halftone_lines, halftone_diamonds, mac_patterns or ascii")] string style = "atkinson",
+        [Description("Each dithered pixel covers this many layer pixels on a side, 1 to 32, for chunky old-screen pixels; ascii ignores it")] int pixelSize = 2,
+        [Description("square, or dot for round pixels like an LED screen")] string pixelShape = "square",
+        [Description("Halftone cell size in dithered pixels, 4 to 64")] int cellSize = 8,
+        [Description("Halftone screen angle in degrees, -90 to 90")] double angle = 45,
+        [Description("ASCII line height in pixels, 6 to 64")] int textSize = 14,
+        [Description("ASCII characters to draw with, in any order; each spot gets the one whose ink best matches its tone")] string characters = DitherSettings.DefaultCharacters,
+        [Description("Tones per channel for diffusion and Bayer styles, 2 to 8; 2 is pure 1-bit")] int tones = 2,
+        [Description("How much of each pixel's error passes to its neighbors in the diffusion styles, 0 to 100")] double diffusion = 100,
+        [Description("More ink (positive) or less before dithering, -100 to 100")] double density = 0,
+        [Description("Flatter or punchier before dithering, -100 to 100")] double contrast = 0,
+        [Description("black_white, two_colors or original")] string colors = "black_white",
+        [Description("The dark color for two_colors, as #RRGGBB or a name")] string dark = "#000000",
+        [Description("The light color for two_colors")] string light = "#FFFFFF",
+        [Description("Halftone, pattern and ASCII marks stand for the light tones, drawn in the light color on the dark, like a glowing screen")] bool lightOnDark = true,
+        [Description(TargetLayer)] string? layer = null, int? document = null)
+    {
+        if (!DitherSettings.TryParseStyle(style, out var ditherStyle)) throw new McpException("style is atkinson, floyd_steinberg, bayer2, bayer4, bayer8, halftone_dots, halftone_lines, halftone_diamonds, mac_patterns or ascii.");
+        var shape = pixelShape.Trim().ToLowerInvariant() switch { "square" => DitherPixelShape.Square, "dot" or "dots" or "round" => DitherPixelShape.Dot, _ => throw new McpException("pixelShape is square or dot.") };
+        var palette = colors.Trim().ToLowerInvariant().Replace("_", "").Replace(" ", "").Replace("&", "") switch
+        {
+            "blackwhite" or "blackandwhite" or "bw" => DitherColors.BlackWhite,
+            "twocolors" or "two" => DitherColors.TwoColors,
+            "original" => DitherColors.Original,
+            _ => throw new McpException("colors is black_white, two_colors or original.")
+        };
+        return Filter(document, layer, new FilterSettings
+        {
+            Kind = FilterKind.Dither,
+            Dither = new DitherSettings
+            {
+                Style = ditherStyle, PixelSize = pixelSize, PixelShape = shape, CellSize = cellSize, Angle = angle, TextSize = textSize, Characters = characters,
+                Levels = tones, Diffusion = diffusion, Density = density, Contrast = contrast, Colors = palette,
+                Dark = (uint)ParseColor(dark), Light = (uint)ParseColor(light), LightOnDark = lightOnDark
+            }.Normalized()
+        });
+    }
+
     // ---- Shared -------------------------------------------------------------------------------------------------------
 
     private static int Channel(string channel) => channel.Trim().ToLowerInvariant() switch

@@ -53,7 +53,7 @@ Composa is developed on Linux, on X11 and Wayland (through XWayland), and that i
 - Levels (with Auto and a histogram), Curves, Hue/Saturation (master and six color ranges, Colorize), Exposure, Gradient Map, Grain, Brightness/Contrast, Invert
 - Black & White with Photoshop's six color weights, so reds and greens stay apart instead of flattening into one gray, and an optional tint for sepia or cyanotype; Color Balance for shadows, midtones and highlights separately, with Preserve Luminosity
 - Gaussian Blur and Motion Blur that spread past a layer's edges, Sharpen, Add Noise (uniform or Gaussian), Lens Correction, Remove Background
-- Finishing filters: Vignette in any color (on an empty layer it paints across the whole canvas), Bloom / Glow and Tonal Contrast
+- Finishing filters: Vignette in any color (on an empty layer it paints across the whole canvas), Bloom / Glow, Tonal Contrast and Dither (Atkinson, Floyd-Steinberg, Bayer, halftone, Mac patterns and ASCII, in two colors or the picture's own)
 - Camera Raw Filter: a grade panel with Light, Color (Auto white balance and an eyedropper), Effects (texture, clarity, dehaze, glow, vignette, grain), Curve, Color Mixer, Color Grading, Detail, Optics and Calibration, each group switchable off without losing its sliders, with a histogram of the result
 - Live previews, limited to the selection when there is one
 

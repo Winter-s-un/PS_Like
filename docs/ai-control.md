@@ -37,13 +37,13 @@ Some clients only read the tool list when they start. If a client shows no tools
 
 ## What an agent can do
 
-An agent gets fifty-three tools, covering most of what you can do from the menus:
+An agent gets fifty-four tools, covering most of what you can do from the menus:
 
 - **Documents**: create a canvas, open a project or image, list and describe the open documents, save the project, export a PNG, JPEG or WebP, and render the document to see it.
 - **Layers**: add a layer, place an image or SVG file as a layer, select, rename, hide, reorder, duplicate and delete layers, move, resize and rotate them, and set opacity and blend mode.
 - **Content**: add text with a font, size, color, bold and italic; add rectangles, rounded rectangles, ellipses and lines; fill a layer; paint brush strokes with the brush, eraser, blur, smudge, dodge and burn, one at a time or many in one call.
 - **Adjustments**: every adjustment, on the layer's pixels or as an adjustment layer.
-- **Filters**: every filter but Camera Raw, including Painterly.
+- **Filters**: every filter but Camera Raw, including Dither and Painterly.
 - **Selections**: marquee, lasso, wand, object and subject; select all, inverse, deselect; expand, contract, feather and move the selection.
 - **Looking**: render the document, with a labelled grid to read coordinates from or a region at full size; read the colors at points; and trace the picture's edges.
 - **Undo**: take back the last step, whoever made it.

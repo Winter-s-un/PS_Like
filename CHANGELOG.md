@@ -4,12 +4,13 @@ All notable changes to Composa are recorded here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
-Catches up with Compositor 1.3.3 to 1.4: Select > Color Range, fonts per letter and the smaller items.
+Catches up with Compositor 1.3.3 to 1.4: Select > Color Range, fonts per letter, the Dither filter and the smaller items.
 
 ### Added
 
 - Select > Color Range: click a color in the image to select it everywhere, then adjust Fuzziness and add or remove colors with the eyedroppers, or with Shift and Alt. Invert selects everything else, such as the subject in front of a green screen. The panel sits beside the canvas rather than over it, shows the selection in black and white, and the marching ants follow on the canvas as you go; OK keeps the selection as one undo step. An agent gets it as the select_color_range tool.
 - The font, Bold and Italic can differ from letter to letter: select some of the text while typing and choose a family or tick Bold or Italic, and only those letters take it, as a color already does. The menu says (Multiple) for a selection in several families, and choosing one from it puts them all in that family. Project files that use this are format version 5.
+- Filter > Dither turns a layer into dithered pixels, from the classic Mac's Atkinson look to Floyd-Steinberg, Bayer grids, halftone dots, lines and diamonds, the old Mac fill patterns and ASCII drawn as readable characters laid out like lines of text. Pixel Size makes chunky pixels, square or round like an LED screen; Tones, Diffusion, Density and Contrast shape the result; colors can be black and white, two colors picked from swatches that preview on the layer, or the picture's own. An agent gets it as the filter_dither tool.
 - A History panel under the Layers panel lists every step, oldest first, and goes back or forward any number of them in one click, as Photoshop's does. Press on the list and drag to scrub through the steps with the canvas following. Steps Redo would bring back are dimmed until the next change drops them, the step in the saved file carries a disk, and each step has an icon for what it did. Click its header to collapse it, drag the line above it to size it, and use the new Window menu to hide or show it; the layout is remembered between launches.
 - View > Grid Settings: the layout grid's color (Photoshop's set or a custom one), solid, dashed or dotted lines, their opacity, the pixels between gridlines (2 to 4096) and the subdivisions per square (1 to 64, never finer than a pixel). The grid shows while the dialog is open and follows every change; Cancel puts it back. The settings are remembered between launches like the other view options.
 - Marquees, shapes and a selection outline being moved snap to the View > Snap To targets (guides, the grid, layer edges and the canvas edges), as moved layers and crop boxes already did. Ctrl places them freely, and Shift pressed while moving an outline keeps it on one axis.

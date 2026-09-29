@@ -4,7 +4,7 @@ using SkiaSharp;
 
 namespace Composa.Filters;
 
-public enum FilterKind { GaussianBlur, MotionBlur, AddNoise, Sharpen, Vignette, BloomGlow, TonalContrast, LensCorrection, CameraRaw, RemoveBackground, Painterly }
+public enum FilterKind { GaussianBlur, MotionBlur, AddNoise, Sharpen, Vignette, BloomGlow, Dither, TonalContrast, LensCorrection, CameraRaw, RemoveBackground, Painterly }
 
 /// <summary>Settings for the destructive Filter menu commands. Unused values are ignored by each kind.</summary>
 public sealed record FilterSettings
@@ -53,6 +53,8 @@ public sealed record FilterSettings
     public double CameraRawScale { get; init; } = 1;
     /// <summary>Painterly: the style and brushes; the strokes themselves come from the seed.</summary>
     public PainterlySettings Painterly { get; init; } = new();
+    /// <summary>Dither: the style, pixel size, colors and the rest.</summary>
+    public DitherSettings Dither { get; init; } = new();
     public uint Seed { get; init; } = 1;
     /// <summary>Set for layers that fill the canvas: a blur then continues their edge colors instead of fading into transparency.</summary>
     public bool ClampEdges { get; init; }
@@ -78,6 +80,7 @@ public sealed record FilterSettings
         FilterKind.MotionBlur => "Motion Blur",
         FilterKind.AddNoise => "Add Noise",
         FilterKind.BloomGlow => "Bloom / Glow",
+        FilterKind.Dither => "Dither",
         FilterKind.TonalContrast => "Tonal Contrast",
         FilterKind.LensCorrection => "Lens Correction",
         FilterKind.CameraRaw => "Camera Raw Filter",
@@ -136,6 +139,8 @@ public static unsafe class ImageFilters
                 return (RemoveBackground(source, settings.Amount), 0, 0);
             case FilterKind.Painterly:
                 return (Filters.Painterly.Paint(source, settings.Painterly, settings.Seed), 0, 0);
+            case FilterKind.Dither:
+                return (DitherPixels.Apply(source, settings.Dither), 0, 0);
             default:
                 return (Pixels.Clone(source), 0, 0);
         }
