@@ -33,6 +33,31 @@ public sealed partial class EditorSession
         SelectionChanged?.Invoke();
     }
 
+    /// <summary>The canvas that takes in every layer's pixels and effects, hidden layers too, since pixels outside the canvas are kept.</summary>
+    private SKRectI RevealedBounds()
+    {
+        var area = document.Bounds;
+        foreach (var layer in document.AllLayers().Where(l => l.Pixels != null))
+            area = Geometry.Union(area, Geometry.RoundOut(layer.VisibleBounds));
+        return area;
+    }
+
+    public bool CanRevealAll => RevealedBounds() != document.Bounds;
+
+    /// <summary>Image > Reveal All: grows the canvas until every layer shows, the way back from a crop. Returns whether the canvas changed.</summary>
+    public bool RevealAll()
+    {
+        var area = RevealedBounds();
+        if (area == document.Bounds) return false;
+        if (!DocumentLimits.FitsSurface(area.Width, area.Height))
+        {
+            Problem?.Invoke($"Revealing every layer would make the canvas {area.Width:N0} × {area.Height:N0}, more than the {DocumentLimits.MaxSide:N0} pixels a side and {DocumentLimits.MaxSurfaceMegapixels} megapixels a canvas can be.");
+            return false;
+        }
+        Crop(area, "Reveal All");
+        return true;
+    }
+
     public void ResizeCanvas(int width, int height, Anchor anchor)
     {
         int dx = document.Width - width, dy = document.Height - height;

@@ -13,11 +13,18 @@ Catches up with Compositor 1.3.3 to 1.4: Select > Color Range, fonts per letter 
 - A History panel under the Layers panel lists every step, oldest first, and goes back or forward any number of them in one click, as Photoshop's does. Press on the list and drag to scrub through the steps with the canvas following. Steps Redo would bring back are dimmed until the next change drops them, the step in the saved file carries a disk, and each step has an icon for what it did. Click its header to collapse it, drag the line above it to size it, and use the new Window menu to hide or show it; the layout is remembered between launches.
 - View > Grid Settings: the layout grid's color (Photoshop's set or a custom one), solid, dashed or dotted lines, their opacity, the pixels between gridlines (2 to 4096) and the subdivisions per square (1 to 64, never finer than a pixel). The grid shows while the dialog is open and follows every change; Cancel puts it back. The settings are remembered between launches like the other view options.
 - Marquees, shapes and a selection outline being moved snap to the View > Snap To targets (guides, the grid, layer edges and the canvas edges), as moved layers and crop boxes already did. Ctrl places them freely, and Shift pressed while moving an outline keeps it on one axis.
+- New Canvas opens on the size of the image on the clipboard: a Clipboard preset of that size is listed first and selected, so what you paste next fills the canvas exactly, and every other preset is a choice away.
+- Layer > Merge Visible combines the visible layers and leaves the hidden ones; Layer > Stamp Visible (Ctrl+Alt+Shift+E) puts the picture as it looks on a new layer on top and keeps every layer.
+- Image > Reveal All grows the canvas back to every layer, the way back from a crop; Image > Duplicate opens a copy of the document in a new tab.
+- Edit > Paste Special: Paste in Place (Ctrl+Shift+V) keeps the place pixels were copied from even partly outside the canvas, and Paste Into (Ctrl+Alt+Shift+V) pastes onto a new layer masked by the selection.
+- Right-click a document's tab for Copy Image (its whole flattened picture, whatever is selected), Duplicate, Open Containing Folder, Close and Close Others.
+- The status bar says what a copy put on the clipboard, such as "Copied 1920 × 1080 px".
 - New Canvas presets for screens and social formats: 4K, 1440p and 1080p; iPhone, MacBook Pro and Studio Display; Instagram Square, Portrait and Story and a YouTube thumbnail, with the print sizes kept. The preset follows a typed size.
 
 ### Changed
 
 - Undoing back to the state that was saved counts as saved again: the tab's dot goes, and closing asks nothing. Before, any undo marked the document as changed.
+- A right-click on a tab opens its menu instead of switching to it.
 - Hue/Saturation raises saturation as Photoshop does: +50 doubles it and +100 saturates any color fully. Before, +100 tripled it, so imported Photoshop layers came out too strong at small amounts and too weak near the top.
 - Tools that come in groups are picked as in Photoshop. Press and hold a toolbar button, or right-click it, and its group opens beside it: each tool with its icon, name and key, and a dot at the current one. Click a tool there, or keep holding, slide onto one and let go. Marquee, Lasso, Magic, Brush and Eraser, Smear and Shape have groups, marked by a small triangle in the button's corner, and each button shows the tool last picked, so Smear and Shape now show their mode and shape too. The options bar no longer has boxes for choosing a variant; it names the tool in use instead. The keys work as before.
 

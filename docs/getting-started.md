@@ -24,13 +24,15 @@ With nothing open, the canvas area shows a welcome screen: "Create a canvas, ope
 
 ## Your first document
 
-Choose File > New Canvas (Ctrl+N). The "New Canvas" dialog offers presets (4K, 1440p and 1080p; iPhone, MacBook Pro and Studio Display screens; Instagram Square, Portrait and Story and a YouTube thumbnail; A4 at 300 ppi and a 6000 by 4000 photo) or a custom width and height from 1 to 30,000 pixels each. The background can be transparent, white or the current background color. Create makes the document and opens it in a new tab.
+Choose File > New Canvas (Ctrl+N). The "New Canvas" dialog offers presets (4K, 1440p and 1080p; iPhone, MacBook Pro and Studio Display screens; Instagram Square, Portrait and Story and a YouTube thumbnail; A4 at 300 ppi and a 6000 by 4000 photo) or a custom width and height from 1 to 30,000 pixels each. When the clipboard holds an image, the dialog opens on a Clipboard preset of that size, listed first, so what you paste next fills the canvas exactly; pick another preset to use that instead. The background can be transparent, white or the current background color. Create makes the document and opens it in a new tab.
 
 You can also open an image (File > Open) and it becomes a document with one layer named after the file, or drop image files onto the window.
 
 ## Tabs
 
 Each document has a tab above the canvas. A dot on the tab marks unsaved changes. Close a tab with its button, with a middle click or with File > Close Project (Ctrl+W); Composa asks whether to save changes first. The "+" at the end of the tabs makes a new canvas, and the buttons on the right fit the canvas to the window, show it at 100 percent, and zoom in and out.
+
+Right-click a tab for a menu that acts on that document without switching to it: Copy Image copies its whole flattened picture, whatever is selected in it; Duplicate opens a copy in a new tab; Open Containing Folder shows the folder of a saved file; Close and Close Others close it or every other tab, asking about unsaved changes as usual.
 
 Tool settings, the current colors and the view options carry over from one tab to the next.
 

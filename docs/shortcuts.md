@@ -22,6 +22,8 @@ These are the default shortcuts. Every menu command and tool key can be changed:
 | Undo | Ctrl+Z |
 | Redo | Ctrl+Shift+Z, or Ctrl+Y |
 | Cut, Copy, Paste | Ctrl+X, Ctrl+C, Ctrl+V |
+| Paste in Place | Ctrl+Shift+V |
+| Paste Into | Ctrl+Alt+Shift+V |
 | Copy Merged | Ctrl+Shift+C |
 | Fill with Foreground Color | Alt+Backspace |
 | Fill with Background Color | Ctrl+Backspace |
@@ -63,6 +65,7 @@ These are the default shortcuts. Every menu command and tool key can be changed:
 | Ungroup | Ctrl+Shift+G |
 | Move Layer Up, Down | Ctrl+], Ctrl+[ |
 | Merge Down, Merge Layers or Merge Group | Ctrl+E |
+| Stamp Visible | Ctrl+Alt+Shift+E |
 
 ## View
 

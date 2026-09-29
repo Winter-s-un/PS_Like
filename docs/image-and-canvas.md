@@ -12,6 +12,14 @@ Image > Image Size (Ctrl+Alt+I) resamples the whole document to a new width and 
 
 Image > Trim crops away edges that are transparent, or that have the color of the top-left or bottom-right pixel, on whichever sides you tick. The Crop tool's options bar has a Trim transparent edges button for the common case.
 
+## Reveal All
+
+Image > Reveal All grows the canvas until every layer shows, effects and hidden layers included. Since a crop keeps the pixels outside the new canvas, this is the way back from one. Guides move with the canvas.
+
+## Duplicate
+
+Image > Duplicate opens a copy of the document in a new tab, named after it with "copy", with a history of its own. It needs saving only when the original did.
+
 ## Crop
 
 The Crop tool (C) crops to a box you draw; see [Tools](tools.md).

@@ -438,6 +438,133 @@ public class EditingTests
     }
 
     [Fact]
+    public void Merge_visible_merges_what_shows_and_keeps_the_hidden_layers()
+    {
+        var session = EditorSession.NewCanvas(20, 20, SKColors.White);
+        var hidden = session.AddImageLayer("hidden", Solid(20, 20, SKColors.Green));
+        session.AddImageLayer("top", Solid(10, 10, SKColors.Blue));
+        session.SetVisible(hidden, false);
+        var before = session.Composite().Bytes;
+        Assert.True(session.CanMergeVisible);
+        session.MergeVisible();
+        Assert.Equal(["hidden", "Background"], session.Document.Layers.Select(l => l.Name));
+        Assert.False(session.Document.Layers[0].Visible);
+        Assert.Same(session.Document.Layers[1], session.ActiveLayer);
+        Assert.Equal(before, session.Composite().Bytes);
+        // One visible layer has nothing to merge with.
+        Assert.False(session.CanMergeVisible);
+        Assert.Equal("Merge Visible", session.History.UndoName);
+        session.Undo();
+        Assert.Equal(3, session.Document.Layers.Count);
+    }
+
+    [Fact]
+    public void Stamp_visible_puts_the_picture_on_a_new_layer_on_top_and_keeps_every_layer()
+    {
+        var session = EditorSession.NewCanvas(20, 20, SKColors.White);
+        var red = session.AddImageLayer("red", Solid(10, 10, SKColors.Red));
+        session.SelectLayer(session.Document.Layers[0].Id);
+        var before = session.Composite().Bytes;
+        session.StampVisible();
+        Assert.Equal(3, session.Document.Layers.Count);
+        var stamp = session.Document.Layers[^1];
+        Assert.Same(stamp, session.ActiveLayer);
+        Assert.Equal("Merged Layer 1", stamp.Name);
+        Assert.Equal(before, stamp.Pixels!.Bytes);
+        Assert.Equal(before, session.Composite().Bytes);
+        Assert.Same(red, session.Document.Layers[1]);
+        session.Undo();
+        Assert.Equal(2, session.Document.Layers.Count);
+    }
+
+    [Fact]
+    public void Duplicate_copies_the_document_into_a_session_of_its_own()
+    {
+        var session = EditorSession.NewCanvas(30, 20, SKColors.White);
+        session.SuggestedName = "Poster";
+        Assert.False(session.Duplicate().IsModified); // A copy of what is on disk loses nothing when it is closed.
+        session.AddImageLayer("red", Solid(10, 10, SKColors.Red));
+        var copy = session.Duplicate();
+        Assert.Equal("Poster copy", copy.Title);
+        Assert.True(copy.IsModified);
+        Assert.False(copy.History.CanUndo);
+        Assert.Equal(["Duplicate"], copy.History.Steps.Select(s => s.Name));
+        var original = session.Composite().Bytes;
+        Assert.Equal(original, copy.Composite().Bytes);
+        // Each goes its own way afterwards.
+        copy.Fill(SKColors.Blue);
+        Assert.Equal(original, session.Composite().Bytes);
+        AssertColor(SKColors.Blue, copy.Composite().GetPixel(15, 10));
+    }
+
+    [Fact]
+    public void Reveal_all_grows_the_canvas_back_to_every_layer()
+    {
+        var session = EditorSession.NewCanvas(40, 40, SKColors.White);
+        session.AddImageLayer("red", Solid(20, 20, SKColors.Red));
+        session.Crop(new SKRectI(15, 15, 35, 35));
+        Assert.True(session.CanRevealAll);
+        Assert.True(session.RevealAll());
+        Assert.Equal((40, 40), (session.Document.Width, session.Document.Height));
+        Assert.Equal((0, 0), ((int)session.Document.Layers[0].Transform.X, (int)session.Document.Layers[0].Transform.Y));
+        Assert.Equal("Reveal All", session.History.UndoName);
+        Assert.False(session.CanRevealAll);
+        Assert.False(session.RevealAll());
+    }
+
+    [Fact]
+    public void Reveal_all_refuses_a_canvas_larger_than_a_canvas_can_be()
+    {
+        var session = EditorSession.NewCanvas(40, 40, SKColors.White);
+        var far = session.AddImageLayer("far", Solid(10, 10, SKColors.Red));
+        session.Apply("Move", () => far.Transform = far.Transform.Translated(DocumentLimits.MaxSide, 0));
+        string? problem = null;
+        session.Problem += message => problem = message;
+        Assert.False(session.RevealAll());
+        Assert.NotNull(problem);
+        Assert.Equal((40, 40), (session.Document.Width, session.Document.Height));
+    }
+
+    [Fact]
+    public void Paste_in_place_keeps_the_place_even_partly_off_the_canvas()
+    {
+        var session = EditorSession.NewCanvas(40, 40, SKColors.White);
+        var overhanging = new ClipboardImage(Solid(20, 20, SKColors.Blue), new SKPointI(30, 30));
+        Assert.Equal(10, session.Paste(overhanging)!.Transform.X);
+        Assert.Equal(30, session.PasteInPlace(overhanging)!.Transform.X);
+        // Wholly off the canvas, or from another app, it has no place here and is centered.
+        Assert.Equal(10, session.PasteInPlace(new ClipboardImage(Solid(20, 20, SKColors.Blue), new SKPointI(int.MinValue / 2, int.MinValue / 2)))!.Transform.X);
+
+        // Layers copied whole keep their positions in another project too.
+        var source = EditorSession.NewCanvas(100, 100, SKColors.White);
+        source.AddImageLayer("blue", Solid(10, 10, SKColors.Blue));
+        Assert.True(source.Copy());
+        var target = EditorSession.NewCanvas(60, 60, SKColors.White);
+        Assert.Equal(25, target.Paste()!.Transform.X);
+        Assert.Equal(45, target.PasteInPlace()!.Transform.X);
+    }
+
+    [Fact]
+    public void Paste_into_masks_the_pasted_pixels_by_the_selection()
+    {
+        var session = EditorSession.NewCanvas(40, 40, SKColors.White);
+        var image = new ClipboardImage(Solid(20, 20, SKColors.Blue), new SKPointI(0, 0));
+        Assert.Null(session.PasteInto(image));
+        session.SelectRect(new SKRect(20, 20, 30, 30));
+        var layer = session.PasteInto(image)!;
+        // Centered on the selection, showing only inside it.
+        Assert.Equal((15, 15), ((int)layer.Transform.X, (int)layer.Transform.Y));
+        Assert.NotNull(layer.Mask);
+        Assert.Null(session.Selection);
+        AssertColor(SKColors.Blue, session.Composite().GetPixel(25, 25));
+        AssertColor(SKColors.White, session.Composite().GetPixel(17, 17));
+        Assert.Equal("Paste Into", session.History.UndoName);
+        session.Undo();
+        Assert.NotNull(session.Selection);
+        Assert.Single(session.Document.Layers);
+    }
+
+    [Fact]
     public void Copy_paste_and_layer_via_copy()
     {
         var session = EditorSession.NewCanvas(40, 40, SKColors.Red);

@@ -48,7 +48,11 @@ The blend mode decides how a layer's colors combine with what is beneath. The dr
 
 ## Merging and flattening
 
-Layer > Merge Down (Ctrl+E) combines the active layer with the one below it; the command reads Merge Layers when several layers are selected and Merge Group when a folder is active. A layer cannot be merged into a hidden layer or into an adjustment layer. Layer > Flatten Image combines everything into a single Background layer.
+Layer > Merge Down (Ctrl+E) combines the active layer with the one below it; the command reads Merge Layers when several layers are selected and Merge Group when a folder is active. A layer cannot be merged into a hidden layer or into an adjustment layer.
+
+Layer > Merge Visible combines every visible layer into one and leaves the hidden layers as they are; a folder merges as it looks, so a hidden layer inside a visible folder goes with it. Layer > Stamp Visible (Ctrl+Alt+Shift+E) puts the picture as it looks on a new layer on top and keeps every layer, so a filter can work on the whole picture without flattening it. Layer > Flatten Image combines everything into a single Background layer.
+
+To copy the whole picture there is no need to flatten: Edit > Copy Merged (Ctrl+Shift+C) with nothing selected copies it as it looks, and leaves the layers alone.
 
 ## Layer effects
 

@@ -89,6 +89,9 @@ public sealed partial class MainWindow
             Item("Copy", () => _ = Copy(merged: false), Key.C, ctrl, () => session!.CanCopy),
             Item("Copy Merged", () => _ = Copy(merged: true), Key.C, ctrl | shift),
             Item("Paste", () => _ = Paste(), Key.V, ctrl),
+            Sub("Paste Special",
+                Item("Paste in Place", () => _ = Paste(PasteKind.InPlace), Key.V, ctrl | shift),
+                Item("Paste Into", () => _ = Paste(PasteKind.Into), Key.V, ctrl | alt | shift, () => session!.Selection != null)),
             Line(),
             Item("Fill with Foreground Color", () => session!.Fill(session.Foreground, "Fill"), Key.Back, alt, () => session!.CanFill),
             Item("Fill with Background Color", () => session!.Fill(session.Background, "Fill"), Key.Back, ctrl, () => session!.CanFill),
@@ -127,6 +130,8 @@ public sealed partial class MainWindow
             Item("Canvas Size…", () => _ = CanvasSize(), Key.C, ctrl | alt),
             Item("Image Size…", () => _ = ImageSize(), Key.I, ctrl | alt),
             Item("Trim…", () => _ = Trim()),
+            Item("Reveal All", () => { if (session!.RevealAll()) canvas.Fit(); }, enabled: () => session!.CanRevealAll),
+            Item("Duplicate", () => AddSession(session!.Duplicate())),
             Line(),
             Item("Rotate Canvas 90° Clockwise", () => { session!.RotateCanvas(true); canvas.Fit(); }),
             Item("Rotate Canvas 90° Counterclockwise", () => { session!.RotateCanvas(false); canvas.Fit(); }),
@@ -157,6 +162,8 @@ public sealed partial class MainWindow
             Item("Move Layer Up", () => session!.MoveActiveLayer(1), Key.OemCloseBrackets, ctrl),
             Item("Move Layer Down", () => session!.MoveActiveLayer(-1), Key.OemOpenBrackets, ctrl),
             mergeItem,
+            Item("Merge Visible", () => session!.MergeVisible(), enabled: () => session!.CanMergeVisible),
+            Item("Stamp Visible", () => session!.StampVisible(), Key.E, ctrl | alt | shift),
             Item("Flatten Image", () => session!.FlattenImage()),
             Line(),
             Sub("Layer Effects", Enum.GetValues<LayerEffectKind>().Select(kind => (object)Item(LayerEffects.DisplayName(kind) + "…", () => _ = NewEffect(kind), enabled: () => session!.ActiveLayer?.Pixels != null, id: "Add " + LayerEffects.DisplayName(kind)))
@@ -373,7 +380,7 @@ public sealed partial class MainWindow
     private void Execute(Shortcut command)
     {
         if (command.Enabled?.Invoke() == false || canvas.IsDragging) return;
-        problem = null;
+        problem = note = null;
         try { command.Run(); }
         catch (Exception error) { _ = Prompts.Alert(this, command.Title, error.Message); }
         UpdateStatus();
@@ -435,7 +442,7 @@ public sealed partial class MainWindow
             ?? (e.KeyModifiers == KeyModifiers.Shift ? toolKeys.FirstOrDefault(c => c.Gesture is { KeyModifiers: KeyModifiers.None } g && g.Key == e.Key) : null);
         if (tool == null) return;
         e.Handled = true;
-        problem = null;
+        problem = note = null;
         tool.Run();
         UpdateStatus();
     }
@@ -470,7 +477,7 @@ public sealed partial class MainWindow
 
     private async Task NewCanvas()
     {
-        var result = await CanvasDialogs.NewCanvas(this, session?.Background ?? SKColors.White);
+        var result = await CanvasDialogs.NewCanvas(this, session?.Background ?? SKColors.White, await ClipboardImageSize());
         if (result != null) AddSession(EditorSession.NewCanvas(result.Width, result.Height, result.Background));
     }
 
@@ -701,6 +708,7 @@ public sealed partial class MainWindow
     private async Task Copy(bool merged)
     {
         if (session == null || !(merged ? session.CopyMerged() : session.Copy())) { ShowProblem("There is nothing to copy here."); return; }
+        ShowCopied();
         if (EditorSession.Clipboard == null) { await ClearExternalClipboard(); return; }
         await PublishClipboard();
     }
@@ -709,7 +717,24 @@ public sealed partial class MainWindow
     {
         if (session == null) return;
         session.Cut();
+        ShowCopied();
         await PublishClipboard();
+    }
+
+    /// <summary>Copies a document's whole flattened picture, whatever is selected in it: the tab menu's Copy Image.</summary>
+    private async Task CopyImage(EditorSession item)
+    {
+        problem = note = null;
+        item.CopyMerged(whole: true);
+        ShowCopied();
+        await PublishClipboard();
+    }
+
+    /// <summary>Says what went to the clipboard, because a copy is otherwise silent and the first thing anyone doubts.</summary>
+    private void ShowCopied()
+    {
+        if (EditorSession.CopiedLayers is { Layers.Count: var count }) ShowNote(count == 1 ? "Copied 1 layer" : $"Copied {count} layers");
+        else if (EditorSession.Clipboard is { } image) ShowNote($"Copied {image.Pixels.Width} × {image.Pixels.Height} px");
     }
 
     /// <summary>Shares the copied pixels with other apps.</summary>
@@ -734,24 +759,66 @@ public sealed partial class MainWindow
         catch { /* Nothing to share; the in-app clipboard still has the layers. */ }
     }
 
-    private async Task Paste()
+    private enum PasteKind { Normal, InPlace, Into }
+
+    private async Task Paste(PasteKind kind = PasteKind.Normal)
     {
         if (session == null) return;
         ClipboardImage? external = null;
         try
         {
-            // Pixels copied in this app keep their position; anything newer from another app wins.
-            if (Clipboard != null && await Clipboard.TryGetInProcessDataAsync() == null && await Clipboard.TryGetBitmapAsync() is { } bitmap)
+            if (await ExternalClipboardBitmap() is { } bitmap)
             {
-                using var stream = new MemoryStream();
-                bitmap.Save(stream, Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
-                stream.Position = 0;
-                external = new ClipboardImage(ImageFiles.Load(stream, "clipboard"), new SKPointI(int.MinValue / 2, int.MinValue / 2));
+                using (bitmap)
+                {
+                    using var stream = new MemoryStream();
+                    bitmap.Save(stream, Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
+                    stream.Position = 0;
+                    external = new ClipboardImage(ImageFiles.Load(stream, "clipboard"), new SKPointI(int.MinValue / 2, int.MinValue / 2));
+                }
             }
         }
         catch { /* Fall back to the in-app clipboard. */ }
-        if (session.Paste(external) == null) ShowProblem("The clipboard has no image.");
+        var pasted = kind switch
+        {
+            PasteKind.InPlace => session.PasteInPlace(external),
+            PasteKind.Into => session.PasteInto(external),
+            _ => session.Paste(external)
+        };
+        if (pasted == null) ShowProblem("The clipboard has no image.");
         else SelectTool(Tool.Move);
+    }
+
+    /// <summary>
+    /// The image another app put on the clipboard, or null when the clipboard holds what was copied here, or no image.
+    /// Pixels copied in this app keep their position; anything newer from another app wins. Paste and New Canvas both
+    /// decide through this, so the size New Canvas offers is the size a paste brings.
+    /// </summary>
+    private async Task<Bitmap?> ExternalClipboardBitmap()
+    {
+        if (Clipboard == null) return null;
+        try { return await Clipboard.TryGetInProcessDataAsync() == null ? await Clipboard.TryGetBitmapAsync() : null; }
+        catch { return null; } // The in-app clipboard still works when the desktop's does not.
+    }
+
+    /// <summary>How long New Canvas waits for another app's clipboard before opening without its size.</summary>
+    private static readonly TimeSpan ClipboardPatience = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// The size of the image Paste would paste, for New Canvas to offer. A desktop clipboard that has not answered in
+    /// time offers nothing rather than the in-app clipboard, which may be older than what it holds.
+    /// </summary>
+    private async Task<(int W, int H)?> ClipboardImageSize()
+    {
+        var external = ExternalClipboardBitmap();
+        if (await Task.WhenAny(external, Task.Delay(ClipboardPatience)) != external)
+        {
+            _ = external.ContinueWith(late => late.Result?.Dispose(), TaskContinuationOptions.OnlyOnRanToCompletion);
+            return null;
+        }
+        if (await external is { } bitmap)
+            using (bitmap) return (bitmap.PixelSize.Width, bitmap.PixelSize.Height);
+        return EditorSession.Clipboard is { } image ? (image.Pixels.Width, image.Pixels.Height) : null;
     }
 
     // ---- Dialog-driven edits ------------------------------------------------------------------------------------
