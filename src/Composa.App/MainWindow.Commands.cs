@@ -914,7 +914,8 @@ public sealed partial class MainWindow
             var seed = (uint)Random.Shared.Next();
             var grade = await CameraRawDialog.Show(this, lastCameraRaw, original,
                 settings => Busy(() => target.PreviewFilter(new FilterSettings { Kind = kind, CameraRaw = settings, Seed = seed })),
-                () => target.ActiveLayer is { } layer ? (target.IsEditingMask ? layer.Mask : layer.Pixels) : null);
+                () => target.ActiveLayer is { } layer ? (target.IsEditingMask ? layer.Mask : layer.Pixels) : null,
+                () => PickLookSavePath(target.Title), target.Title);
             if (grade == null) { target.CancelPreview(); return; }
             lastCameraRaw = grade;
             if (grade.IsIdentity) { target.CancelPreview(); return; }
@@ -946,6 +947,17 @@ public sealed partial class MainWindow
             target.Commit();
             target.NotifyLayersChanged();
         }
+    }
+
+    /// <summary>Asks where the Camera Raw panel saves its look as a .cube; null when nowhere.</summary>
+    private async Task<string?> PickLookSavePath(string title)
+    {
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Save Look", SuggestedFileName = title + ".cube", DefaultExtension = "cube",
+            FileTypeChoices = [new FilePickerFileType("Color lookup table") { Patterns = ["*.cube"] }]
+        });
+        return file?.TryGetLocalPath();
     }
 
     /// <summary>Asks for a .cube or .3dl for the Color Lookup dialog; null when none was chosen.</summary>
