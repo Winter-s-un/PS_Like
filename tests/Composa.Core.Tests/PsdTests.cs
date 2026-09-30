@@ -438,6 +438,30 @@ public class PsdTests
     }
 
     [Fact]
+    public void Color_lookup_layers_carry_their_table_and_profile_lookups_are_reported()
+    {
+        var cube = "TITLE \"Warm\"\nLUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n1 1 1\n";
+        var rows = new List<string> { "0 341 682 1023" };
+        for (var r = 0; r < 4; r++) for (var g = 0; g < 4; g++) for (var b = 0; b < 4; b++) rows.Add($"{r * 85} {g * 85} {b * 85}");
+        var tdl = string.Join("\r\n", rows);
+        var writer = new PsdWriter { Width = 4, Height = 4 };
+        writer.Layers.Add(new PsdWriterLayer { Name = "Photo", Image = Solid(4, 4, SKColors.Gray) });
+        writer.Layers.Add(new PsdWriterLayer { Name = "Cube" }.With("clrL", PsdWriter.ColorLookup("warm.cube", "\uFEFF" + cube)));
+        writer.Layers.Add(new PsdWriterLayer { Name = "Autodesk" }.With("clrL", PsdWriter.ColorLookup("ramp.3dl", tdl, "LUTFormat3DL")));
+        writer.Layers.Add(new PsdWriterLayer { Name = "Profile" }.With("clrL", PsdWriter.ColorLookupProfile("Candlelight", new byte[64])));
+        writer.Layers.Add(new PsdWriterLayer { Name = "Broken" }.With("clrL", PsdWriter.ColorLookup("broken.cube", "LUT_3D_SIZE 2\n0 0 0\n")));
+        var import = Load(writer);
+        Assert.Equal(["Photo", "Cube", "Autodesk"], import.Layers.Select(l => l.Name));
+        var warm = Assert.IsType<ColorLookupAdjustment>(import.Layers[1].Adjustment);
+        Assert.Equal(("warm.cube", "Warm", 2), (warm.Source, warm.Lattice!.Title, warm.Lattice.Size));
+        var ramp = Assert.IsType<ColorLookupAdjustment>(import.Layers[2].Adjustment);
+        Assert.Equal(("ramp.3dl", 4), (ramp.Source, ramp.Lattice!.Size));
+        Assert.Equal(1, ramp.Lattice.Cube[189]);
+        Assert.Equal(["Profile", "Broken"], import.Conversions.Where(c => c.Message.Contains("isn't supported")).Select(c => c.LayerName));
+        Assert.DoesNotContain(import.Conversions, c => c.LayerName is "Cube" or "Autodesk");
+    }
+
+    [Fact]
     public void Unsupported_and_damaged_files_are_refused_with_a_reason()
     {
         byte[] Plain() { var w = new PsdWriter { Width = 10, Height = 10 }; w.Layers.Add(new PsdWriterLayer { Image = Solid(10, 10, SKColors.Red) }); return w.Build(); }

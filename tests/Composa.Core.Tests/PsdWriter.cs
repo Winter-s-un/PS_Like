@@ -300,6 +300,22 @@ internal sealed class PsdWriter
         var b = new Buffer(); b.U32(16); b.Bytes(descriptor.ToArray());
         return b.ToArray();
     }
+    /// <summary>A Color Lookup from a file: Photoshop keeps the file's bytes, its name and its format in the descriptor.</summary>
+    public static byte[] ColorLookup(string fileName, string text, string format = "LUTFormatCUBE")
+    {
+        var descriptor = new Descriptor().Add("lookupType", Descriptor.Enum("lookupType", "3DLUT")).Add("Nm  ", Descriptor.Text(fileName)).Add("Dthr", Descriptor.Bool(false))
+            .Add("LUTFormat", Descriptor.Enum("LUTFormat", format)).Add("LUT3DFileData", Descriptor.Raw(Encoding.UTF8.GetBytes(text))).Add("LUT3DFileName", Descriptor.Text(fileName));
+        var b = new Buffer(); b.U32(16); b.Bytes(descriptor.ToArray());
+        return b.ToArray();
+    }
+    /// <summary>A Color Lookup through an ICC profile, which carries the profile and no table.</summary>
+    public static byte[] ColorLookupProfile(string name, byte[] profile)
+    {
+        var descriptor = new Descriptor().Add("lookupType", Descriptor.Enum("lookupType", "abstractProfile")).Add("Nm  ", Descriptor.Text(name)).Add("Dthr", Descriptor.Bool(false))
+            .Add("profile", Descriptor.Raw(profile));
+        var b = new Buffer(); b.U32(16); b.Bytes(descriptor.ToArray());
+        return b.ToArray();
+    }
     public static byte[] Exposure(float exposure, float offset, float gamma) { var b = new Buffer(); b.U16(1); b.F32(exposure); b.F32(offset); b.F32(gamma); return b.ToArray(); }
 
     // ---- Type tool object setting ------------------------------------------------------------------------------------

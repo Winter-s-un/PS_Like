@@ -30,9 +30,35 @@ internal static class PsdAdjustments
             if (extra.ContainsKey("nvrt")) { approximate = false; return new InvertAdjustment(); }
             if (extra.TryGetValue("blnc", out var balance)) { approximate = false; return ColorBalance(balance); }
             if (extra.TryGetValue("blwh", out var blackWhite)) return BlackAndWhite(blackWhite, out approximate);
+            if (extra.TryGetValue("clrL", out var lookup)) return ColorLookup(lookup, out approximate);
         }
         catch (PsdException) { }
         return null;
+    }
+
+    /// <summary>
+    /// Color Lookup: a versioned descriptor. A table loaded from a file travels in the file as the file's own bytes
+    /// (<c>LUT3DFileData</c>) with its name (<c>LUT3DFileName</c>) and format (<c>LUTFormat</c>: <c>LUTFormatCUBE</c> or
+    /// <c>LUTFormat3DL</c>), so the layer becomes a Color Lookup with the same table. A lookup through an abstract or
+    /// device-link ICC profile (<c>lookupType</c> other than <c>3DLUT</c>, the profile in <c>profile</c>) has no
+    /// equivalent here, and neither has a SpeedGrade <c>.look</c>; both are reported as unsupported.
+    /// </summary>
+    private static Adjustment? ColorLookup(byte[] data, out bool approximate)
+    {
+        approximate = false;
+        var items = PsdDescriptor.ReadVersioned(data);
+        var bytes = PsdDescriptor.Data(items, "LUT3DFileData");
+        if (bytes == null || bytes.LongLength > ColorLattice.MaxFileBytes) return null;
+        var format = PsdDescriptor.Enumeration(items, "LUTFormat");
+        if (format == "LUTFormatLOOK") return null;
+        var name = PsdDescriptor.Text(items, "LUT3DFileName") ?? PsdDescriptor.Text(items, "Nm  ") ?? "";
+        var text = System.Text.Encoding.UTF8.GetString(bytes).TrimStart('\uFEFF');
+        try
+        {
+            var lattice = format == "LUTFormat3DL" || (format == null && name.EndsWith(".3dl", StringComparison.OrdinalIgnoreCase)) ? ColorLattice.Parse3dl(text) : ColorLattice.ParseCube(text);
+            return new ColorLookupAdjustment { Lattice = lattice, Source = name.Length > 0 ? name : lattice.Title };
+        }
+        catch (InvalidDataException) { return null; }
     }
 
     /// <summary>Version, then 29 records of input floor, input ceiling, output floor, output ceiling and gamma × 100; the first four are RGB, red, green and blue.</summary>
