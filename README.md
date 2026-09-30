@@ -106,7 +106,7 @@ The tools create a document, list and describe the open ones, place an image fil
 - Layer masks always move with their layer, so the layer menu has no Link Mask item.
 - A project changed on disk by another program while it is open is not reloaded; the macOS app watches its project folder and reloads it. Composa's projects are single files that nothing else edits.
 - The transform bar's angle field has no dial; the dials sit beside the angle fields in the effects and blur dialogs.
-- Composa tells you when a newer version is available, but never installs it: the notice links to the release page and nothing is downloaded or replaced behind your back. See [Update checks](#update-checks).
+- Composa tells you when a newer version is available and downloads it when you ask, but never installs it by itself: Install hands the checked file to its installer, and nothing is downloaded or replaced behind your back. See [Update checks](#update-checks).
 
 Beyond the macOS app, this version adds Ctrl-drag to move a layer with any tool, Bold and Italic text, Brightness/Contrast, Sharpen, Dodge and Burn, WebP export, canvas and layer rotation, pen pressure, and autosave with crash recovery. Its Photoshop import also opens flattened files and zip-compressed layers, keeps solid color fill layers live, and maps Brightness/Contrast, Exposure, Invert, Black & White and Color Balance adjustments.
 
@@ -169,13 +169,15 @@ That installs under `~/.local`, so it needs no root. Set `PREFIX` to install els
 
 ### Update checks
 
-Composa checks once a day whether a newer version has been released, and shows a dismissable strip when there is one. It never downloads or installs anything: the only action it offers is opening the release page in your browser.
+Composa checks once a day whether a newer version has been released, and shows a dismissable strip when there is one, with its release notes, Skip this version and Download.
 
-The check is a single anonymous `GET` to `https://api.github.com/repos/dvdstelt/Composa/releases/latest`. It sends no version number, no identifier, no machine details and no telemetry of any kind, and GitHub sees only what any visitor to that URL would show. If the request fails, nothing is reported and nothing is retried until the next day.
+Download fetches the release's file for the way your copy was installed and the processor it runs on (the `.deb`, `.rpm`, AppImage or tarball, the Windows installer or zip) into your Downloads folder, and checks it against the release's `sha256sums.txt` before offering it. Show in Folder then opens the file manager with it selected, and Install, where there is an installer, hands it over: on Windows Composa quits, asking about unsaved work, and starts the setup; a `.deb` or `.rpm` opens in your software installer, with the `sudo apt install` or `sudo dnf install` command beside it to copy. A downloaded AppImage is made executable. Nothing is downloaded until you press Download, nothing starts until you press Install, and Composa never replaces its own files. The Windows builds are unsigned, so SmartScreen may warn when the setup starts, as it does for a setup downloaded from the releases page. More in [Settings and updates](docs/settings-and-updates.md#updates).
+
+The check is a single anonymous `GET` to `https://api.github.com/repos/dvdstelt/Composa/releases/latest`. It sends no version number, no identifier, no machine details and no telemetry of any kind, and GitHub sees only what any visitor to that URL would show. If the request fails, nothing is reported and nothing is retried until the next day. A download sends the same and nothing more.
 
 Turn it off under **Help > Check for Updates Automatically**, or set `COMPOSA_DISABLE_UPDATE_CHECK=1`, which is there so a distribution packager can switch it off without patching code. **Help > Check for Updates** still works when the automatic check is off.
 
-The `.deb` and `.rpm` check too: they are downloaded from the releases page and installed by hand, so no repository will offer you the next version. Upgrade by installing the new release's file over the old one (`sudo apt install ./composa_*.deb` or `sudo dnf install ./composa-*.rpm`). A package built for a repository with `UPDATE_CHANNEL=managed` never checks on its own; there, the menu item says that the package manager owns updates rather than pointing you around it.
+The `.deb` and `.rpm` check too: they are downloaded from the releases page and installed by hand, so no repository will offer you the next version. Upgrade with Download and Install in the strip, or by installing the new release's file over the old one (`sudo apt install ./composa_*.deb` or `sudo dnf install ./composa-*.rpm`). A package built for a repository with `UPDATE_CHANNEL=managed` never checks on its own; there, the menu item says that the package manager owns updates rather than pointing you around it.
 
 ### ImageMagick
 
