@@ -1,7 +1,9 @@
 // Ported from Lolly (github.com/lolly-tools/lolly, tests/grade.test.ts at 12b26ff), MPL-2.0, used under the MIT licence by permission of Andy Fitzsimon, 2026-09-30.
 using System.Globalization;
 using System.Text.Json;
+using Composa.Editing;
 using Composa.Filters;
+using Composa.IO;
 using Composa.Model;
 using Composa.Rendering;
 using SkiaSharp;
@@ -392,6 +394,129 @@ public class ColorLookupTests
         for (var i = 0; i < 24; i++) Assert.True(Math.Abs(fine.Cube[i] - again.Cube[i]) < 1e-6);
         Assert.Contains("LUT_3D_SIZE 3\n", ColorLattice.Identity(3).ToCube());
         Assert.DoesNotContain("TITLE", ColorLattice.Identity(3).ToCube());
+    }
+
+    // ── the project file ─────────────────────────────────────────────────────
+
+    private static ColorLattice Warm()
+    {
+        var data = ColorLattice.Identity(3).Cube.ToArray();
+        for (var i = 0; i < data.Length; i += 3) data[i] = Math.Min(1, data[i] * 1.1f + 0.0123456f);
+        return ColorLattice.FromCube(3, data, "Warm");
+    }
+
+    private static string Manifest(MemoryStream stream)
+    {
+        stream.Position = 0;
+        using var zip = new System.IO.Compression.ZipArchive(stream, System.IO.Compression.ZipArchiveMode.Read, leaveOpen: true);
+        using var reader = new StreamReader(zip.GetEntry("manifest.json")!.Open());
+        return reader.ReadToEnd();
+    }
+
+    [Fact]
+    public void The_binary_form_keeps_the_lattice_exactly()
+    {
+        var lut = ColorLattice.ParseCube(string.Join('\n', ["TITLE \"Both\"", "LUT_1D_SIZE 2", "LUT_3D_SIZE 2", "DOMAIN_MIN -0.5 0 0", "DOMAIN_MAX 1.5 1 2", "0 0 0", "0.7654321 0.5 0.25", .. IdentityRows]));
+        using var stream = new MemoryStream();
+        lut.WriteTo(stream);
+        stream.Position = 0;
+        var back = ColorLattice.ReadFrom(stream);
+        Assert.Equal(lut.Id, back.Id);
+        Assert.Equal("Both", back.Title);
+        Assert.Equal(lut.DomainMin, back.DomainMin);
+        Assert.Equal(lut.DomainMax, back.DomainMax);
+        Assert.True(lut.Cube.SequenceEqual(back.Cube));
+        Assert.True(lut.Curves.SequenceEqual(back.Curves));
+        Assert.Equal(stream.Length, stream.Position);
+        // A cut-off or foreign entry is refused as damaged, not read as a smaller table.
+        var bytes = stream.ToArray();
+        Assert.Contains("damaged", Assert.Throws<InvalidDataException>(() => ColorLattice.ReadFrom(new MemoryStream(bytes[..^5]))).Message);
+        Assert.Contains("damaged", Assert.Throws<InvalidDataException>(() => ColorLattice.ReadFrom(new MemoryStream("PNG\0\0\0\0\0"u8.ToArray()))).Message);
+        Assert.Contains("damaged", Assert.Throws<InvalidDataException>(() => ColorLattice.ReadFrom(new MemoryStream())).Message);
+    }
+
+    [Fact]
+    public void Lattices_round_trip_through_the_project_file_and_are_written_once()
+    {
+        var warm = Warm();
+        var grey = ColorLattice.FromCube(2, Enumerable.Repeat(0.5f, 24).ToArray());
+        var session = EditorSession.NewCanvas(10, 10, SKColors.White);
+        session.AddAdjustmentLayer(new ColorLookupAdjustment { Lattice = warm, Source = "warm.cube", Amount = 60 });
+        session.AddAdjustmentLayer(new ColorLookupAdjustment { Lattice = warm, Source = "warm.cube" });
+        session.AddAdjustmentLayer(new ColorLookupAdjustment { Lattice = grey, Source = "Grey" });
+        session.AddAdjustmentLayer(new ColorLookupAdjustment());   // nothing chosen yet
+        using var stream = new MemoryStream();
+        ProjectFile.Write(session.Document, stream);
+        stream.Position = 0;
+        using (var zip = new System.IO.Compression.ZipArchive(stream, System.IO.Compression.ZipArchiveMode.Read, leaveOpen: true))
+            Assert.Equal([$"lookups/{grey.Id}.bin", $"lookups/{warm.Id}.bin"], zip.Entries.Select(e => e.FullName).Where(n => n.StartsWith("lookups/")).Order());
+        var manifest = Manifest(stream);
+        Assert.Contains($"\"version\": {ProjectFile.Version}", manifest);
+        Assert.Contains(warm.Id, manifest);
+        Assert.DoesNotContain("\"lattice\"", manifest);
+        stream.Position = 0;
+        var loaded = ProjectFile.Read(stream).AllLayers().Where(l => l.IsAdjustment).Select(l => Assert.IsType<ColorLookupAdjustment>(l.Adjustment)).ToList();
+        Assert.Equal(warm.Id, loaded[0].Lattice!.Id);
+        Assert.True(warm.Cube.SequenceEqual(loaded[0].Lattice!.Cube));
+        Assert.Equal(("warm.cube", 60d), (loaded[0].Source, loaded[0].Amount));
+        Assert.Same(loaded[0].Lattice, loaded[1].Lattice);          // one entry, one lattice in memory
+        Assert.Equal(grey.Id, loaded[2].Lattice!.Id);
+        Assert.Null(loaded[3].Lattice);
+        Assert.True(loaded[3].IsIdentity);
+        // The picture survives as well: the loaded document renders as the saved one did.
+        using var before = DocumentRenderer.Flatten(session.Document);
+        stream.Position = 0;
+        using var after = DocumentRenderer.Flatten(ProjectFile.Read(stream));
+        Assert.True(before.Bytes.AsSpan().SequenceEqual(after.Bytes));
+    }
+
+    [Fact]
+    public void A_newer_format_and_a_missing_lattice_are_refused()
+    {
+        var session = EditorSession.NewCanvas(10, 10, SKColors.White);
+        session.AddAdjustmentLayer(new ColorLookupAdjustment { Lattice = Warm() });
+        using var stream = new MemoryStream();
+        ProjectFile.Write(session.Document, stream);
+        var bytes = stream.ToArray();
+
+        MemoryStream Tampered(Action<System.IO.Compression.ZipArchive> change)
+        {
+            var copy = new MemoryStream(bytes.ToArray());
+            using (var zip = new System.IO.Compression.ZipArchive(copy, System.IO.Compression.ZipArchiveMode.Update, leaveOpen: true)) change(zip);
+            copy.Position = 0;
+            return copy;
+        }
+
+        // What an older Composa says about this file is the message it has always had, now with 6 as its own ceiling.
+        var newer = Tampered(zip =>
+        {
+            var entry = zip.GetEntry("manifest.json")!;
+            string text;
+            using (var reader = new StreamReader(entry.Open())) text = reader.ReadToEnd();
+            entry.Delete();
+            using var writer = new StreamWriter(zip.CreateEntry("manifest.json").Open());
+            writer.Write(text.Replace($"\"version\": {ProjectFile.Version}", $"\"version\": {ProjectFile.Version + 1}"));
+        });
+        Assert.Equal($"This project uses format version {ProjectFile.Version + 1}; this app supports up to version {ProjectFile.Version}.", Assert.Throws<InvalidDataException>(() => ProjectFile.Read(newer)).Message);
+        var missing = Tampered(zip => zip.Entries.Single(e => e.FullName.StartsWith("lookups/")).Delete());
+        Assert.Contains("lookup table inside the project is missing", Assert.Throws<InvalidDataException>(() => ProjectFile.Read(missing)).Message);
+    }
+
+    [Fact]
+    public void Save_and_load_keep_the_lattice()
+    {
+        // The path Recovery and Ctrl+S take.
+        var warm = Warm();
+        var session = EditorSession.NewCanvas(10, 10, SKColors.White);
+        session.AddAdjustmentLayer(new ColorLookupAdjustment { Lattice = warm, Source = "Warm" });
+        var path = Path.Combine(Path.GetTempPath(), "composa-lookup-" + Guid.NewGuid().ToString("N")[..8] + ProjectFile.Extension);
+        try
+        {
+            ProjectFile.Save(session.Document, path);
+            var lookup = Assert.IsType<ColorLookupAdjustment>(ProjectFile.Load(path).AllLayers().Single(l => l.IsAdjustment).Adjustment);
+            Assert.Equal(warm.Id, lookup.Lattice!.Id);
+        }
+        finally { TempFiles.Delete(path); }
     }
 
     [Fact]

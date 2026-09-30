@@ -9,8 +9,10 @@ using SkiaSharp;
 namespace Composa.IO;
 
 /// <summary>
-/// The project format: a zip archive holding <c>manifest.json</c> and an <c>images/</c> folder with one PNG per
-/// layer (and one grayscale PNG per mask). Source pixels are stored untouched; transforms stay separate.
+/// The project format: a zip archive holding <c>manifest.json</c>, an <c>images/</c> folder with one PNG per layer
+/// (and one grayscale PNG per mask) and a <c>lookups/</c> folder with one entry per color lookup table, named by the
+/// table's id and written once however many layers share it. Source pixels are stored untouched; transforms stay
+/// separate.
 /// </summary>
 public static class ProjectFile
 {
@@ -20,9 +22,9 @@ public static class ProjectFile
     /// The format version new saves write, and the highest one <see cref="Read"/> accepts. 1 was the first release,
     /// 2 added guides, 3 added the Gaussian Blur, Motion Blur and Add Noise adjustment layers and the Inner Glow effect,
     /// 4 added letters in their own colors (<see cref="TextStyle.ColorRuns"/>), 5 letters in their own faces
-    /// (<see cref="TextStyle.FontRuns"/>).
+    /// (<see cref="TextStyle.FontRuns"/>), 6 the Color Lookup adjustment, whose lattice is a <c>lookups/</c> entry.
     /// </summary>
-    public const int Version = 5;
+    public const int Version = 6;
 
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -82,6 +84,7 @@ public static class ProjectFile
     {
         using var zip = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true);
         var written = new Dictionary<SKBitmap, string>(ReferenceEqualityComparer.Instance);
+        var lookups = new HashSet<string>();
 
         string Store(SKBitmap bitmap, string name)
         {
@@ -93,18 +96,30 @@ public static class ProjectFile
             return written[bitmap] = name;
         }
 
-        LayerRecord Record(Layer layer) => new()
+        void StoreLookup(ColorLattice lattice)
         {
-            Id = layer.Id, Name = layer.Name, Kind = layer.Kind, Visible = layer.Visible, Opacity = layer.Opacity, Blend = layer.Blend,
-            Transform = layer.Pixels != null ? layer.Transform : null,
-            ImageFile = layer.Pixels != null ? Store(layer.Pixels, $"{layer.Id}.png") : null,
-            MaskFile = layer.Mask != null ? Store(layer.Mask, $"{layer.Id}.mask.png") : null,
-            MaskEnabled = layer.Mask != null ? layer.MaskEnabled : null,
-            Clipped = layer.Clipped ? true : null,
-            Collapsed = layer.Collapsed ? true : null,
-            Adjustment = layer.Adjustment, Shape = layer.Shape, Text = layer.Text, Effects = layer.Effects,
-            Children = layer.IsGroup ? layer.Children.Select(Record).ToList() : null
-        };
+            if (!lookups.Add(lattice.Id)) return;
+            var entry = zip.CreateEntry("lookups/" + lattice.Id + ".bin", CompressionLevel.Fastest);
+            using var output = entry.Open();
+            lattice.WriteTo(output);
+        }
+
+        LayerRecord Record(Layer layer)
+        {
+            if (layer.Adjustment is ColorLookupAdjustment { Lattice: { } lattice }) StoreLookup(lattice);
+            return new()
+            {
+                Id = layer.Id, Name = layer.Name, Kind = layer.Kind, Visible = layer.Visible, Opacity = layer.Opacity, Blend = layer.Blend,
+                Transform = layer.Pixels != null ? layer.Transform : null,
+                ImageFile = layer.Pixels != null ? Store(layer.Pixels, $"{layer.Id}.png") : null,
+                MaskFile = layer.Mask != null ? Store(layer.Mask, $"{layer.Id}.mask.png") : null,
+                MaskEnabled = layer.Mask != null ? layer.MaskEnabled : null,
+                Clipped = layer.Clipped ? true : null,
+                Collapsed = layer.Collapsed ? true : null,
+                Adjustment = layer.Adjustment, Shape = layer.Shape, Text = layer.Text, Effects = layer.Effects,
+                Children = layer.IsGroup ? layer.Children.Select(Record).ToList() : null
+            };
+        }
 
         var manifest = new Manifest
         {
@@ -137,6 +152,7 @@ public static class ProjectFile
 
         var document = new Document(manifest.Width, manifest.Height) { Resolution = Math.Clamp(manifest.Resolution, 1, 9600) };
         var cache = new Dictionary<string, SKBitmap>();
+        var lookups = new Dictionary<string, ColorLattice>();
         var count = 0;
 
         SKBitmap Fetch(string name, bool mask)
@@ -150,6 +166,18 @@ public static class ProjectFile
             return cache[name] = mask ? DecodeMask(buffer) : ImageFiles.Load(buffer, name);
         }
 
+        ColorLattice FetchLookup(string id)
+        {
+            if (lookups.TryGetValue(id, out var cached)) return cached;
+            if (id.Length != 64 || !id.All(char.IsAsciiHexDigitLower)) throw new InvalidDataException("The project refers to an unsafe path.");
+            var entry = zip.GetEntry("lookups/" + id + ".bin") ?? throw new InvalidDataException("A lookup table inside the project is missing.");
+            if (entry.Length > ColorLattice.MaxEntryBytes) throw new InvalidDataException("A lookup table inside the project is too large.");
+            using var input = entry.Open();
+            var lattice = ColorLattice.ReadFrom(input);
+            if (lattice.Id != id) throw new InvalidDataException("A lookup table inside the project is damaged.");
+            return lookups[id] = lattice;
+        }
+
         Layer Build(LayerRecord record, int depth)
         {
             if (++count > 10_000 || depth > 64) throw new InvalidDataException("The project has too many layers.");
@@ -160,6 +188,7 @@ public static class ProjectFile
                 MaskEnabled = record.MaskEnabled ?? true, Clipped = record.Clipped ?? false, Collapsed = record.Collapsed ?? false,
                 Adjustment = record.Adjustment, Shape = record.Shape, Text = record.Text?.Clamped()
             };
+            if (record.Adjustment is ColorLookupAdjustment { LatticeId: { } lookupId } lookup) layer.Adjustment = lookup with { Lattice = FetchLookup(lookupId) };
             if (record.ImageFile != null && record.Kind == LayerKind.Raster)
             {
                 layer.Pixels = Fetch(record.ImageFile, mask: false);

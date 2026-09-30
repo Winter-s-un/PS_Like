@@ -395,6 +395,64 @@ public sealed class ColorLattice
     private static byte Mix(int original, float looked, float t) =>
         (byte)Math.Clamp((int)MathF.Round(original + (looked * 255 - original) * t), 0, 255);
 
+    // ── the project file's entry ─────────────────────────────────────────────
+
+    /// <summary>The most bytes a stored lattice can take: the largest cube and curves as floats, with room for the header.</summary>
+    public const long MaxEntryBytes = ((long)DocumentLimits.MaxLookupSize * DocumentLimits.MaxLookupSize * DocumentLimits.MaxLookupSize * 3 + DocumentLimits.MaxLookupCurveSize * 3L) * 4 + 64 * 1024;
+
+    private static ReadOnlySpan<byte> Magic => "CLUT"u8;
+
+    /// <summary>
+    /// Writes the lattice as the project file stores it: a header (the sizes, the domain and the title) and the
+    /// floats as they lie in memory, little-endian, which is what every platform Composa runs on is. Exact, unlike
+    /// the six decimals of <see cref="ToCube"/>.
+    /// </summary>
+    public void WriteTo(Stream stream)
+    {
+        using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
+        writer.Write(Magic);
+        writer.Write(1);   // the entry's own version
+        writer.Write(Size);
+        writer.Write(CurveSize);
+        writer.Write(DomainMin.R); writer.Write(DomainMin.G); writer.Write(DomainMin.B);
+        writer.Write(DomainMax.R); writer.Write(DomainMax.G); writer.Write(DomainMax.B);
+        writer.Write(Title);
+        writer.Flush();
+        if (curves != null) stream.Write(MemoryMarshal.AsBytes(curves.AsSpan()));
+        if (cube != null) stream.Write(MemoryMarshal.AsBytes(cube.AsSpan()));
+    }
+
+    /// <summary>Reads what <see cref="WriteTo"/> wrote, checking the sizes against the ceilings before anything is allocated.</summary>
+    public static ColorLattice ReadFrom(Stream stream)
+    {
+        using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
+        try
+        {
+            if (!reader.ReadBytes(4).AsSpan().SequenceEqual(Magic)) throw Damaged();
+            if (reader.ReadInt32() != 1) throw new InvalidDataException("The lookup table was written by a newer Composa.");
+            var size = reader.ReadInt32();
+            var curveSize = reader.ReadInt32();
+            if (size != 0 && (size < 2 || size > DocumentLimits.MaxLookupSize)) throw Damaged();
+            if (curveSize != 0 && (curveSize < 2 || curveSize > DocumentLimits.MaxLookupCurveSize)) throw Damaged();
+            if (size == 0 && curveSize == 0) throw Damaged();
+            var domainMin = (reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+            var domainMax = (reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+            var title = reader.ReadString();
+            if (title.Length > 1024) throw Damaged();
+            float[]? curves = null, cube = null;
+            if (curveSize > 0) stream.ReadExactly(MemoryMarshal.AsBytes((curves = new float[curveSize * 3]).AsSpan()));
+            if (size > 0) stream.ReadExactly(MemoryMarshal.AsBytes((cube = new float[size * size * size * 3]).AsSpan()));
+            if ((curves != null && curves.Any(float.IsNaN)) || (cube != null && cube.Any(float.IsNaN))) throw Damaged();
+            return new ColorLattice(size, cube, curveSize, curves, domainMin, domainMax, title);
+        }
+        catch (Exception error) when (error is EndOfStreamException or ArgumentException)
+        {
+            throw Damaged();
+        }
+
+        static InvalidDataException Damaged() => new("A lookup table inside the project is damaged.");
+    }
+
     // ── identity ─────────────────────────────────────────────────────────────
 
     private string Hash()
