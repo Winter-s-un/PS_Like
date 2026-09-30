@@ -62,8 +62,8 @@ public class McpTests
         await Pumped(() => host.Connections == 1);
         var tools = await client.ListToolsAsync();
         Assert.Equal(
-            ["add_line", "add_shape", "add_text", "adjust_black_and_white", "adjust_brightness_contrast", "adjust_color_balance", "adjust_curves", "adjust_exposure", "adjust_gradient_map",
-             "adjust_hue_saturation", "adjust_invert", "adjust_levels", "delete_layer", "describe_document", "deselect", "duplicate_layer", "export_image", "fill_layer", "filter_add_noise",
+            ["add_line", "add_shape", "add_text", "adjust_black_and_white", "adjust_brightness_contrast", "adjust_color_balance", "adjust_color_lookup", "adjust_curves", "adjust_exposure", "adjust_gradient_map",
+             "adjust_hue_saturation", "adjust_invert", "adjust_levels", "delete_layer", "describe_document", "deselect", "duplicate_layer", "export_image", "export_look", "fill_layer", "filter_add_noise",
              "filter_bloom", "filter_blur", "filter_dither", "filter_lens_correction", "filter_motion_blur", "filter_painterly", "filter_remove_background", "filter_sharpen", "filter_tonal_contrast", "filter_vignette", "list_documents",
              "modify_selection", "new_document", "new_layer", "open_document", "paint_stroke", "paint_strokes", "place_image", "render", "reorder_layer", "sample_color", "save_document", "select_all", "select_color_range", "select_inverse",
              "select_layer", "select_layer_pixels", "select_object", "select_shape", "select_subject", "select_wand", "set_layer", "trace_edges", "transform_layer", "undo"],
@@ -225,6 +225,17 @@ public class McpTests
         var asLayer = await Pumped(client.CallToolAsync("adjust_brightness_contrast", new Dictionary<string, object?> { ["contrast"] = 30, ["asLayer"] = true, ["layer"] = "Background" }));
         Assert.Matches("Added adjustment layer \"Brightness/Contrast( \\d+)?\" above \"Background\", now active\\.", Text(asLayer));
         Assert.Equal(30, ((BrightnessContrastAdjustment)session.ActiveLayer!.Adjustment!).Contrast);
+        var looked = await Pumped(client.CallToolAsync("adjust_color_lookup", new Dictionary<string, object?> { ["look"] = "Vivid Slide", ["amount"] = 80, ["asLayer"] = true, ["layer"] = "Background" }));
+        Assert.Equal("Added adjustment layer \"Vivid Slide\" above \"Background\", now active.", Text(looked));
+        var lookup = Assert.IsType<ColorLookupAdjustment>(session.ActiveLayer!.Adjustment);
+        Assert.Equal((Looks.Find("Vivid Slide")!.Id, 80d), (lookup.LatticeId, lookup.Amount));
+        Assert.Equal("Undid New Adjustment Layer.", Text(await Pumped(client.CallToolAsync("undo"))));       // One step, name and all.
+        var badLook = await Pumped(client.CallToolAsync("adjust_color_lookup", new Dictionary<string, object?> { ["look"] = "Kodachrome" }));
+        Assert.Equal(true, badLook.IsError);
+        Assert.Contains("Fine Mono", Text(badLook));
+        var noFile = await Pumped(client.CallToolAsync("adjust_color_lookup", new Dictionary<string, object?> { ["look"] = Path.Combine(Path.GetTempPath(), "composa-missing-look.cube") }));
+        Assert.Equal(true, noFile.IsError);
+        Assert.Contains("no file", Text(noFile));
         var onLive = await Pumped(client.CallToolAsync("adjust_exposure", new Dictionary<string, object?> { ["exposure"] = 1, ["layer"] = "Greeting" }));
         Assert.Equal(true, onLive.IsError);
         Assert.Contains("asLayer", Text(onLive));
@@ -324,6 +335,23 @@ public class McpTests
             Assert.Contains("overwrite", Text(occupied));
             Assert.NotEqual(true, (await Pumped(client.CallToolAsync("export_image", new Dictionary<string, object?> { ["path"] = jpeg, ["overwrite"] = true }))).IsError);
             Assert.False(session.IsModified);                                                       // Exporting is not a change.
+
+            var cube = Path.Combine(folder, "look.cube");
+            var badSize = await Pumped(client.CallToolAsync("export_look", new Dictionary<string, object?> { ["path"] = cube, ["size"] = 40 }));
+            Assert.Equal(true, badSize.IsError);
+            Assert.Contains("17, 33, 65", Text(badSize));
+            var notCube = await Pumped(client.CallToolAsync("export_look", new Dictionary<string, object?> { ["path"] = Path.Combine(folder, "look.3dl") }));
+            Assert.Equal(true, notCube.IsError);
+            var look = await Pumped(client.CallToolAsync("export_look", new Dictionary<string, object?> { ["path"] = cube, ["size"] = 17 }));
+            Assert.StartsWith($"Exported the look of \"copy\" as a 17-point .cube to {cube}, baked from \"Brightness/Contrast", Text(look));   // The contrast layer added above.
+            Assert.Equal(17, ColorLattice.Load(cube).Size);
+            Assert.False(session.IsModified);
+            var cubeTaken = await Pumped(client.CallToolAsync("export_look", new Dictionary<string, object?> { ["path"] = cube }));
+            Assert.Equal(true, cubeTaken.IsError);
+            Assert.Contains("overwrite", Text(cubeTaken));
+            var fromFile = await Pumped(client.CallToolAsync("adjust_color_lookup", new Dictionary<string, object?> { ["look"] = cube, ["layer"] = "Background" }));
+            Assert.Equal("Applied Color Lookup to \"Background\".", Text(fromFile));
+            Assert.Equal("Undid Color Lookup.", Text(await Pumped(client.CallToolAsync("undo"))));
 
             var again = await Pumped(client.CallToolAsync("open_document", new Dictionary<string, object?> { ["path"] = copy }));
             Assert.Equal("Document 1 \"copy\" was already open, now active.", Text(again));

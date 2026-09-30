@@ -102,6 +102,28 @@ public sealed partial class ComposaTools
     public Task<string> AdjustGradientMap(string shadows = "#000000", string highlights = "#FFFFFF", bool reversed = false, [Description(AsLayer)] bool asLayer = false, [Description(TargetLayer)] string? layer = null, int? document = null) =>
         Adjust(document, layer, asLayer, new GradientMapAdjustment { Shadows = (uint)ParseColor(shadows), Highlights = (uint)ParseColor(highlights), Reversed = reversed });
 
+    [McpServerTool(Name = "adjust_color_lookup")]
+    [Description("Color Lookup: grades the layer through a lookup table, either a bundled look by name (Fine Mono, Muted Chrome, Standard Slide or Vivid Slide) or a .cube or .3dl file at an absolute path. Amount, 0 to 100, mixes the look into the original. An adjustment layer made this way is named after the look.")]
+    public Task<string> AdjustColorLookup(
+        [Description("A bundled look's name, or an absolute path to a .cube or .3dl file")] string look,
+        [Description("How much of the look shows, 0 to 100")] double amount = 100,
+        [Description(AsLayer)] bool asLayer = false, [Description(TargetLayer)] string? layer = null, int? document = null)
+    {
+        ColorLattice lattice;
+        string source;
+        if (Looks.Find(look) is { } bundled) { lattice = bundled; source = look; }
+        else if (Path.IsPathRooted(look))
+        {
+            var path = Path.GetFullPath(look);
+            if (!File.Exists(path)) throw new McpException($"There is no file at {path}.");
+            try { lattice = ColorLattice.Load(path); }
+            catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException) { throw new McpException($"Couldn't read {Path.GetFileName(path)}: {error.Message}"); }
+            source = Path.GetFileName(path);
+        }
+        else throw new McpException($"\"{look}\" is neither a bundled look ({string.Join(", ", Looks.Names)}) nor an absolute path to a .cube or .3dl file.");
+        return Adjust(document, layer, asLayer, new ColorLookupAdjustment { Lattice = lattice, Source = source, Amount = Math.Clamp(amount, 0, 100) });
+    }
+
     [McpServerTool(Name = "adjust_invert")]
     [Description("Invert the layer's colors.")]
     public Task<string> AdjustInvert([Description(AsLayer)] bool asLayer = false, [Description(TargetLayer)] string? layer = null, int? document = null) =>
@@ -230,7 +252,10 @@ public sealed partial class ComposaTools
         var target = Target(s, layer);
         if (asLayer)
         {
-            var added = s.AddAdjustmentLayer(adjustment);
+            // A look names its layer, as the dialog does; the rename stays inside the layer's own step.
+            var look = adjustment as ColorLookupAdjustment;
+            var added = s.AddAdjustmentLayer(adjustment, commit: look is not { Source.Length: > 0 });
+            if (look is { Source.Length: > 0 }) { added.Name = look.Source; s.Commit(); s.NotifyLayersChanged(); }
             return $"Added adjustment layer \"{added.Name}\" above \"{target.Name}\", now active.";
         }
         if (!s.CanEditPixels)

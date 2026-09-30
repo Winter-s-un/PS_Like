@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Composa.Editing;
+using Composa.Filters;
 using Composa.IO;
 using Composa.IO.Psd;
 using ModelContextProtocol;
@@ -84,6 +85,34 @@ public sealed partial class ComposaTools
         }
         catch (Exception error) when (error is not McpException) { throw new McpException($"Couldn't export {Path.GetFileName(path)}: {error.Message}"); }
         finally { flat.Dispose(); }
+    }
+
+    [McpServerTool(Name = "export_look")]
+    [Description("Bakes the document's visible adjustment layers into a .cube lookup table any editor can load, as File > Export Look does. Only what is a function of a pixel's color goes in: a masked, clipped or grouped layer and grain, noise and blurs are left out and named in the result. The document is untouched.")]
+    public async Task<string> ExportLook(
+        [Description("Absolute path ending in .cube")] string path,
+        [Description("Points per axis: 17, 33 or 65")] int size = 33,
+        [Description("Replace a file that exists at the path")] bool overwrite = false,
+        int? document = null)
+    {
+        path = Absolute(path);
+        if (!path.EndsWith(".cube", StringComparison.OrdinalIgnoreCase)) throw new McpException("The path must end in .cube.");
+        if (!LookBake.Sizes.Contains(size)) throw new McpException($"size is one of {string.Join(", ", LookBake.Sizes)}.");
+        Fresh(path, null, overwrite);
+        // The bake reads the layers, so it runs where they are edited; the file is written off that thread.
+        var (title, text, names, leftOut) = await OnUi(() =>
+        {
+            var s = Session(document);
+            var (baked, skipped) = LookBake.Survey(s.Document);
+            var reasons = skipped.Select(l => $"\"{l.Layer.Name}\" {l.Why}").ToList();
+            if (baked.Count == 0)
+                throw new McpException(reasons.Count > 0 ? $"None of the adjustment layers can be baked into a look: {string.Join("; ", reasons)}." : "There is no adjustment layer to bake into a look.");
+            var baking = string.Join(", ", baked.Select(l => $"\"{l.Name}\""));
+            return (s.Title, LookBake.Bake(baked, size, s.Title).ToCube(s.Title, $"Exported from Composa: {string.Join(", ", baked.Select(l => l.Name))}"), baking, reasons);
+        });
+        try { await Task.Run(() => File.WriteAllText(path, text)); }
+        catch (Exception error) when (error is not McpException) { throw new McpException($"Couldn't write {Path.GetFileName(path)}: {error.Message}"); }
+        return $"Exported the look of \"{title}\" as a {size}-point .cube to {path}, baked from {names}." + (leftOut.Count > 0 ? $" Left out: {string.Join("; ", leftOut)}." : "");
     }
 
     private static string Absolute(string path)
