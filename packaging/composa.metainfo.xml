@@ -50,6 +50,11 @@
     added along with the CHANGELOG.md section when a release is cut; see RELEASING.md.
   -->
   <releases>
+    <release version="1.3.0" date="2026-09-30">
+      <description>
+        <p>A Color Range selection, fonts, bold and italic per letter, a Dither filter from the classic Mac look to ASCII, a History panel that goes back any number of steps, whole-picture commands such as Merge Visible, Reveal All and Paste in Place, and an update strip that downloads the new version and hands it to its installer.</p>
+      </description>
+    </release>
     <release version="1.2.0" date="2026-09-27">
       <description>
         <p>An AI agent can drive the editor through a Model Context Protocol server, a Painterly filter turns a photo into a painting that is still that photo, letters of a text layer can have their own colors, saving writes in the background, sliders show their colors and can be reset, and Motion Blur's angle has a full-circle dial.</p>
