@@ -39,6 +39,12 @@
     <ProjectReference Include="../Composa.Core/Composa.Core.csproj" />
     <!-- The MCP server that lets an AI agent drive the editor. Core only: the ASP.NET hosting package has no place in a desktop app. -->
     <PackageReference Include="ModelContextProtocol.Core" Version="2.2.0" />
+    <!--
+      FileReveal asks the Linux file manager to show a file over D-Bus with the library Avalonia's
+      Linux backend already uses, referenced here so an Avalonia upgrade cannot take it away. Keep the
+      version the one Avalonia brings: a lower one is a downgrade the restore refuses.
+    -->
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
     <AvaloniaResource Include="Assets/**" />
     <!--
       How this build was distributed, read back at runtime by UpdateCheck. The packaging scripts
@@ -46,6 +52,11 @@
       not nag about them. Anything else, including a developer build, is "github".
     -->
     <AssemblyMetadata Include="UpdateChannel" Value="$(UpdateChannel)" Condition="'$(UpdateChannel)' != ''" />
+    <!--
+      Every download is published for one platform and a developer build is not, which is how
+      Install.Detect tells a build the releases page can replace from one it cannot.
+    -->
+    <AssemblyMetadata Include="RuntimeIdentifier" Value="$(RuntimeIdentifier)" Condition="'$(RuntimeIdentifier)' != ''" />
   </ItemGroup>
   <!--
     SkiaSharp and HarfBuzzSharp ship debug symbols for their native Windows libraries, 105 MB of them,

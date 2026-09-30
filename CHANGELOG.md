@@ -18,7 +18,8 @@ Catches up with Compositor 1.3.3 to 1.4: Select > Color Range, fonts per letter,
 - Layer > Merge Visible combines the visible layers and leaves the hidden ones; Layer > Stamp Visible (Ctrl+Alt+Shift+E) puts the picture as it looks on a new layer on top and keeps every layer.
 - Image > Reveal All grows the canvas back to every layer, the way back from a crop; Image > Duplicate opens a copy of the document in a new tab.
 - Edit > Paste Special: Paste in Place (Ctrl+Shift+V) keeps the place pixels were copied from even partly outside the canvas, and Paste Into (Ctrl+Alt+Shift+V) pastes onto a new layer masked by the selection.
-- Right-click a document's tab for Copy Image (its whole flattened picture, whatever is selected), Duplicate, Open Containing Folder, Close and Close Others.
+- Right-click a document's tab for Copy Image (its whole flattened picture, whatever is selected), Duplicate, Show in Folder (the saved file, selected in the file manager), Close and Close Others.
+- The update strip downloads the new version. Download fetches the file for the way Composa was installed and the processor it runs on (`.deb`, `.rpm`, AppImage, tarball, Windows installer or zip) into your Downloads folder, shows how far it got with Cancel, and checks it against the release's checksums before offering it. Show in Folder then selects it in the file manager, and Install hands it to its installer: on Windows Composa quits, asking about unsaved work, and starts the setup; a `.deb` or `.rpm` opens in your software installer, with the apt or dnf command to copy for a software centre that refuses it. A downloaded AppImage is made executable. Nothing is downloaded or started until you press the button, and Composa never replaces its own files.
 - The status bar says what a copy put on the clipboard, such as "Copied 1920 × 1080 px".
 - New Canvas presets for screens and social formats: 4K, 1440p and 1080p; iPhone, MacBook Pro and Studio Display; Instagram Square, Portrait and Story and a YouTube thumbnail, with the print sizes kept. The preset follows a typed size.
 
@@ -31,6 +32,7 @@ Catches up with Compositor 1.3.3 to 1.4: Select > Color Range, fonts per letter,
 
 ### Fixed
 
+- After Help > Check for Updates with the automatic check turned off, the strip's Release notes and Skip this version did nothing.
 - The `.deb` and `.rpm` told you to update through your package manager, which had never heard of Composa: they are downloaded from the releases page and installed by hand, so nothing would ever offer the next version. They now check for updates like the other downloads and open the release page; install the new file over the old one to upgrade. Builds that come from a repository can still be packaged as managed.
 
 ## [1.2.0] - 2026-09-27

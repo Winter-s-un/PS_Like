@@ -32,7 +32,7 @@ You can also open an image (File > Open) and it becomes a document with one laye
 
 Each document has a tab above the canvas. A dot on the tab marks unsaved changes. Close a tab with its button, with a middle click or with File > Close Project (Ctrl+W); Composa asks whether to save changes first. The "+" at the end of the tabs makes a new canvas, and the buttons on the right fit the canvas to the window, show it at 100 percent, and zoom in and out.
 
-Right-click a tab for a menu that acts on that document without switching to it: Copy Image copies its whole flattened picture, whatever is selected in it; Duplicate opens a copy in a new tab; Open Containing Folder shows the folder of a saved file; Close and Close Others close it or every other tab, asking about unsaved changes as usual.
+Right-click a tab for a menu that acts on that document without switching to it: Copy Image copies its whole flattened picture, whatever is selected in it; Duplicate opens a copy in a new tab; Show in Folder opens the file manager with a saved file selected; Close and Close Others close it or every other tab, asking about unsaved changes as usual.
 
 Tool settings, the current colors and the view options carry over from one tab to the next.
 

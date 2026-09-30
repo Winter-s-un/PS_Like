@@ -14,7 +14,30 @@ public enum UpdateChannel
     Managed
 }
 
-public sealed record ReleaseInfo(string Tag, string Url, bool PreRelease);
+/// <summary>One file attached to a release: what it is called, where it downloads from and how large it is.</summary>
+public sealed record ReleaseAsset(string Name, string Url, long Size)
+{
+    /// <summary>
+    /// Only the releases of this repository, over HTTPS, are ever downloaded. GitHub then redirects to
+    /// its own storage, which HttpClient follows only while it stays on HTTPS.
+    /// </summary>
+    public static bool IsOwnAsset(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps &&
+        uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) &&
+        uri.AbsolutePath.StartsWith("/dvdstelt/Composa/releases/download/", StringComparison.Ordinal);
+}
+
+/// <param name="Assets">The release's own files, the packages and <see cref="ChecksumsName"/>, and nothing from anywhere else.</param>
+public sealed record ReleaseInfo(string Tag, string Url, bool PreRelease, IReadOnlyList<ReleaseAsset>? Assets = null)
+{
+    /// <summary>What the release workflow calls the file that lists every package's SHA-256.</summary>
+    public const string ChecksumsName = "sha256sums.txt";
+
+    public IReadOnlyList<ReleaseAsset> Assets { get; } = Assets ?? [];
+
+    /// <summary>The release's list of checksums, without which nothing from it is offered.</summary>
+    public ReleaseAsset? Checksums => Assets.FirstOrDefault(a => a.Name == ChecksumsName);
+}
 
 /// <summary>The network half, kept behind an interface so the rules below can be tested without it.</summary>
 public interface IReleaseSource
@@ -22,39 +45,56 @@ public interface IReleaseSource
     Task<ReleaseInfo?> Latest(CancellationToken cancel);
 }
 
-public sealed class GitHubReleaseSource : IReleaseSource
+/// <param name="handler">Stands in for the network in tests; null uses a real connection.</param>
+public sealed class GitHubReleaseSource(HttpMessageHandler? handler = null) : IReleaseSource
 {
     private const string Endpoint = "https://api.github.com/repos/dvdstelt/Composa/releases/latest";
+
+    /// <summary>
+    /// GitHub refuses a request with no User-Agent. Nothing identifying is sent: no version, no
+    /// machine details, no identifier of any kind. The download sends exactly the same.
+    /// </summary>
+    public const string UserAgent = "Composa";
 
     private sealed record Payload(
         [property: JsonPropertyName("tag_name")] string? TagName,
         [property: JsonPropertyName("html_url")] string? HtmlUrl,
-        [property: JsonPropertyName("prerelease")] bool PreRelease);
+        [property: JsonPropertyName("prerelease")] bool PreRelease,
+        [property: JsonPropertyName("assets")] List<AssetPayload>? Assets);
+
+    private sealed record AssetPayload(
+        [property: JsonPropertyName("name")] string? Name,
+        [property: JsonPropertyName("browser_download_url")] string? Url,
+        [property: JsonPropertyName("size")] long Size);
 
     public async Task<ReleaseInfo?> Latest(CancellationToken cancel)
     {
-        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-        // GitHub refuses a request with no User-Agent. Nothing identifying is sent: no version, no
-        // machine details, no identifier of any kind.
-        client.DefaultRequestHeaders.Add("User-Agent", "Composa");
+        using var client = handler == null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);
+        client.Timeout = TimeSpan.FromSeconds(10);
+        client.DefaultRequestHeaders.Add("User-Agent", UserAgent);
         client.DefaultRequestHeaders.Add("Accept", "application/vnd.github+json");
         var payload = await client.GetFromJsonAsync<Payload>(Endpoint, cancel);
-        return payload?.TagName is { Length: > 0 } tag && payload.HtmlUrl is { Length: > 0 } url
-            ? new ReleaseInfo(tag, url, payload.PreRelease)
-            : null;
+        if (payload?.TagName is not { Length: > 0 } tag || payload.HtmlUrl is not { Length: > 0 } url) return null;
+        var assets = (payload.Assets ?? [])
+            .Where(a => a.Name is { Length: > 0 } && a.Url is { } link && ReleaseAsset.IsOwnAsset(link))
+            .Select(a => new ReleaseAsset(a.Name!, a.Url!, a.Size))
+            .ToList();
+        return new ReleaseInfo(tag, url, payload.PreRelease, assets);
     }
 }
 
 public enum UpdateOutcome { Available, UpToDate, Skipped, Disabled, TooSoon, Failed }
 
-public sealed record UpdateResult(UpdateOutcome Outcome, ReleaseVersion Version = default, string Url = "")
+/// <param name="Release">The release that was found, with its files, when there is one to offer.</param>
+public sealed record UpdateResult(UpdateOutcome Outcome, ReleaseVersion Version = default, string Url = "", ReleaseInfo? Release = null)
 {
     public bool ShouldNotify => Outcome == UpdateOutcome.Available;
 }
 
 /// <summary>
-/// Reports that a newer version exists. It never downloads or installs anything: it reads one
-/// release from the GitHub API and, at most, offers to open the release page in a browser.
+/// Reports that a newer version exists. It reads one release from the GitHub API and nothing more:
+/// fetching a file from that release is <see cref="UpdateDownload"/>'s job, and only when the
+/// person presses Download.
 /// </summary>
 /// <param name="runningVersion">
 /// What to compare against, defaulting to this build's own version. Tests pass it explicitly:
@@ -126,8 +166,8 @@ public sealed class UpdateCheck(IReleaseSource source, Settings settings, Func<D
 
         // A skip applies to that version only, so the next one is still announced.
         if (!manual && settings.SkippedVersion == available.ToString())
-            return new UpdateResult(UpdateOutcome.Skipped, available, latest.Url);
+            return new UpdateResult(UpdateOutcome.Skipped, available, latest.Url, latest);
 
-        return new UpdateResult(UpdateOutcome.Available, available, latest.Url);
+        return new UpdateResult(UpdateOutcome.Available, available, latest.Url, latest);
     }
 }
