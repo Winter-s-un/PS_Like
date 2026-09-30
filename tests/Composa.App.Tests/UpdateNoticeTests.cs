@@ -1,17 +1,18 @@
-using Avalonia.VisualTree;
 using Avalonia.Controls;
-using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace Composa.App.Tests;
 
 public class UpdateNoticeTests
 {
+    private static readonly ReleaseVersion Version = new(9, 9, 9, "");
+
     private static (Window Window, UpdateNotice Notice) Open()
     {
         var notice = new UpdateNotice();
-        var window = new Window { Width = 900, Height = 120, Content = notice };
+        var window = new Window { Width = 900, Height = 120, Content = new StackPanel { Children = { notice } } };
         window.Show();
         return (window, notice);
     }
@@ -21,16 +22,123 @@ public class UpdateNoticeTests
     {
         var (_, notice) = Open();
         Assert.False(notice.IsVisible);
+        Assert.Equal(UpdateNotice.Phase.Hidden, notice.State);
     }
 
     [AvaloniaFact]
     public void Showing_a_version_renders_the_strip()
     {
         var (window, notice) = Open();
-        notice.Show(new ReleaseVersion(9, 9, 9, ""));
+        notice.Show(Version, canDownload: true);
         Assert.True(notice.IsVisible);
+        Assert.Equal(UpdateNotice.Phase.Available, notice.State);
+        Assert.Equal(["Download", "Release notes", "Skip this version"], notice.Buttons);
 
         Assert.True(Screenshots.Save(window, "20-update-notice"));
+    }
+
+    /// <summary>A developer build, a managed build or a release without this install's file: the release notes are all there is.</summary>
+    [AvaloniaFact]
+    public void Without_a_file_to_fetch_there_is_no_Download()
+    {
+        var (_, notice) = Open();
+        notice.Show(Version, canDownload: false);
+        Assert.Equal(["Release notes", "Skip this version"], notice.Buttons);
+    }
+
+    [AvaloniaFact]
+    public void A_download_shows_how_far_it_got()
+    {
+        var (window, notice) = Open();
+        var cancelled = 0;
+        notice.CancelDownload += () => cancelled++;
+        notice.Show(Version, canDownload: true);
+        notice.ShowProgress(Version, new DownloadProgress(12_345_678, 45_117_217));
+
+        Assert.Equal(UpdateNotice.Phase.Downloading, notice.State);
+        Assert.Equal("Downloading Composa 9.9.9… 12.3 of 45.1 MB", notice.Message);
+        Assert.Equal(["Cancel"], notice.Buttons);
+        Assert.True(Screenshots.Save(window, "20-update-downloading"));
+
+        // Without a size from the server there is only the count.
+        notice.ShowProgress(Version, new DownloadProgress(2_000_000, null));
+        Assert.Equal("Downloading Composa 9.9.9… 2.0 MB", notice.Message);
+
+        notice.Press("Cancel");
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(1, cancelled);
+    }
+
+    /// <summary>The bar along the bottom is as long as the part that arrived.</summary>
+    [AvaloniaFact]
+    public void The_bar_fills_with_the_download()
+    {
+        var (window, notice) = Open();
+        notice.ShowProgress(Version, new DownloadProgress(25, 100));
+        Screenshots.Save(window, "20-update-downloading-quarter");
+        var bar = notice.GetVisualDescendants().OfType<Border>().Single(b => b.Height == 3);
+        var fill = (Border)bar.Child!;
+        Assert.Equal(bar.Bounds.Width / 4, fill.Width, 0.5);
+        Assert.True(fill.Width > 100);
+
+        notice.ShowProgress(Version, new DownloadProgress(100, 100));
+        Assert.Equal(bar.Bounds.Width, fill.Width, 0.5);
+    }
+
+    [AvaloniaFact]
+    public void A_downloaded_package_offers_its_folder_its_installer_and_its_command()
+    {
+        var (window, notice) = Open();
+        window.Height = 160;
+        notice.ShowReady(Version, "/home/ada/Downloads/composa_9.9.9_amd64.deb", "Open the package in your software installer",
+            "sudo apt install /home/ada/Downloads/composa_9.9.9_amd64.deb");
+
+        Assert.Equal(UpdateNotice.Phase.Ready, notice.State);
+        Assert.Equal("Composa 9.9.9 is ready in Downloads: composa_9.9.9_amd64.deb", notice.Message);
+        Assert.Equal(["Show in Folder", "Install"], notice.Buttons);
+        Assert.Equal("sudo apt install /home/ada/Downloads/composa_9.9.9_amd64.deb", notice.Command);
+        Assert.True(Screenshots.Save(window, "20-update-ready-package"));
+    }
+
+    [AvaloniaFact]
+    public void A_download_without_an_installer_is_shown_in_its_folder_only()
+    {
+        var (window, notice) = Open();
+        notice.ShowReady(Version, "/home/ada/Downloads/Composa-9.9.9-x86_64.AppImage", null, null);
+        Assert.Equal(["Show in Folder"], notice.Buttons);
+        Assert.Null(notice.Command);
+        Assert.True(Screenshots.Save(window, "20-update-ready-appimage"));
+    }
+
+    [AvaloniaFact]
+    public async Task The_command_is_copied_to_the_clipboard()
+    {
+        var (window, notice) = Open();
+        notice.ShowReady(Version, "/home/ada/Downloads/composa-9.9.9-1.x86_64.rpm", "Open the package in your software installer",
+            "sudo dnf install /home/ada/Downloads/composa-9.9.9-1.x86_64.rpm");
+        var copy = notice.GetVisualDescendants().OfType<Button>().Single(b => b.Content as string == "Copy");
+        copy.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        for (var i = 0; i < 20 && copy.Content as string != "Copied"; i++) { Dispatcher.UIThread.RunJobs(); await Task.Delay(10, TestContext.Current.CancellationToken); }
+        Assert.Equal("Copied", copy.Content);
+        Assert.Equal("sudo dnf install /home/ada/Downloads/composa-9.9.9-1.x86_64.rpm", await Avalonia.Input.Platform.ClipboardExtensions.TryGetTextAsync(window.Clipboard!));
+    }
+
+    [AvaloniaFact]
+    public void A_failed_download_says_why_and_offers_to_try_again()
+    {
+        var (window, notice) = Open();
+        var retried = 0;
+        notice.Download += () => retried++;
+        notice.ShowFailed("Could not reach GitHub. Check the connection and try again.");
+
+        Assert.Equal(UpdateNotice.Phase.Failed, notice.State);
+        Assert.Equal("Could not reach GitHub. Check the connection and try again.", notice.Message);
+        Assert.Equal(["Retry", "Release notes"], notice.Buttons);
+        Assert.True(Screenshots.Save(window, "20-update-failed"));
+
+        notice.Press("Retry");
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(1, retried);
     }
 
     [AvaloniaFact]
@@ -40,7 +148,7 @@ public class UpdateNoticeTests
         var skipped = false;
         notice.Skip += () => skipped = true;
 
-        notice.Show(new ReleaseVersion(9, 9, 9, ""));
+        notice.Show(Version, canDownload: true);
         notice.Hide();
 
         Assert.False(notice.IsVisible);
@@ -54,7 +162,7 @@ public class UpdateNoticeTests
         var skipped = 0;
         notice.Skip += () => skipped++;
 
-        notice.Show(new ReleaseVersion(9, 9, 9, ""));
+        notice.Show(Version, canDownload: true);
         var skip = notice.GetVisualDescendants().OfType<Button>()
             .First(b => (b.Content as string) == "Skip this version");
         // Ui.TextButton subscribes to Click rather than binding a Command, so the event is what

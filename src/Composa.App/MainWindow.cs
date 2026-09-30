@@ -81,6 +81,7 @@ public sealed partial class MainWindow : Window
         AddRow(root, BuildStatusBar(), 7);
         Content = root;
 
+        WireUpdateNotice();
         StartUpdateCheck();
 
         canvas.ViewChanged += UpdateStatus;
@@ -385,14 +386,28 @@ public sealed partial class MainWindow : Window
         RememberWindow();
         aiControl?.Dispose();
         if (session?.IsEditingText == true) session.FinishText();
-        if (closingConfirmed || (saving.Count == 0 && sessions.All(s => !s.IsModified))) return;
+        if (closingConfirmed || (saving.Count == 0 && sessions.All(s => !s.IsModified) && download == null)) return;
         e.Cancel = true;
-        // Saves still writing finish before the window goes, so no file is cut short.
-        while (saving.Count > 0) await Task.WhenAll(saving.Values.Select(w => w.Task).ToList());
-        foreach (var item in sessions.Where(s => s.IsModified).ToList())
-            if (!await CloseSession(item)) return;
+        if (!await ConfirmQuit()) return;
         closingConfirmed = true;
         Close();
+    }
+
+    /// <summary>
+    /// What quitting waits for and asks about: saves still writing finish, so no file is cut short;
+    /// each unsaved document asks, and a Cancel stops the quit; a download under way is cancelled and
+    /// its partial file removed. False when the person cancelled.
+    /// </summary>
+    private async Task<bool> ConfirmQuit()
+    {
+        // Text being typed is an open edit that does not count as a change until it is committed,
+        // so it is committed first or quitting would pass it by without asking.
+        foreach (var typing in sessions.Where(s => s.IsEditingText)) typing.FinishText();
+        while (saving.Count > 0) await Task.WhenAll(saving.Values.Select(w => w.Task).ToList());
+        foreach (var item in sessions.Where(s => s.IsModified).ToList())
+            if (!await CloseSession(item)) return false;
+        await StopDownload();
+        return true;
     }
 
     // ---- Chrome -------------------------------------------------------------------------------------------------

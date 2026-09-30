@@ -96,6 +96,15 @@ public class ReleaseAssetsTests
     public async Task Each_install_gets_its_own_file(InstallKind kind, Architecture architecture, string expected)
         => Assert.Equal(expected, ReleaseAssets.For(kind, architecture, await Parse(V120))?.Name);
 
+    /// <summary>A build from a repository leaves updates to its package manager, and a download would go around it.</summary>
+    [Fact]
+    public async Task A_managed_build_is_offered_no_file()
+    {
+        var release = await Parse(V120);
+        Assert.Null(ReleaseAssets.Offered(UpdateChannel.Managed, InstallKind.Deb, Architecture.X64, release));
+        Assert.Equal("composa_1.2.0_amd64.deb", ReleaseAssets.Offered(UpdateChannel.GitHub, InstallKind.Deb, Architecture.X64, release)?.Name);
+    }
+
     [Fact]
     public async Task A_developer_build_is_offered_no_file()
     {

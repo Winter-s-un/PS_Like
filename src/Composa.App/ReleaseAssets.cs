@@ -28,6 +28,13 @@ public static class ReleaseAssets
             asset.Name.EndsWith(suffix, StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// The file the update strip offers to download. A build from a repository never gets one: its
+    /// package manager owns updates, and a download would go around it.
+    /// </summary>
+    public static ReleaseAsset? Offered(UpdateChannel channel, InstallKind kind, Architecture architecture, ReleaseInfo release) =>
+        channel == UpdateChannel.Managed ? null : For(kind, architecture, release);
+
     /// <summary>How the file for an install begins and ends, spelling the architecture as each format does (see <c>scripts/package/common.sh</c>).</summary>
     private static (string Prefix, string Suffix)? Pattern(InstallKind kind, Architecture architecture)
     {
