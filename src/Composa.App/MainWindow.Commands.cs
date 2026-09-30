@@ -220,7 +220,7 @@ public sealed partial class MainWindow
         commands.Add(new Shortcut("Zoom In (keypad)", "Zoom In", "Menus", new KeyGesture(Key.Add, ctrl), canvas.ZoomIn, () => HasDocument, hidden: true));
         commands.Add(new Shortcut("Zoom Out (keypad)", "Zoom Out", "Menus", new KeyGesture(Key.Subtract, ctrl), canvas.ZoomOut, () => HasDocument, hidden: true));
 
-        // A package manager owns updates for a .deb or .rpm, so there is nothing to switch on there.
+        // A build from a repository leaves updates to its package manager, so there is nothing to switch on there.
         var autoUpdates = new MenuItem
         {
             Header = "Check for Updates Automatically",

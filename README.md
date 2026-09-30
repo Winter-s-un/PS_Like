@@ -175,7 +175,7 @@ The check is a single anonymous `GET` to `https://api.github.com/repos/dvdstelt/
 
 Turn it off under **Help > Check for Updates Automatically**, or set `COMPOSA_DISABLE_UPDATE_CHECK=1`, which is there so a distribution packager can switch it off without patching code. **Help > Check for Updates** still works when the automatic check is off.
 
-Builds installed from the `.deb` or `.rpm` never check on their own, because apt and dnf own updates for them; there, the menu item says so rather than pointing you around your package manager.
+The `.deb` and `.rpm` check too: they are downloaded from the releases page and installed by hand, so no repository will offer you the next version. Upgrade by installing the new release's file over the old one (`sudo apt install ./composa_*.deb` or `sudo dnf install ./composa-*.rpm`). A package built for a repository with `UPDATE_CHANNEL=managed` never checks on its own; there, the menu item says that the package manager owns updates rather than pointing you around it.
 
 ### ImageMagick
 
