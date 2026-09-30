@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace Composa.Filters;
 
-public enum AdjustmentKind { HueSaturation, Levels, Curves, Exposure, GradientMap, Grain, Invert, BrightnessContrast, BlackAndWhite, ColorBalance, GaussianBlur, MotionBlur, AddNoise }
+public enum AdjustmentKind { HueSaturation, Levels, Curves, Exposure, GradientMap, Grain, Invert, BrightnessContrast, BlackAndWhite, ColorBalance, GaussianBlur, MotionBlur, AddNoise, ColorLookup }
 
 /// <summary>
 /// A color adjustment. The same settings drive a destructive Image menu command and a live adjustment layer.
@@ -23,6 +23,7 @@ public enum AdjustmentKind { HueSaturation, Levels, Curves, Exposure, GradientMa
 [JsonDerivedType(typeof(GaussianBlurAdjustment), "gaussianBlur")]
 [JsonDerivedType(typeof(MotionBlurAdjustment), "motionBlur")]
 [JsonDerivedType(typeof(AddNoiseAdjustment), "addNoise")]
+[JsonDerivedType(typeof(ColorLookupAdjustment), "colorLookup")]
 public abstract record Adjustment
 {
     [JsonIgnore] public abstract AdjustmentKind Kind { get; }
@@ -108,6 +109,7 @@ public abstract record Adjustment
         AdjustmentKind.GaussianBlur => new GaussianBlurAdjustment(),
         AdjustmentKind.MotionBlur => new MotionBlurAdjustment(),
         AdjustmentKind.AddNoise => new AddNoiseAdjustment { Seed = (uint)Random.Shared.Next() },
+        AdjustmentKind.ColorLookup => new ColorLookupAdjustment(),
         _ => new BrightnessContrastAdjustment()
     };
 }

@@ -23,6 +23,15 @@ public static class DocumentLimits
     /// </summary>
     public static long DocumentPixelBudget { get; } = Math.Clamp(PhysicalMemory() / 16, MaxSurfacePixels, 800_000_000);
 
+    /// <summary>
+    /// Points per axis of a color lookup table's cube. A 144-point Hald is the largest in common use and costs 36 MB
+    /// as floats; the 33-point tables that grading software exchanges are a fraction of that.
+    /// </summary>
+    public const int MaxLookupSize = 144;
+
+    /// <summary>Points of a color lookup table's per-channel curves: enough for one point per 16-bit value.</summary>
+    public const int MaxLookupCurveSize = 65_536;
+
     /// <summary>The ceilings as megapixels, for the messages that quote them back to the reader.</summary>
     public static int MaxSurfaceMegapixels => (int)(MaxSurfacePixels / 1_000_000);
     public static int DocumentBudgetMegapixels => (int)(DocumentPixelBudget / 1_000_000);
