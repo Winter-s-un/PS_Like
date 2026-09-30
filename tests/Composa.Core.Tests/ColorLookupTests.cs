@@ -630,6 +630,39 @@ public class ColorLookupTests
     }
 
     [Fact]
+    public void A_camera_raw_grade_bakes_its_color_stages_and_leaves_the_spatial_groups_out()
+    {
+        var grade = new CameraRawSettings { Exposure = 0.4, Contrast = 20, Temperature = 15, Saturation = 25, Texture = 40, VignetteAmount = -30, GrainAmount = 20 }
+            with { Detail = new CameraRawDetail { SharpenAmount = 50 }, Calibration = new CameraRawCalibration { BlueSaturation = 20 } };
+        Assert.Equal([CameraRawGroup.Effects, CameraRawGroup.Detail], LookBake.LeftOutOf(grade));
+        var colorOnly = LookBake.ColorOnly(grade);
+        Assert.True(colorOnly.Adjusts(CameraRawGroup.Light) && colorOnly.Adjusts(CameraRawGroup.Calibration));
+        Assert.False(colorOnly.Adjusts(CameraRawGroup.Effects) || colorOnly.Adjusts(CameraRawGroup.Detail));
+        var lattice = LookBake.Bake(grade, 33, "Graded");
+        Assert.Equal(("Graded", 33), (lattice.Title, lattice.Size));
+
+        using var picture = Gradient(64, 64);
+        using var direct = CameraRawPixels.Apply(picture, colorOnly);
+        using var looked = picture.Copy();
+        new ColorLookupAdjustment { Lattice = lattice }.Apply(looked);
+        var worst = 0;
+        for (var y = 0; y < 64; y++)
+            for (var x = 0; x < 64; x++)
+            {
+                var a = direct.GetPixel(x, y);
+                var b = looked.GetPixel(x, y);
+                worst = Math.Max(worst, Math.Max(Math.Abs(a.Red - b.Red), Math.Max(Math.Abs(a.Green - b.Green), Math.Abs(a.Blue - b.Blue))));
+            }
+        // Contrast and saturation put kinks in the pipeline that 33 points round off; 8 steps is within what grading software accepts of a table.
+        Assert.True(worst <= 8, $"The baked grade differs from the pipeline by up to {worst}.");
+        // A grade of nothing but spatial groups bakes to the identity, within the grid's 8 bits.
+        var spatial = new CameraRawSettings { Texture = 40, VignetteAmount = -30 } with { Optics = new CameraRawOptics { Distortion = 10 } };
+        Assert.True(LookBake.ColorOnly(spatial).IsIdentity);
+        var (r, g, b2) = LookBake.Bake(spatial, 17).Sample(0.25f, 0.5f, 0.75f);
+        Assert.True(Math.Abs(r - 0.25f) <= 1 / 255f && Math.Abs(g - 0.5f) <= 1 / 255f && Math.Abs(b2 - 0.75f) <= 1 / 255f);
+    }
+
+    [Fact]
     public void Load_reads_a_file_by_its_name()
     {
         var folder = Path.Combine(Path.GetTempPath(), "composa-lut-" + Guid.NewGuid().ToString("N")[..8]);
