@@ -12,3 +12,14 @@ Several of those components are licensed under the GNU Lesser General Public Lic
   https://github.com/dlemstra/Magick.NET
 
 and each component's own upstream source is linked from ImageMagick-NOTICE.txt.
+
+Film looks
+
+Every build of Composa bundles four film looks for the Color Lookup adjustment, derived from sguyader/FilmSim (https://github.com/sguyader/FilmSim) at commit 1453b2b55c48d99a889b1e455f91f6898ba2db41, authored by Sebastien Guyader and dedicated to the public domain under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/). CC0 asks for nothing; this record is a courtesy and lets anyone re-derive and verify the files. The sources are 144-point HaldCLUT TIFF images, each resampled to a 33-point .cube by scripts/make-looks.sh:
+
+  Fine Mono       from Acros.tif            SHA-256 d4c9f720c1588531b7f748e13505e11f392af663415e625bda0ff3455b41c7a5
+  Muted Chrome    from Classic_Chrome.tif   SHA-256 cc303723b76205aedf970dc814dbecd6d9795955411aa2d6b265873864de7a66
+  Standard Slide  from Provia_Std.tif       SHA-256 acf26aee152dbce9fff685aa727a5550855d425aa90610dd63b3ff2f15be0fe7
+  Vivid Slide     from Velvia_Vivid_v2.tif  SHA-256 1b347b4c5afec78ad7f79103bf04b319e182b7133ffe2a8864c732a7003b7eea
+
+The source files are named after Fujifilm film stocks. Those names are trademarks of Fujifilm, which the CC0 dedication does not touch, so Composa ships the looks under descriptive names and shows the stock names nowhere but here and in each file's provenance comment, as a record of origin.

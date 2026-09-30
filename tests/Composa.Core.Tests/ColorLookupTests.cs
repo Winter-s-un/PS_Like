@@ -519,6 +519,43 @@ public class ColorLookupTests
         finally { TempFiles.Delete(path); }
     }
 
+    // ── the bundled looks ────────────────────────────────────────────────────
+
+    [Fact]
+    public void The_bundled_looks_load_and_do_what_their_names_say()
+    {
+        Assert.Equal(["Fine Mono", "Muted Chrome", "Standard Slide", "Vivid Slide"], Looks.Names);
+        foreach (var name in Looks.Names)
+        {
+            var look = Looks.Find(name)!;
+            Assert.Equal(33, look.Size);
+            Assert.Equal(name, look.Title);
+            Assert.NotEqual("", Looks.Describe(name));
+            Assert.Same(look, Looks.Find(name));   // parsed once
+            // Every look keeps black dark and white light: film lifts its blacks a step or two, but no look inverts or greys out.
+            var black = look.Sample(0, 0, 0);
+            Assert.True(black.R < 0.03f && black.G < 0.03f && black.B < 0.03f, $"{name} black: {black}");
+            var white = look.Sample(1, 1, 1);
+            Assert.True(white.R > 0.98f && white.G > 0.98f && white.B > 0.98f, $"{name} white: {white}");
+        }
+        Assert.Null(Looks.Find("Acros"));
+        Assert.Equal("", Looks.Describe("Acros"));
+        // Fine Mono is neutral everywhere; Vivid Slide pushes a mid color further from grey than Standard Slide does.
+        var mono = Looks.Find("Fine Mono")!;
+        foreach (var (r, g, b) in new[] { (0.8f, 0.2f, 0.3f), (0.1f, 0.6f, 0.9f), (0.5f, 0.5f, 0.5f) })
+        {
+            var (mr, mg, mb) = mono.Sample(r, g, b);
+            Assert.True(Math.Abs(mr - mg) < 0.01f && Math.Abs(mg - mb) < 0.01f, $"Fine Mono at {(r, g, b)}: {(mr, mg, mb)}");
+        }
+        static float Chroma((float R, float G, float B) c) => Math.Max(c.R, Math.Max(c.G, c.B)) - Math.Min(c.R, Math.Min(c.G, c.B));
+        var leaf = (0.35f, 0.55f, 0.2f);
+        Assert.True(Chroma(Looks.Find("Vivid Slide")!.Sample(leaf.Item1, leaf.Item2, leaf.Item3)) > Chroma(Looks.Find("Standard Slide")!.Sample(leaf.Item1, leaf.Item2, leaf.Item3)));
+        // A look on a layer goes through the ordinary adjustment path and names itself.
+        var adjustment = new ColorLookupAdjustment { Lattice = mono, Source = "Fine Mono" };
+        var pixel = Adjusted(adjustment, new SKColor(200, 60, 90));
+        Assert.True(Math.Abs(pixel.Red - pixel.Green) <= 3 && Math.Abs(pixel.Green - pixel.Blue) <= 3, pixel.ToString());
+    }
+
     [Fact]
     public void Load_reads_a_file_by_its_name()
     {
