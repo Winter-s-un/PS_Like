@@ -37,6 +37,7 @@ Exporting flattens the document to a single image and leaves the project as it i
 - **File > Export PNG** (Ctrl+Shift+E): lossless, with transparency.
 - **File > Export JPEG** (Ctrl+Alt+Shift+S): shows a preview with a quality slider from 1 to 100, the image size and the resulting file size, and composites transparent areas over white. The quality you choose is remembered.
 - **File > Export WebP**: uses the quality last chosen for JPEG.
+- **Save Look…** in the [Camera Raw Filter](camera-raw.md) writes that grade's color stages as a `.cube` in the same way.
 - **File > Export Look as .cube**: bakes the document's adjustment layers into one 3D lookup table, at 17, 33 or 65 points, that any editor with a Color Lookup can load, so a look built here from Curves, Hue/Saturation and a Gradient Map can go to DaVinci Resolve or Photoshop. Only what changes a color by its color alone can go into a table: a layer with a mask, a clipped layer, a layer inside a folder, and Grain, Add Noise and the blurs are left out, and the dialog lists them before anything is written. The table is written at the layers' opacities, bottom to top, and reads back in Composa's own Color Lookup as the same look.
 
 ## Photoshop files
