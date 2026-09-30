@@ -4,7 +4,9 @@ All notable changes to Composa are recorded here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
-Catches up with Compositor 1.3.3 to 1.4: Select > Color Range, fonts per letter, the Dither filter and the smaller items.
+## [1.3.0] - 2026-09-30
+
+The update strip downloads the new version and hands it to its installer, a History panel goes back any number of steps, and the catch-up with Compositor 1.3.3 to 1.4: Select > Color Range, fonts per letter, the Dither filter and the smaller items.
 
 ### Added
 
