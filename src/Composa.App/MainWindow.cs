@@ -280,7 +280,7 @@ public sealed partial class MainWindow : Window
                 Entry("Copy Image", () => _ = CopyImage(item)),
                 Entry("Duplicate", () => AddSession(item.Duplicate())),
                 new Separator(),
-                Entry("Open Containing Folder", () => _ = OpenContainingFolder(item.FilePath!), item.FilePath != null),
+                Entry("Show in Folder", () => _ = ShowInFolder(item.FilePath!), item.FilePath != null),
                 new Separator(),
                 Entry("Close", () => _ = CloseSession(item)),
                 Entry("Close Others", () => _ = CloseOthers(item), sessions.Count > 1)
@@ -296,11 +296,11 @@ public sealed partial class MainWindow : Window
         if (session != keep && sessions.Contains(keep)) SetSession(keep);
     }
 
-    private async Task OpenContainingFolder(string path)
+    /// <summary>Shows a file selected in the file manager, or at least opens its folder.</summary>
+    private async Task ShowInFolder(string path)
     {
-        var folder = Path.GetDirectoryName(Path.GetFullPath(path));
-        if (folder == null || !Directory.Exists(folder) || !await Launcher.LaunchDirectoryInfoAsync(new DirectoryInfo(folder)))
-            ShowProblem("Couldn't open the folder " + (folder ?? path) + ".");
+        if (!await FileReveal.Show(path, Launcher))
+            ShowProblem("Couldn't open the folder " + (Path.GetDirectoryName(Path.GetFullPath(path)) ?? path) + ".");
     }
 
     private async Task<bool> CloseSession(EditorSession item)

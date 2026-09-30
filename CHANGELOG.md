@@ -18,7 +18,7 @@ Catches up with Compositor 1.3.3 to 1.4: Select > Color Range, fonts per letter,
 - Layer > Merge Visible combines the visible layers and leaves the hidden ones; Layer > Stamp Visible (Ctrl+Alt+Shift+E) puts the picture as it looks on a new layer on top and keeps every layer.
 - Image > Reveal All grows the canvas back to every layer, the way back from a crop; Image > Duplicate opens a copy of the document in a new tab.
 - Edit > Paste Special: Paste in Place (Ctrl+Shift+V) keeps the place pixels were copied from even partly outside the canvas, and Paste Into (Ctrl+Alt+Shift+V) pastes onto a new layer masked by the selection.
-- Right-click a document's tab for Copy Image (its whole flattened picture, whatever is selected), Duplicate, Open Containing Folder, Close and Close Others.
+- Right-click a document's tab for Copy Image (its whole flattened picture, whatever is selected), Duplicate, Show in Folder (the saved file, selected in the file manager), Close and Close Others.
 - The status bar says what a copy put on the clipboard, such as "Copied 1920 × 1080 px".
 - New Canvas presets for screens and social formats: 4K, 1440p and 1080p; iPhone, MacBook Pro and Studio Display; Instagram Square, Portrait and Story and a YouTube thumbnail, with the print sizes kept. The preset follows a typed size.
 

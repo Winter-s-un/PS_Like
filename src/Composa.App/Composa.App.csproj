@@ -39,6 +39,12 @@
     <ProjectReference Include="../Composa.Core/Composa.Core.csproj" />
     <!-- The MCP server that lets an AI agent drive the editor. Core only: the ASP.NET hosting package has no place in a desktop app. -->
     <PackageReference Include="ModelContextProtocol.Core" Version="2.2.0" />
+    <!--
+      FileReveal asks the Linux file manager to show a file over D-Bus with the library Avalonia's
+      Linux backend already uses, referenced here so an Avalonia upgrade cannot take it away. Keep the
+      version the one Avalonia brings: a lower one is a downgrade the restore refuses.
+    -->
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
     <AvaloniaResource Include="Assets/**" />
     <!--
       How this build was distributed, read back at runtime by UpdateCheck. The packaging scripts

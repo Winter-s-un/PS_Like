@@ -92,7 +92,7 @@ public class WholeImageTests
         window.AddSession(second);
 
         var menu = TabMenu(window, first);
-        Assert.False(menu.Single(i => i.Header as string == "Open Containing Folder").IsEnabled);
+        Assert.False(menu.Single(i => i.Header as string == "Show in Folder").IsEnabled);
         Click(menu.Single(i => i.Header as string == "Close Others"));
         Assert.Equal([first], window.Sessions);
         Assert.False(TabMenu(window, first).Single(i => i.Header as string == "Close Others").IsEnabled);
