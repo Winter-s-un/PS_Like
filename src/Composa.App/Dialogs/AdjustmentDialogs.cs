@@ -14,8 +14,13 @@ public static class AdjustmentDialogs
 {
     private static readonly string[] Channels = ["RGB", "Red", "Green", "Blue"];
 
-    /// <summary>Shows the editor for an adjustment. <paramref name="changed"/> runs (debounced) on every edit; returns the accepted settings or null.</summary>
-    public static async Task<Adjustment?> Edit(Window owner, Adjustment initial, Action<Adjustment> changed, Histogram? histogram, SKColor foreground, SKColor background)
+    /// <summary>
+    /// Shows the editor for an adjustment. <paramref name="changed"/> runs (debounced) on every edit; returns the accepted
+    /// settings or null. <paramref name="picture"/> is what the adjustment is applied to, for the editors that show it
+    /// (Color Lookup draws each look on it); <paramref name="pickFile"/> asks for a file when an editor loads one.
+    /// </summary>
+    public static async Task<Adjustment?> Edit(Window owner, Adjustment initial, Action<Adjustment> changed, Histogram? histogram, SKColor foreground, SKColor background,
+        Func<SKBitmap?>? picture = null, Func<Task<string?>>? pickFile = null)
     {
         var current = initial;
         var preview = true;
@@ -49,6 +54,7 @@ public static class AdjustmentDialogs
             GradientMapAdjustment map => GradientMapEditor(owner, map, foreground, background, Update),
             BlackAndWhiteAdjustment bw => BlackAndWhiteEditor(bw, Update),
             ColorBalanceAdjustment balance => ColorBalanceEditor(balance, Update),
+            ColorLookupAdjustment lookup => ColorLookupEditor(owner, lookup, picture, pickFile, Update),
             _ => Ui.Label("This adjustment has no settings.", Palette.Secondary)
         };
         var previewBox = Ui.Check("Preview", true, v => { preview = v; timer.Stop(); timer.Start(); });
@@ -262,6 +268,106 @@ public static class AdjustmentDialogs
         var reversed = Ui.Check("Reverse", map.Reversed, v => { map = map with { Reversed = v }; Paint(); update(map); });
         Paint();
         return Ui.Column(10, bar, Ui.Row(8, shadows, highlights, useColors), reversed);
+    }
+
+    /// <summary>The side of a look's thumbnail, and the width of the loaded file's name beside the Load button.</summary>
+    private const int LookThumb = 72;
+
+    /// <summary>
+    /// Color Lookup: every bundled look drawn on the picture being edited, so each tile shows what it does, a Load
+    /// File… button for a .cube or .3dl of your own (shown as a tile of its own once loaded), and Amount.
+    /// </summary>
+    private static Control ColorLookupEditor(Window owner, ColorLookupAdjustment lookup, Func<SKBitmap?>? picture, Func<Task<string?>>? pickFile, Action<Adjustment> update)
+    {
+        // The sample lives as long as the dialog: Load File… draws a new tile on it, so it must not go with this call.
+        var sample = LookSample(picture?.Invoke());
+        var tiles = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        tiles.DetachedFromVisualTree += (_, _) => sample.Dispose();
+        var chosen = new List<(Border Frame, Func<bool> Selected)>();
+
+        void Refresh()
+        {
+            foreach (var (frame, selected) in chosen) frame.BorderBrush = selected() ? Palette.Accent : Brushes.Transparent;
+        }
+
+        Border Tile(string name, ColorLattice lattice, Func<bool> selected, string tip)
+        {
+            using var shown = sample.Copy();
+            new ColorLookupAdjustment { Lattice = lattice }.Apply(shown);
+            var image = new Image { Source = Ui.ToAvaloniaBitmap(shown, LookThumb), Width = LookThumb, Height = LookThumb * sample.Height / sample.Width, Stretch = Stretch.Uniform };
+            var label = Ui.Label(name, size: 11);
+            label.TextTrimming = TextTrimming.CharacterEllipsis;
+            label.MaxWidth = LookThumb;
+            label.HorizontalAlignment = HorizontalAlignment.Center;
+            var frame = new Border
+            {
+                Child = Ui.Column(4, image, label), Padding = new Thickness(3), BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(4),
+                Cursor = new Cursor(StandardCursorType.Hand), Background = Brushes.Transparent, Tag = name
+            };
+            ToolTip.SetTip(frame, tip);
+            frame.PointerPressed += (_, _) => { update(lookup = lookup with { Lattice = lattice, Source = name }); Refresh(); };
+            chosen.Add((frame, selected));
+            return frame;
+        }
+
+        foreach (var name in Looks.Names)
+            tiles.Children.Add(Tile(name, Looks.Find(name)!, () => lookup.Lattice?.Id == Looks.Find(name)!.Id, Looks.Describe(name)));
+
+        // A file's tile comes and goes with the file: loading another replaces it.
+        var fileName = Ui.Label("", Palette.Secondary, 12);
+        fileName.TextTrimming = TextTrimming.CharacterEllipsis;
+        fileName.VerticalAlignment = VerticalAlignment.Center;
+        Border? fileTile = null;
+        void ShowFile(string name, ColorLattice lattice)
+        {
+            if (fileTile != null) { tiles.Children.Remove(fileTile); chosen.RemoveAll(c => c.Frame == fileTile); }
+            fileTile = Tile(name, lattice, () => lookup.Lattice?.Id == lattice.Id, lattice.Title.Length > 0 ? lattice.Title : name);
+            tiles.Children.Add(fileTile);
+            fileName.Text = name;
+        }
+        if (lookup.Lattice is { } own && Looks.Names.All(name => Looks.Find(name)!.Id != own.Id)) ShowFile(lookup.Source, own);
+
+        var load = Ui.TextButton("Load File…", async () =>
+        {
+            if (pickFile == null || await pickFile() is not { } path) return;
+            ColorLattice lattice;
+            try { lattice = ColorLattice.Load(path); }
+            catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException)
+            {
+                await Prompts.Alert(owner, "Color Lookup", $"{Path.GetFileName(path)} could not be read. {error.Message}");
+                return;
+            }
+            var name = Path.GetFileName(path);
+            ShowFile(name, lattice);
+            update(lookup = lookup with { Lattice = lattice, Source = name });
+            Refresh();
+        });
+        var amount = Ui.SliderField("Amount", lookup.Amount, 0, 100, v => update(lookup = lookup with { Amount = v }), 1, "0", FieldWidth, reset: new ColorLookupAdjustment().Amount);
+        Refresh();
+        return Ui.Column(10, tiles, Ui.Row(8, load, fileName), amount);
+    }
+
+    /// <summary>
+    /// What the look tiles are drawn on: the picture, reduced to thumbnail size, or a ramp of hues over lightness when
+    /// there is no picture in color (a mask being edited, or nothing yet).
+    /// </summary>
+    private static SKBitmap LookSample(SKBitmap? picture)
+    {
+        if (picture is { ColorType: SKColorType.Rgba8888 })
+        {
+            var scale = Math.Min(1, Math.Min((double)LookThumb / picture.Width, (double)LookThumb / picture.Height));
+            int w = Math.Max(1, (int)Math.Round(picture.Width * scale)), h = Math.Max(1, (int)Math.Round(picture.Height * scale));
+            var small = Composa.Rendering.Pixels.NewColor(w, h);
+            using (var canvas = new SKCanvas(small))
+            using (var image = SKImage.FromPixels(picture.PeekPixels()))
+                canvas.DrawImage(image, new SKRect(0, 0, w, h), new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
+            return small;
+        }
+        var ramp = Composa.Rendering.Pixels.NewColor(LookThumb, LookThumb * 2 / 3);
+        for (var y = 0; y < ramp.Height; y++)
+            for (var x = 0; x < ramp.Width; x++)
+                ramp.SetPixel(x, y, SKColor.FromHsv(x * 360f / ramp.Width, 70, 100 - y * 60f / ramp.Height));
+        return ramp;
     }
 
     /// <summary>The editor for a Filter menu command.</summary>

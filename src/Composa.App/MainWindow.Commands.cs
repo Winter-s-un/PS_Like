@@ -123,6 +123,7 @@ public sealed partial class MainWindow
             Item("Black & White…", () => _ = Adjust(AdjustmentKind.BlackAndWhite), enabled: () => session!.CanEditPixels),
             Item("Color Balance…", () => _ = Adjust(AdjustmentKind.ColorBalance), enabled: () => session!.CanEditPixels),
             Item("Gradient Map…", () => _ = Adjust(AdjustmentKind.GradientMap), enabled: () => session!.CanEditPixels),
+            Item("Color Lookup…", () => _ = Adjust(AdjustmentKind.ColorLookup), enabled: () => session!.CanEditPixels),
             Item("Grain…", () => _ = Adjust(AdjustmentKind.Grain), enabled: () => session!.CanEditPixels),
             Item("Invert", () => session!.Adjust(new InvertAdjustment()), Key.I, ctrl, () => session!.CanEditPixels),
             Item("Auto Levels", AutoLevels, Key.L, ctrl | shift, () => session!.CanEditPixels),
@@ -473,6 +474,7 @@ public sealed partial class MainWindow
     private static readonly string[] ImageExtensions = [.. ImageFiles.ImportExtensions, .. RawImporter.Extensions];
     private static readonly FilePickerFileType ImageType = new("Images") { Patterns = ImageExtensions.Select(e => "*" + e).ToArray() };
     private static readonly FilePickerFileType RawType = new("Camera RAW") { Patterns = RawImporter.Extensions.Select(e => "*" + e).ToArray() };
+    private static readonly FilePickerFileType LookupType = new("Color lookup tables") { Patterns = ["*.cube", "*.3dl"] };
     private static readonly FilePickerFileType AnyOpenable = new("Projects and images") { Patterns = ImageExtensions.Select(e => "*" + e).Append("*" + ProjectFile.Extension).ToArray() };
 
     private async Task NewCanvas()
@@ -861,7 +863,7 @@ public sealed partial class MainWindow
         var target = session;
         var histogram = HistogramOfActive();
         if (!target.BeginPreview(Adjustment.Create(kind).DisplayName)) { ShowProblem("Select a pixel layer or a mask first."); return; }
-        var result = await AdjustmentDialogs.Edit(this, Adjustment.Create(kind), target.PreviewAdjustment, histogram, target.Foreground, target.Background);
+        var result = await AdjustmentDialogs.Edit(this, Adjustment.Create(kind), target.PreviewAdjustment, histogram, target.Foreground, target.Background, () => target.PreviewOriginal, PickLookupFile);
         if (result == null || result.IsIdentity) target.CancelPreview();
         else { target.PreviewAdjustment(result); target.CommitPreview(); }
     }
@@ -903,14 +905,22 @@ public sealed partial class MainWindow
         // The layer and its settings are one undo step, and cancelling the dialog leaves no trace of either.
         var target = session;
         var layer = target.AddAdjustmentLayer(adjustment, commit: false);
-        var result = await AdjustmentDialogs.Edit(this, adjustment, a => target.SetAdjustment(layer, a), Histogram.Of(target.Composite()), target.Foreground, target.Background);
+        var result = await AdjustmentDialogs.Edit(this, adjustment, a => target.SetAdjustment(layer, a), Histogram.Of(target.Composite()), target.Foreground, target.Background, target.Composite, PickLookupFile);
         if (result == null) target.Cancel();
         else
         {
             target.SetAdjustment(layer, result);
+            NameByLook(layer, adjustment, result);
             target.Commit();
             target.NotifyLayersChanged();
         }
+    }
+
+    /// <summary>Asks for a .cube or .3dl for the Color Lookup dialog; null when none was chosen.</summary>
+    private async Task<string?> PickLookupFile()
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Load Color Lookup Table", FileTypeFilter = [LookupType] });
+        return files.Count > 0 ? files[0].TryGetLocalPath() : null;
     }
 
     private async Task EditAdjustmentLayer(Layer layer, bool isNew)
@@ -921,13 +931,24 @@ public sealed partial class MainWindow
         if (original is InvertAdjustment) return;
         var histogram = Histogram.Of(target.Composite());
         target.Begin("Edit Adjustment");
-        var result = await AdjustmentDialogs.Edit(this, original, a => target.SetAdjustment(layer, a), histogram, target.Foreground, target.Background);
+        var result = await AdjustmentDialogs.Edit(this, original, a => target.SetAdjustment(layer, a), histogram, target.Foreground, target.Background, target.Composite, PickLookupFile);
         if (result != null && !result.ContentEquals(original))
         {
             target.SetAdjustment(layer, result);
+            NameByLook(layer, original, result);
             target.Commit();
         }
         else target.Cancel();
+    }
+
+    /// <summary>
+    /// A look names its layer, as a text layer is named by its words, for as long as the name is still the look's
+    /// (or the numbered default): a name the person typed stays. The edit is open, so the rename is part of its step.
+    /// </summary>
+    private static void NameByLook(Layer layer, Adjustment before, Adjustment after)
+    {
+        if (after is not ColorLookupAdjustment { Source.Length: > 0 } look || look.Source == layer.Name) return;
+        if (layer.Name == (before as ColorLookupAdjustment)?.Source || layer.Name.StartsWith(look.DisplayName, StringComparison.Ordinal)) layer.Name = look.Source;
     }
 
     /// <summary>Adds an effect to the active layer and opens its settings; cancelling the dialog takes the effect away again.</summary>
