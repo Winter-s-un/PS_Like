@@ -18,6 +18,8 @@ Most tools take a `document` parameter: the tab number as `list_documents` repor
 
 **export_image**: exports the document flattened to a PNG, JPEG or WebP, by the extension of `path`. Parameters: `path`; `quality` from 1 to 100 for JPEG and WebP, 90 by default; `overwrite`.
 
+**export_look**: bakes the document's visible adjustment layers into a `.cube` lookup table at `path`, as File > Export Look does. Only what is a function of a pixel's color goes in; a masked, clipped or grouped layer and grain, noise and blurs are left out and named in the result. Parameters: `path` ending in `.cube`; `size` of 17, 33 or 65 points, 33 by default; `overwrite`.
+
 **render**: the document as it looks now, as a PNG, so the agent can see the result of its work. Parameters: `maxSide`, the longest side in pixels, 1024 by default, never larger than the document; `grid`, a spacing in canvas pixels for a labelled grid over the picture, 0 for none; `x`, `y`, `width` and `height` for a region to render instead of the whole canvas, at full size up to `maxSide`.
 
 **undo**: takes back the last step in the document, whoever made it. Parameters: `document`.
@@ -101,6 +103,8 @@ Each adjustment tool takes `asLayer`, which adds an adjustment layer above the l
 **adjust_gradient_map**: `shadows` and `highlights` colors, black to white by default, and `reversed`.
 
 **adjust_invert**: no values.
+
+**adjust_color_lookup**: grades the layer through a lookup table. Parameters: `look`, a bundled look's name (Fine Mono, Muted Chrome, Standard Slide or Vivid Slide) or an absolute path to a `.cube` or `.3dl` file; `amount` from 0 to 100, 100 by default. An adjustment layer made this way is named after the look.
 
 ## Filters
 

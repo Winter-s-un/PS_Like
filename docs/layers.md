@@ -9,7 +9,7 @@ A document is a stack of layers, listed in the Layers panel with the top layer f
 - **Adjustment layers** change the look of every layer below them without touching those layers' pixels, and can be edited again later. See [Adjustments and filters](adjustments-and-filters.md).
 - **Folders** group layers. Layer > Group Selected Layers (Ctrl+G) puts the selected layers in a folder; Ungroup (Ctrl+Shift+G) dissolves it. A folder can be collapsed in the panel, and hiding a folder hides everything in it.
 
-New layers are named "Layer 1", "Layer 2" and so on, folders "Folder n", shapes after their kind, adjustment layers after their adjustment, pasted layers "Pasted Layer n", and a duplicate takes the original's name with "copy". Rename a layer with Layer > Rename Layer (F2) or by double-clicking its name.
+New layers are named "Layer 1", "Layer 2" and so on, folders "Folder n", shapes after their kind, adjustment layers after their adjustment (a Color Lookup after its look), pasted layers "Pasted Layer n", and a duplicate takes the original's name with "copy". Rename a layer with Layer > Rename Layer (F2) or by double-clicking its name.
 
 ## The Layers panel
 

@@ -4,6 +4,16 @@ All notable changes to Composa are recorded here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added
+
+- Image > Adjustments > Color Lookup, and the same as an adjustment layer: grade the picture through a 3D lookup table, the `.cube` and `.3dl` files that DaVinci Resolve, Lightroom and look packs exchange. Four film looks come bundled, each drawn on the picture you are editing as a small tile so you see what it does before you choose it; Load File… adds a table of your own beside them, and Amount mixes the look into the original. A loaded table travels inside the project file, so the document opens the same anywhere; project files that use it are format version 6. An agent gets it as the adjust_color_lookup tool.
+- File > Export Look as .cube bakes the document's adjustment layers into one lookup table, at 17, 33 or 65 points, that any editor can load, so a look built here can go to another program. What a table cannot hold (masked, clipped or grouped layers, grain, noise and blurs) is listed before anything is written. An agent gets it as the export_look tool.
+- A Photoshop Color Lookup layer made from a `.cube` or `.3dl` file opens as a Composa Color Lookup with the same table; one made from an ICC profile stays reported as unsupported.
+
+### Changed
+
+- The third-party notices ship with every build, including the Linux packages, because every build now carries the bundled film looks.
+
 ## [1.3.0] - 2026-09-30
 
 The update strip downloads the new version and hands it to its installer, a History panel goes back any number of steps, and the catch-up with Compositor 1.3.3 to 1.4: Select > Color Range, fonts per letter, the Dither filter and the smaller items.

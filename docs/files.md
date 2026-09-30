@@ -37,14 +37,15 @@ Exporting flattens the document to a single image and leaves the project as it i
 - **File > Export PNG** (Ctrl+Shift+E): lossless, with transparency.
 - **File > Export JPEG** (Ctrl+Alt+Shift+S): shows a preview with a quality slider from 1 to 100, the image size and the resulting file size, and composites transparent areas over white. The quality you choose is remembered.
 - **File > Export WebP**: uses the quality last chosen for JPEG.
+- **File > Export Look as .cube**: bakes the document's adjustment layers into one 3D lookup table, at 17, 33 or 65 points, that any editor with a Color Lookup can load, so a look built here from Curves, Hue/Saturation and a Gradient Map can go to DaVinci Resolve or Photoshop. Only what changes a color by its color alone can go into a table: a layer with a mask, a clipped layer, a layer inside a folder, and Grain, Add Noise and the blurs are left out, and the dialog lists them before anything is written. The table is written at the layers' opacities, bottom to top, and reads back in Composa's own Color Lookup as the same look.
 
 ## Photoshop files
 
 Composa reads Photoshop files and never writes them. A file opens as an unsaved document; save it as a Composa project to keep your work.
 
-What survives: layers and folders, visibility, opacity and fill, masks, clipping, and blend modes (Dissolve, Darker Color and Lighter Color become Normal). Levels, Curves, Hue/Saturation, Brightness/Contrast, Exposure, Invert, Color Balance and Black & White adjustment layers arrive as Composa adjustment layers. Horizontal text with one style arrives as editable text; vertical, sheared or unevenly scaled text becomes pixels. Solid fills and simple vector shapes become live shapes where possible.
+What survives: layers and folders, visibility, opacity and fill, masks, clipping, and blend modes (Dissolve, Darker Color and Lighter Color become Normal). Levels, Curves, Hue/Saturation, Brightness/Contrast, Exposure, Invert, Color Balance and Black & White adjustment layers arrive as Composa adjustment layers, and so does a Color Lookup made from a `.cube` or `.3dl` file, whose table Photoshop keeps inside the document. Horizontal text with one style arrives as editable text; vertical, sheared or unevenly scaled text becomes pixels. Solid fills and simple vector shapes become live shapes where possible.
 
-What does not: layer effects are dropped, smart objects arrive as pixels, and gradient and pattern fills arrive empty. When anything has to be converted, an "Open" dialog lists what will change, layer by layer, before the file is opened; Import goes ahead. A file too large for memory has its layers cropped to the canvas rather than being refused, and the dialog lists every layer that was cut.
+What does not: layer effects are dropped, smart objects arrive as pixels, gradient and pattern fills arrive empty, and a Color Lookup through an ICC profile or a SpeedGrade `.look` is skipped. When anything has to be converted, an "Open" dialog lists what will change, layer by layer, before the file is opened; Import goes ahead. A file too large for memory has its layers cropped to the canvas rather than being refused, and the dialog lists every layer that was cut.
 
 ## Camera RAW files
 
