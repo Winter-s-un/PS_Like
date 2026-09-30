@@ -21,7 +21,7 @@ dotnet publish "$ROOT/src/Composa.App" -c Release -r "$RID" --self-contained tru
 
 cp "$ROOT/packaging/$APP.desktop" "$ROOT/packaging/$APP.svg" "$ROOT/packaging/$APP-mime.xml" \
    "$ROOT/packaging/$APP.metainfo.xml" "$ROOT/scripts/install.sh" \
-   "$ROOT/LICENSE" "$ROOT/README.md" "$ROOT/CHANGELOG.md" "$WORK/$NAME/"
+   "$ROOT/LICENSE" "$ROOT/README.md" "$ROOT/CHANGELOG.md" "$ROOT/packaging/THIRD-PARTY-NOTICES.txt" "$WORK/$NAME/"
 mkdir -p "$WORK/$NAME/icons" && cp "$ROOT"/packaging/icons/$APP-*.png "$WORK/$NAME/icons/"
 
 tar -C "$WORK" --owner=0 --group=0 --numeric-owner -czf "$OUT/$NAME.tar.gz" "$NAME"

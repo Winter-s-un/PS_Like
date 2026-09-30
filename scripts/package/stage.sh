@@ -41,6 +41,7 @@ done
 install -Dm644 "$ROOT/LICENSE"      "$STAGE/usr/share/doc/$APP/copyright"
 install -Dm644 "$ROOT/README.md"    "$STAGE/usr/share/doc/$APP/README.md"
 install -Dm644 "$ROOT/CHANGELOG.md" "$STAGE/usr/share/doc/$APP/CHANGELOG.md"
+install -Dm644 "$ROOT/packaging/THIRD-PARTY-NOTICES.txt" "$STAGE/usr/share/doc/$APP/THIRD-PARTY-NOTICES.txt"
 
 chmod 755 "$STAGE/usr/lib/$APP/$APP"
 echo "staged $RID into $STAGE"

@@ -17,14 +17,17 @@
     <BundleImageMagick Condition="'$(BundleImageMagick)' == ''">true</BundleImageMagick>
     <DefineConstants Condition="'$(BundleImageMagick)' == 'true'">$(DefineConstants);BUNDLED_IMAGEMAGICK</DefineConstants>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- Every build carries the bundled film looks, so every build carries the notices that record where they came from. -->
+    <None Include="../../packaging/THIRD-PARTY-NOTICES.txt" Link="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
   <ItemGroup Condition="'$(BundleImageMagick)' == 'true'">
     <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="14.17.1" GeneratePathProperty="true" />
     <!--
-      Bundling redistributes ImageMagick and the LGPL libraries compiled into it, so the notices go
-      wherever the library goes. They are tied to the reference here rather than to a packaging
-      script, so no build can carry the library without them.
+      Bundling redistributes ImageMagick and the LGPL libraries compiled into it, so its notice goes
+      wherever the library goes. It is tied to the reference here rather than to a packaging script,
+      so no build can carry the library without it.
     -->
-    <None Include="../../packaging/THIRD-PARTY-NOTICES.txt" Link="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="$(PkgMagick_NET-Q16-AnyCPU)/Notice.txt" Link="ImageMagick-NOTICE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup Condition="'$(BundleImageMagick)' != 'true'">
