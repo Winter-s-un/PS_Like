@@ -556,6 +556,79 @@ public class ColorLookupTests
         Assert.True(Math.Abs(pixel.Red - pixel.Green) <= 3 && Math.Abs(pixel.Green - pixel.Blue) <= 3, pixel.ToString());
     }
 
+    // ── Export Look ──────────────────────────────────────────────────────────
+
+    [Fact]
+    public void The_survey_bakes_what_is_a_function_of_color_and_names_what_is_not()
+    {
+        var session = EditorSession.NewCanvas(20, 20, SKColors.White);
+        var curves = session.AddAdjustmentLayer(new CurvesAdjustment().WithChannel(0, [new(0, 0), new(128, 90), new(255, 255)]));
+        var hidden = session.AddAdjustmentLayer(new ExposureAdjustment { Exposure = 1 });
+        session.SetVisible(hidden, false);
+        var identity = session.AddAdjustmentLayer(new BrightnessContrastAdjustment());
+        var grain = session.AddAdjustmentLayer(new GrainAdjustment { Amount = 30 });
+        var blur = session.AddAdjustmentLayer(new GaussianBlurAdjustment { Radius = 3 });
+        var masked = session.AddAdjustmentLayer(new InvertAdjustment());
+        session.AddMask(masked);
+        var clipped = session.AddAdjustmentLayer(new InvertAdjustment());
+        session.ToggleClippingMask(clipped);
+        var lookup = session.AddAdjustmentLayer(new ColorLookupAdjustment { Lattice = Looks.Find("Fine Mono"), Source = "Fine Mono" });
+        var (baked, leftOut) = LookBake.Survey(session.Document);
+        Assert.Equal([curves.Id, lookup.Id], baked.Select(l => l.Id));
+        Assert.Equal([(grain.Id, "changes from place to place"), (blur.Id, "reads the pixels around each pixel"), (masked.Id, "has a layer mask"), (clipped.Id, "is clipped to the layer below")],
+            leftOut.Select(l => (l.Layer.Id, l.Why)));
+        Assert.DoesNotContain(leftOut, l => l.Layer.Id == hidden.Id || l.Layer.Id == identity.Id);
+    }
+
+    [Fact]
+    public void A_baked_look_applied_to_a_picture_matches_the_adjustments_applied_directly()
+    {
+        var session = EditorSession.NewCanvas(20, 20, SKColors.White);
+        var curves = session.AddAdjustmentLayer(new CurvesAdjustment().WithChannel(0, [new(0, 20), new(110, 80), new(255, 240)]).WithChannel(2, [new(0, 0), new(255, 200)]));
+        var hue = session.AddAdjustmentLayer(new HueSaturationAdjustment().WithShift(HueRange.Master, new HslShift(25, 30, 0)));
+        session.SetOpacity(hue, 0.6);
+        var map = session.AddAdjustmentLayer(new GradientMapAdjustment { Shadows = 0xFF203050, Highlights = 0xFFF0E0C0 });
+        session.SetOpacity(map, 0.35);
+        var lattice = LookBake.Bake(session.Document, 33, "Test look");
+        Assert.Equal(33, lattice.Size);
+        Assert.Equal("Test look", lattice.Title);
+
+        using var direct = Gradient(64, 64);
+        foreach (var layer in new[] { curves, hue, map })
+        {
+            using var adjusted = direct.Copy();
+            layer.Adjustment!.Apply(adjusted);
+            for (var y = 0; y < 64; y++)
+                for (var x = 0; x < 64; x++)
+                {
+                    var below = direct.GetPixel(x, y);
+                    var above = adjusted.GetPixel(x, y);
+                    byte Mix(byte a, byte b) => (byte)Math.Round(a + (b - a) * layer.Opacity);
+                    direct.SetPixel(x, y, new SKColor(Mix(below.Red, above.Red), Mix(below.Green, above.Green), Mix(below.Blue, above.Blue)));
+                }
+        }
+        using var looked = Gradient(64, 64);
+        new ColorLookupAdjustment { Lattice = lattice }.Apply(looked);
+        var worst = 0;
+        for (var y = 0; y < 64; y++)
+            for (var x = 0; x < 64; x++)
+            {
+                var a = direct.GetPixel(x, y);
+                var b = looked.GetPixel(x, y);
+                worst = Math.Max(worst, Math.Max(Math.Abs(a.Red - b.Red), Math.Max(Math.Abs(a.Green - b.Green), Math.Abs(a.Blue - b.Blue))));
+            }
+        Assert.True(worst <= 4, $"The baked look differs from the adjustments by up to {worst}.");
+        // A finer table is closer, a coarser one not much further off, and the bake is nothing without layers.
+        Assert.True(LookBake.Bake(session.Document, 65).Sample(0.5f, 0.5f, 0.5f).R > 0);
+        var none = LookBake.Bake(EditorSession.NewCanvas(4, 4, SKColors.White).Document, 17);
+        var (nr, ng, nb) = none.Sample(0.25f, 0.5f, 0.75f);
+        Assert.True(Math.Abs(nr - 0.25f) <= 1 / 255f && Math.Abs(ng - 0.5f) <= 1 / 255f && Math.Abs(nb - 0.75f) <= 1 / 255f, $"{(nr, ng, nb)}");   // the grid is laid out in 8 bits
+        // What the export writes reads back as the same table, within the six decimals a .cube carries.
+        var written = ColorLattice.ParseCube(lattice.ToCube("Test look", "Exported from Composa"));
+        Assert.Equal("Test look", written.Title);
+        for (var i = 0; i < lattice.Cube.Length; i++) Assert.True(Math.Abs(lattice.Cube[i] - written.Cube[i]) < 1e-6);
+    }
+
     [Fact]
     public void Load_reads_a_file_by_its_name()
     {

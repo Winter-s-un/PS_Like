@@ -77,6 +77,7 @@ public sealed partial class MainWindow
             Item("Export PNG…", () => _ = Export(ExportFormat.Png), Key.E, ctrl | shift),
             Item("Export JPEG…", () => _ = Export(ExportFormat.Jpeg), Key.S, ctrl | shift | alt),
             Item("Export WebP…", () => _ = Export(ExportFormat.Webp)),
+            Item("Export Look as .cube…", () => _ = ExportLook()),
             Line(),
             Item("Close Project", () => _ = CloseSession(session!), Key.W, ctrl),
             Item("Quit", Close, Key.Q, ctrl, needsDocument: false));
@@ -701,6 +702,37 @@ public sealed partial class MainWindow
                 using var flat = session.Flatten();
                 ImageFiles.Save(flat, path, format, format == ExportFormat.Png ? 100 : jpegQuality);
             });
+        }
+        catch (Exception error) { await Prompts.Alert(this, "Couldn't export", error.Message); }
+    }
+
+    /// <summary>The size of the last look exported, so the dialog opens on it.</summary>
+    private int lookSize = 33;
+
+    /// <summary>File > Export Look as .cube: the document's adjustment layers baked into one lookup table any editor can load.</summary>
+    private async Task ExportLook()
+    {
+        if (this.session is not { } session) return;
+        var (baked, leftOut) = LookBake.Survey(session.Document);
+        if (baked.Count == 0)
+        {
+            ShowProblem(leftOut.Count > 0 ? "None of the adjustment layers can be baked into a look: " + string.Join("; ", leftOut.Select(l => $"{l.Layer.Name} {l.Why}")) + "."
+                : "There is no adjustment layer to bake into a look.");
+            return;
+        }
+        if (await LookDialogs.ExportLook(this, baked.Select(l => l.Name).ToList(), leftOut.Select(l => (l.Layer.Name, l.Why)).ToList(), lookSize) is not { } size) return;
+        lookSize = size;
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export Look", SuggestedFileName = session.Title + ".cube", DefaultExtension = "cube",
+            FileTypeChoices = [new FilePickerFileType("Color lookup table") { Patterns = ["*.cube"] }]
+        });
+        if (file?.TryGetLocalPath() is not { } path) return;
+        try
+        {
+            var title = session.Title;
+            var names = string.Join(", ", baked.Select(l => l.Name));
+            Busy(() => File.WriteAllText(path, LookBake.Bake(baked, size, title).ToCube(title, $"Exported from Composa: {names}")));
         }
         catch (Exception error) { await Prompts.Alert(this, "Couldn't export", error.Message); }
     }
