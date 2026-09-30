@@ -43,6 +43,7 @@ Composa is a from-scratch implementation of the macOS image editor [Compositor](
 - Camera RAW files go through `IO/RawImporter`: ImageMagick (LibRaw) decodes to a 16-bit PAM that `RawImage` parses, and `RawImage.Develop` builds one 16-bit-to-8-bit table per channel. The develop dialog previews from a sampled reduction; the import develops the full frame once, both off the UI thread.
 - Brush Smoothing is a string length in screen points, so `EditorSession.ViewZoom` must be set by the canvas before a stroke starts and while it runs; the first dab always lands, the last one catches up to the pointer on release.
 - The Photoshop reader (`IO/Psd`) is written from Adobe's published Photoshop File Formats Specification and must stay free of code taken from GPL readers. `PsdReader` only parses and decodes; `PsdImport` turns records into layers and the conversion report, and `PsdVector` and `PsdAdjustments` map shapes and adjustments. Photoshop is read, never written. `tests/Composa.Core.Tests/PsdWriter.cs` builds fixture files and is shared into the app tests by source.
+- Files ported from Lolly (github.com/lolly-tools/lolly, MPL-2.0) start with a header naming the source path and commit and the MIT permission Andy Fitzsimon gave on 2026-09-30; `Filters/ColorLookup.cs` and its tests are the first. Keep that header on anything else taken from there, and if the permission is ever questioned the file goes back to MPL-2.0, which may sit inside the MIT application as a separately licensed file.
 
 ## Releasing and packaging
 
