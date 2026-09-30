@@ -46,6 +46,11 @@
       not nag about them. Anything else, including a developer build, is "github".
     -->
     <AssemblyMetadata Include="UpdateChannel" Value="$(UpdateChannel)" Condition="'$(UpdateChannel)' != ''" />
+    <!--
+      Every download is published for one platform and a developer build is not, which is how
+      Install.Detect tells a build the releases page can replace from one it cannot.
+    -->
+    <AssemblyMetadata Include="RuntimeIdentifier" Value="$(RuntimeIdentifier)" Condition="'$(RuntimeIdentifier)' != ''" />
   </ItemGroup>
   <!--
     SkiaSharp and HarfBuzzSharp ship debug symbols for their native Windows libraries, 105 MB of them,
