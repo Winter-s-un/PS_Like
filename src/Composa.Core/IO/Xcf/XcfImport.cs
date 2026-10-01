@@ -31,9 +31,12 @@ public sealed class XcfImport
         Conversions = conversions;
     }
 
-    /// <summary>GIMP files are known by their <c>gimp xcf </c> signature, whatever their extension.</summary>
-    public static bool IsXcf(string path) => XcfReader.Matches(path);
-    public static bool IsXcf(ReadOnlySpan<byte> data) => XcfReader.Matches(data);
+    /// <summary>
+    /// GIMP files are known by their <c>gimp xcf </c> signature, whatever their extension, and a compressed one
+    /// (<c>.xcf.gz</c>, or <c>.xcf.bz2</c> and <c>.xcf.xz</c>, which are refused with a message) by its name.
+    /// </summary>
+    public static bool IsXcf(string path) => XcfReader.Matches(path) || XcfReader.MatchesCompressed(path);
+    public static bool IsXcf(ReadOnlySpan<byte> data) => XcfReader.Matches(data) || XcfReader.IsGzip(data);
 
     /// <summary>Reads a file that is to become a document of its own, so the whole document budget is its to use.</summary>
     public static XcfImport Load(string path) => Load(path, DocumentLimits.DocumentPixelBudget);
@@ -44,6 +47,9 @@ public sealed class XcfImport
     {
         var info = new FileInfo(path);
         if (info.Length > int.MaxValue) throw XcfException.TooLarge();
+        foreach (var (suffix, name) in XcfReader.UnreadableCompression)
+            if (path.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                throw new XcfException($"The GIMP file is compressed with {name}, which Composa can't read. Save it from GIMP as .xcf or .xcf.gz.");
         return Load(File.ReadAllBytes(path), pixelBudget, info.Name);
     }
 
@@ -51,8 +57,9 @@ public sealed class XcfImport
 
     private static XcfImport Load(byte[] data, long pixelBudget, string fileName)
     {
+        if (XcfReader.IsGzip(data)) data = XcfReader.Unpack(data);
         var file = XcfReader.Read(data, pixelBudget);
-        try { return Build(file, fileName); }
+        try { return Build(file, fileName, pixelBudget); }
         catch
         {
             foreach (var layer in file.Layers) { layer.Image?.Dispose(); layer.MaskImage?.Dispose(); }
@@ -83,11 +90,13 @@ public sealed class XcfImport
         return document;
     }
 
-    private static XcfImport Build(XcfFile file, string fileName)
+    private static XcfImport Build(XcfFile file, string fileName, long pixelBudget)
     {
         var conversions = new List<ImportConversion>();
         void Note(string layer, string message) => conversions.Add(new ImportConversion(layer, message));
         var canvas = new SKSizeI(file.Width, file.Height);
+        // What text laid out afresh may still take, after the pixels the reader already holds.
+        var remaining = pixelBudget - file.Layers.Sum(l => (long)(l.Image?.Width ?? 0) * (l.Image?.Height ?? 0) + (long)(l.MaskImage?.Width ?? 0) * (l.MaskImage?.Height ?? 0));
 
         if (file.Version > XcfReader.KnownVersion) Note(fileName, $"The file was saved by a GIMP newer than this version of Composa knows (format {file.Version}), so anything added since may be missing.");
         if (file.Precision.Deep) Note(fileName, $"The file keeps {file.Precision.Name} pixels; Composa holds 8 bits per channel, so some precision was lost.");
@@ -107,7 +116,7 @@ public sealed class XcfImport
         foreach (var record in records)
         {
             var name = record.Name.Length == 0 ? (record.IsGroup ? "Folder" : "Layer") : record.Name;
-            var layer = record.IsGroup ? BuildGroup(record, name, canvas, Note) : BuildLayer(record, name, canvas, Note);
+            var layer = record.IsGroup ? BuildGroup(record, name, canvas, Note) : BuildLayer(record, name, canvas, file.Resolution, ref remaining, Note);
             built.Add((record, layer));
             if (record.IsGroup && record.ItemPath != null) groups[string.Join('/', record.ItemPath)] = layer;
             var parent = record.ItemPath is { Length: > 1 } path && groups.TryGetValue(string.Join('/', path[..^1]), out var group) ? group : null;
@@ -138,11 +147,25 @@ public sealed class XcfImport
         return layer;
     }
 
-    private static Layer BuildLayer(XcfLayer record, string name, SKSizeI canvas, Action<string, string> note)
+    private static Layer BuildLayer(XcfLayer record, string name, SKSizeI canvas, double resolution, ref long remaining, Action<string, string> note)
     {
         if (record.Cropped) note(name, PsdImport.CroppedNote);
         if (record.DamagedTiles > 0) note(name, record.DamagedTiles == 1 ? "One tile of the layer couldn't be read and is transparent." : $"{record.DamagedTiles} tiles of the layer couldn't be read and are transparent.");
-        if (record.TextParasite != null) note(name, "The text was imported as pixels; it can't be retyped here.");
+        if (record.TextParasite != null)
+        {
+            // Text in one style is laid out afresh and can be retyped; text with markup keeps GIMP's pixels.
+            if (XcfText.Parse(record.TextParasite, resolution, out var why) is { } source && XcfText.Place(source, record, name, ref remaining) is { } text)
+            {
+                record.Image?.Dispose();
+                record.MaskImage?.Dispose();
+                foreach (var message in source.Notes) note(name, message);
+                text.Visible = record.Visible;
+                text.Opacity = record.Opacity;
+                text.Blend = XcfMode.Find(record.Mode) is { Supported: true } textMode ? textMode.Blend : BlendMode.Normal;
+                return text;
+            }
+            note(name, why);
+        }
         if (record.EffectCount > 0) note(name, record.EffectCount == 1 ? "The layer's effect (a GIMP filter) can't be applied here and was dropped." : $"The layer's {record.EffectCount} effects (GIMP filters) can't be applied here and were dropped.");
         if (record.IsVectorLayer) note(name, "The vector layer was imported as pixels; its shapes can't be edited here.");
         if (record.IsLinkLayer) note(name, "The link layer was imported as pixels; it no longer follows its file.");

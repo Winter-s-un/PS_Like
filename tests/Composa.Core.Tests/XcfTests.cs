@@ -389,6 +389,105 @@ public class XcfTests
         Assert.Contains("larger than Composa can hold", Assert.Throws<XcfException>(() => Load(writer, 150)).Message);
     }
 
+    // ── text ─────────────────────────────────────────────────────────────────
+
+    private const string Parasite = "(text \"Hello\\nWorld\")\n(font \"DejaVu Sans Bold Italic\")\n(font-size 24.000000)\n(font-size-unit points)\n(antialias yes)\n(language \"en-gb\")\n(base-direction ltr)\n(color (color-rgba 1.000000 0.000000 0.000000 1.000000))\n(justify center)\n(box-mode fixed)\n(box-width 200.000000)\n(box-height 80.000000)\n(box-unit pixels)\n(hinting yes)\n(letter-spacing 2.000000)\n(line-spacing 0.000000)\n";
+
+    [Fact]
+    public void Text_in_one_style_is_retyped_and_text_with_markup_stays_pixels()
+    {
+        var writer = Writer(19, 400, 300, compression: 0);
+        writer.Resolution = 144;   // 24 points at 144 ppi are 48 pixels.
+        writer.Layers.Add(new XcfWriterLayer { Name = "Title", Width = 200, Height = 80, X = 30, Y = 40, Text = Parasite, Opacity255 = 200, Mode = 30 }.Filled(SKColors.Black));
+        writer.Layers.Add(new XcfWriterLayer { Name = "Fancy", Width = 50, Height = 20, Text = "(markup \"<markup>a<b>b</b></markup>\")\n(font \"Sans\")\n(font-size 20)\n" }.Filled(SKColors.Black));
+        writer.Layers.Add(new XcfWriterLayer { Name = "Broken", Width = 50, Height = 20, Text = "(text \"unclosed" }.Filled(SKColors.Black));
+        var import = Load(writer);
+        var title = import.Layers[2];
+        var style = title.Text!;
+        Assert.Equal("Hello\nWorld", style.Text);
+        Assert.True(style.Bold && style.Italic, "bold italic");
+        Assert.Equal(48, style.Size);
+        Assert.Equal(0xFFFF0000u, style.Color);
+        Assert.Equal(TextAlignment.Center, style.Alignment);
+        Assert.Equal((200d, 80d), (style.BoxWidth, style.BoxHeight));
+        Assert.Equal(4, style.Tracking);   // Points too.
+        Assert.Equal(0, style.Leading);
+        Assert.Equal((30 - (double)Composa.Text.TextLayout.Padding, 40 - (double)Composa.Text.TextLayout.Padding), (title.Transform.X, title.Transform.Y));
+        Assert.Equal((200 / 255.0, BlendMode.Multiply), (title.Opacity, title.Blend));
+        Assert.DoesNotContain(import.Conversions, c => c.LayerName == "Title" && c.Message.Contains("pixels"));
+        Assert.Null(import.Layers[1].Text);
+        Assert.Contains(import.Conversions, c => c.LayerName == "Fancy" && c.Message.Contains("mixes fonts or colors"));
+        Assert.Null(import.Layers[0].Text);
+        Assert.Contains(import.Conversions, c => c.LayerName == "Broken" && c.Message == XcfText.RasterizedNote);
+    }
+
+    [Fact]
+    public void A_pango_font_description_splits_into_a_family_and_its_style()
+    {
+        Assert.Equal(("Liberation Serif", true, false), XcfText.Face("Liberation Serif Bold"));
+        Assert.Equal(("Noto Sans", false, true), XcfText.Face("Noto Sans Italic"));
+        Assert.Equal(("Nowhere Grotesk", true, true), XcfText.Face("Nowhere Grotesk Semi-Bold Oblique"));
+        Assert.Equal(("Inter", false, false), XcfText.Face(""));
+        Assert.Equal("Comic", XcfText.Face("Comic 12").Family);   // Pango's trailing size is not part of the family.
+        Assert.Equal("Bold", XcfText.Face("Bold").Family);        // A lone style word is a family, since nothing else is.
+        Assert.False(XcfText.Face("Sans-serif").Family.Contains("serif", StringComparison.OrdinalIgnoreCase) && !EditorSession.FontFamilies.Contains(XcfText.Face("Sans-serif").Family));
+        var parsed = XcfText.Expressions.Parse("(a \"x\\\"y\" 1.5 (b c)) ; comment\n(d)");
+        Assert.Equal(2, parsed.Count);
+        var first = (List<object>)parsed[0];
+        Assert.Equal("x\"y", first[1]);
+        Assert.Equal(1.5, first[2]);
+        Assert.Equal("c", ((XcfText.Symbol)((List<object>)first[3])[1]).Name);
+    }
+
+    // ── compressed files ─────────────────────────────────────────────────────
+
+    [Fact]
+    public void A_gzipped_file_opens_and_bzip2_and_xz_are_refused_with_the_way_out()
+    {
+        var writer = Writer(11, 6, 6);
+        var layer = new XcfWriterLayer { Name = "zipped", Width = 6, Height = 6 }.Patterned(5);
+        writer.Layers.Add(layer);
+        var plain = writer.Build();
+        using var packed = new MemoryStream();
+        using (var gzip = new System.IO.Compression.GZipStream(packed, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true)) gzip.Write(plain);
+        var bytes = packed.ToArray();
+        Assert.True(XcfImport.IsXcf(bytes));
+        AssertPixels(Assert.Single(XcfImport.Load(bytes).Layers), layer.Rgba!, 6);
+
+        var folder = Path.Combine(Path.GetTempPath(), "composa-xcfgz-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var gz = Path.Combine(folder, "picture.xcf.gz");
+            File.WriteAllBytes(gz, bytes);
+            Assert.True(XcfImport.IsXcf(gz));
+            AssertPixels(Assert.Single(XcfImport.Load(gz).Layers), layer.Rgba!, 6);
+            // A plain file wearing the .gz name is still known by its signature and opens as it is.
+            var notGz = Path.Combine(folder, "plain.xcf.gz");
+            File.WriteAllBytes(notGz, plain);
+            Assert.True(XcfImport.IsXcf(notGz));
+            Assert.Single(XcfImport.Load(notGz).Layers);
+            var png = Path.Combine(folder, "other.xcf.gz");
+            File.WriteAllBytes(png, [1, 2, 3]);
+            Assert.False(XcfImport.IsXcf(png));
+            foreach (var (suffix, name) in new[] { (".xcf.bz2", "bzip2"), (".xcf.xz", "xz") })
+            {
+                var refused = Path.Combine(folder, "deep" + suffix);
+                File.WriteAllBytes(refused, [0x42, 0x5A, 0x68]);
+                Assert.True(XcfImport.IsXcf(refused));
+                var error = Assert.Throws<XcfException>(() => XcfImport.Load(refused));
+                Assert.Contains(name, error.Message);
+                Assert.Contains(".xcf.gz", error.Message);
+            }
+            // A cut-off archive unpacks to a cut-off file: refused with a message, or read with what it has and a note.
+            var cut = Path.Combine(folder, "cut.xcf.gz");
+            File.WriteAllBytes(cut, bytes[..(bytes.Length / 2)]);
+            try { Assert.NotEmpty(XcfImport.Load(cut).Conversions); }
+            catch (XcfException error) { Assert.NotEmpty(error.Message); }
+        }
+        finally { try { Directory.Delete(folder, recursive: true); } catch (IOException) { } }
+    }
+
     // ── into a session ───────────────────────────────────────────────────────
 
     [Fact]

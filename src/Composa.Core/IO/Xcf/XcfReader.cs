@@ -26,6 +26,45 @@ internal static class XcfReader
 
     public static bool Matches(ReadOnlySpan<byte> data) => Version(data) != null;
 
+    /// <summary>The compressed forms GIMP can save that the base library cannot unpack, with the name the message uses.</summary>
+    public static readonly (string Suffix, string Name)[] UnreadableCompression = [(".xcf.bz2", "bzip2"), (".xcf.xz", "xz")];
+
+    public static bool IsGzip(ReadOnlySpan<byte> data) => data.Length >= 2 && data[0] == 0x1F && data[1] == 0x8B;
+
+    /// <summary>A <c>.xcf.gz</c> that unpacks to an XCF, or a name in a compression that is refused later with its reason.</summary>
+    public static bool MatchesCompressed(string path)
+    {
+        if (UnreadableCompression.Any(c => path.EndsWith(c.Suffix, StringComparison.OrdinalIgnoreCase))) return true;
+        if (!path.EndsWith(".xcf.gz", StringComparison.OrdinalIgnoreCase)) return false;
+        try
+        {
+            using var stream = File.OpenRead(path);
+            using var unpacked = new GZipStream(stream, CompressionMode.Decompress);
+            Span<byte> head = stackalloc byte[14];
+            return unpacked.ReadAtLeast(head, 14, throwOnEndOfStream: false) == 14 && Matches(head);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException) { return false; }
+    }
+
+    /// <summary>Unpacks a gzipped file into memory, refusing one that unpacks past what a file may be.</summary>
+    public static byte[] Unpack(byte[] data)
+    {
+        try
+        {
+            using var unpacked = new GZipStream(new MemoryStream(data), CompressionMode.Decompress);
+            using var output = new MemoryStream();
+            var buffer = new byte[1 << 16];
+            int read;
+            while ((read = unpacked.Read(buffer)) > 0)
+            {
+                if (output.Length + read > int.MaxValue - 1024) throw XcfException.TooLarge();
+                output.Write(buffer, 0, read);
+            }
+            return output.ToArray();
+        }
+        catch (InvalidDataException) { throw XcfException.Truncated(); }
+    }
+
     public static bool Matches(string path)
     {
         try
