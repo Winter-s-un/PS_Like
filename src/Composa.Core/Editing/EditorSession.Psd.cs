@@ -15,12 +15,15 @@ public sealed partial class EditorSession
     /// A Photoshop file dropped into an existing document: its layers arrive inside one folder named after the file,
     /// centered on <paramref name="center"/> when given, as one undoable step.
     /// </summary>
-    public Layer PlacePhotoshop(PsdImport import, string name, SKPoint? center = null)
+    public Layer PlacePhotoshop(PsdImport import, string name, SKPoint? center = null) =>
+        PlaceImported(import.Layers, name, "Import Photoshop File", center, PsdException.TooLarge);
+
+    /// <summary>Another editor's layers into this document, inside one folder, as one step named <paramref name="step"/>.</summary>
+    private Layer PlaceImported(List<Layer> incoming, string name, string step, SKPoint? center, Func<Exception> tooLarge)
     {
-        var incoming = import.Layers;
-        if (document.AllLayers().Count() + Document.Flatten(incoming).Count() + 1 > MaxLayers) throw PsdException.TooLarge();
+        if (document.AllLayers().Count() + Document.Flatten(incoming).Count() + 1 > MaxLayers) throw tooLarge();
         var group = Layer.Group(name);
-        Apply("Import Photoshop File", () =>
+        Apply(step, () =>
         {
             if (center is { } at)
             {
