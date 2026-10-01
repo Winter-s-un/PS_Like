@@ -33,6 +33,10 @@ jobs:
         with:
           global-json-file: global.json
 
+      # The portrait model is not in git; with it present the tests run it rather than only its fallback.
+      - name: Fetch the subject model that is not in git
+        run: scripts/models/fetch.sh
+
       - name: Build
         run: dotnet build --configuration Release
 
@@ -68,6 +72,10 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+
+      - name: Fetch the subject model that is not in git
+        shell: bash
+        run: scripts/models/fetch.sh
 
       - name: Build
         run: dotnet build --configuration Release

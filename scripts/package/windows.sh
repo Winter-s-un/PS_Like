@@ -30,6 +30,9 @@ TREE="$WORK/$NAME"
 
 echo "Building Composa $VERSION for $RID"
 
+# The subject detection models travel with the build; the one not in git is fetched and verified first.
+"$ROOT/scripts/models/fetch.sh"
+
 # Nothing manages a Windows install, so this build announces new releases itself.
 dotnet publish "$ROOT/src/Composa.App" -c Release -r "$RID" --self-contained true \
   -p:DebugType=none -p:UpdateChannel=github -o "$TREE"
@@ -37,7 +40,7 @@ cp "$ROOT/LICENSE" "$ROOT/README.md" "$ROOT/CHANGELOG.md" "$TREE/"
 
 # Bundling ImageMagick redistributes LGPL libraries, and the notices are what makes that allowed.
 # The project file adds them; this makes sure no change there can ship a build without them.
-for notice in THIRD-PARTY-NOTICES.txt ImageMagick-NOTICE.txt; do
+for notice in THIRD-PARTY-NOTICES.txt ImageMagick-NOTICE.txt models/u2netp.onnx models/modnet.onnx; do
   [ -f "$TREE/$notice" ] || { echo "windows.sh: $notice is missing from the published build." >&2; exit 1; }
 done
 

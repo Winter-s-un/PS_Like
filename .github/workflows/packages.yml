@@ -13,6 +13,7 @@ on:
     paths:
       - 'scripts/**'
       - 'packaging/**'
+      - 'src/Composa.Core/Models/**' # The model files the packages carry.
       - '.github/workflows/**'
       - '**/*.csproj'
       - '**/*.props'
