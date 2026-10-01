@@ -12,7 +12,7 @@ Most tools take a `document` parameter: the tab number as `list_documents` repor
 
 **new_document**: creates a document in a new tab and makes it active. Parameters: `width` and `height` in pixels; `background` as a color, left out for a transparent canvas.
 
-**open_document**: opens a project or an image file in a new tab, or makes an already open file the active document. Photoshop and camera RAW files are refused because they need a dialog. Parameter: `path`, absolute.
+**open_document**: opens a project, an image file or a GIMP file that needs nothing converted in a new tab, or makes an already open file the active document. Photoshop and camera RAW files, and a GIMP file whose layers would be converted, are refused because they need a dialog; the refusal lists what the dialog would say. Parameter: `path`, absolute.
 
 **save_document**: saves the project with all its layers, in the background as Ctrl+S does. Parameters: `path`, absolute and ending in `.cmps`, left out to save to the document's own file; `overwrite`, needed to replace an existing file at a new path.
 
