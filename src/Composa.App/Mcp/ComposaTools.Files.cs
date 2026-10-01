@@ -3,6 +3,7 @@ using Composa.Editing;
 using Composa.Filters;
 using Composa.IO;
 using Composa.IO.Psd;
+using Composa.IO.Xcf;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 
@@ -16,12 +17,20 @@ namespace Composa.App.Mcp;
 public sealed partial class ComposaTools
 {
     [McpServerTool(Name = "open_document")]
-    [Description("Opens a file in a new tab and makes it the active document: a Composa project (.cmps) or an image (PNG, JPEG, WebP, BMP, GIF, SVG, and HEIC, AVIF or TIFF when ImageMagick is available). A file already open just becomes the active document. Photoshop and camera RAW files need a dialog, so they are opened from the File menu instead.")]
+    [Description("Opens a file in a new tab and makes it the active document: a Composa project (.cmps), an image (PNG, JPEG, WebP, BMP, GIF, SVG, and HEIC, AVIF or TIFF when ImageMagick is available) or a GIMP file (.xcf) that needs nothing converted. A file already open just becomes the active document. Photoshop and camera RAW files, and a GIMP file whose layers would be converted, need a dialog, so they are opened from the File menu instead.")]
     public async Task<string> OpenDocument([Description("Absolute path of the file")] string path)
     {
         path = Absolute(path);
         if (!File.Exists(path)) throw new McpException($"There is no file at {path}.");
         if (PsdImport.IsPsd(path) || RawImporter.IsRaw(path)) throw new McpException("Photoshop and camera RAW files need a dialog; open them from the File menu.");
+        if (XcfImport.IsXcf(path))
+        {
+            // The window asks before converting anything; an agent cannot answer, so such a file is refused with what it would ask.
+            var trial = await Task.Run(() => XcfImport.Load(path));
+            var conversions = trial.Conversions.Select(c => $"{c.LayerName}: {c.Message}").ToList();
+            trial.Discard();
+            if (conversions.Count > 0) throw new McpException("This GIMP file needs conversions that the person has to approve in a dialog; open it from the File menu. " + string.Join(" ", conversions));
+        }
         return await OnUi(async () =>
         {
             if (window.IsDragging) throw new McpException("The person is dragging on the canvas; try again in a moment.");

@@ -2,6 +2,7 @@ using System.IO.Pipes;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Composa.App.Mcp;
+using Composa.Core.Tests;
 using Composa.Editing;
 using Composa.Filters;
 using Composa.IO;
@@ -371,6 +372,23 @@ public class McpTests
             Assert.Equal(true, unreadable.IsError);
             Assert.Contains("Couldn't open broken.cmps", Text(unreadable));
             Assert.Equal(3, window.Sessions.Count);
+
+            // A GIMP file opens when nothing needs converting; one that would ask the person is refused with what it would ask.
+            var plain = new XcfWriter { Version = 11, Width = 30, Height = 20 };
+            plain.Layers.Add(new XcfWriterLayer { Name = "Only", Width = 30, Height = 20 }.Filled(SKColors.Olive));
+            var plainPath = Path.Combine(folder, "plain.xcf");
+            File.WriteAllBytes(plainPath, plain.Build());
+            var opened = await Pumped(client.CallToolAsync("open_document", new Dictionary<string, object?> { ["path"] = plainPath }));
+            Assert.NotEqual(true, opened.IsError);
+            Assert.Contains("\"plain\"", Text(opened));
+            Assert.Equal("Only", Assert.Single(window.Session!.Document.Layers).Name);
+            var asks = new XcfWriter { Version = 11, Width = 30, Height = 20 };
+            asks.Layers.Add(new XcfWriterLayer { Name = "Dissolved", Width = 30, Height = 20, Mode = 1 }.Filled(SKColors.Olive));
+            var asksPath = Path.Combine(folder, "asks.xcf");
+            File.WriteAllBytes(asksPath, asks.Build());
+            var asksRefused = await Pumped(client.CallToolAsync("open_document", new Dictionary<string, object?> { ["path"] = asksPath }));
+            Assert.Equal(true, asksRefused.IsError);
+            Assert.Contains("Dissolved: Blend mode \"Dissolve\"", Text(asksRefused));
         }
         finally { Directory.Delete(folder, recursive: true); }
 

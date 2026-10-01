@@ -10,6 +10,7 @@ using Composa.Editing;
 using Composa.Filters;
 using Composa.IO;
 using Composa.IO.Psd;
+using Composa.IO.Xcf;
 using Composa.Model;
 using Composa.Rendering;
 using SkiaSharp;
@@ -514,6 +515,12 @@ public sealed partial class MainWindow
             if (await ImportPhotoshop(path, DocumentLimits.DocumentPixelBudget) is not { } import) return null;
             AddSession(opened = EditorSession.OpenPhotoshop(import, Path.GetFileNameWithoutExtension(path)));
         }
+        else if (XcfImport.IsXcf(path))
+        {
+            // GIMP files open the same way; their guides come along.
+            if (await ImportGimp(path, DocumentLimits.DocumentPixelBudget) is not { } import) return null;
+            AddSession(opened = EditorSession.OpenGimp(import, Path.GetFileNameWithoutExtension(path)));
+        }
         else if (Path.GetExtension(path).Equals(ProjectFile.Extension, StringComparison.OrdinalIgnoreCase))
         {
             opened = new EditorSession(ProjectFile.Load(path));
@@ -560,6 +567,13 @@ public sealed partial class MainWindow
                     if (target != session) { import.Discard(); continue; }
                     session.PlacePhotoshop(import, name, at);
                 }
+                else if (XcfImport.IsXcf(path))
+                {
+                    var target = session;
+                    if (await ImportGimp(path, DocumentLimits.DocumentPixelBudget - session.Document.RasterPixels()) is not { } import) continue;
+                    if (target != session) { import.Discard(); continue; }
+                    session.PlaceGimp(import, name, at);
+                }
                 else if (RawImporter.IsRaw(path))
                 {
                     var target = session;
@@ -600,6 +614,15 @@ public sealed partial class MainWindow
     {
         var import = await Task.Run(() => PsdImport.Load(path, pixelBudget));
         if (import.Conversions.Count == 0 || await ImportConversionDialog.Confirm(this, Path.GetFileName(path), "Photoshop", import.Conversions)) return import;
+        import.Discard();
+        return null;
+    }
+
+    /// <summary>Reads a GIMP file and, when anything has to be converted, asks before going on. Null means the user declined.</summary>
+    private async Task<XcfImport?> ImportGimp(string path, long pixelBudget)
+    {
+        var import = await Task.Run(() => XcfImport.Load(path, pixelBudget));
+        if (import.Conversions.Count == 0 || await ImportConversionDialog.Confirm(this, Path.GetFileName(path), "GIMP", import.Conversions)) return import;
         import.Discard();
         return null;
     }
