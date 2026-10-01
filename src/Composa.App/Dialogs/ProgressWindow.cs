@@ -2,7 +2,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
-using Avalonia.Threading;
 
 namespace Composa.App.Dialogs;
 
@@ -51,24 +50,17 @@ public sealed class ProgressWindow : Window
     public static async Task<T?> Run<T>(Window owner, string message, Func<CancellationToken, Task<T>> work)
     {
         using var cancellation = new CancellationTokenSource();
-        ProgressWindow? window = null;
-        var done = false;
         var task = work(cancellation.Token);
-        var timer = new DispatcherTimer { Interval = Delay };
-        timer.Tick += (_, _) =>
+        ProgressWindow? window = null;
+        if (await Task.WhenAny(task, Task.Delay(Delay)) != task)
         {
-            timer.Stop();
-            if (done) return;
             window = new ProgressWindow(message, cancellation.Cancel);
             _ = window.ShowDialog(owner);
-        };
-        timer.Start();
+        }
         try { return await task; }
         catch (OperationCanceledException) { return default; }
         finally
         {
-            done = true;
-            timer.Stop();
             if (window != null) { window.finished = true; window.Close(); }
         }
     }

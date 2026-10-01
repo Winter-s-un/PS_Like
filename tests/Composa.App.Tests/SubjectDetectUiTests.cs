@@ -107,12 +107,9 @@ public class SubjectDetectUiTests
         {
             session.Detect = SubjectDetect.Any;
             window.KeyPressQwerty(PhysicalKey.A, RawInputModifiers.Control | RawInputModifiers.Alt);
-            var shown = false;
-            PumpUntil(() =>
-            {
-                if (window.OwnedWindows.OfType<ProgressWindow>().FirstOrDefault() is { IsVisible: true } progress && !shown) { shown = Screenshots.Save(progress, "82-finding-the-subject") || true; }
-                return session.Selection != null;
-            });
+            PumpUntil(() => window.OwnedWindows.OfType<ProgressWindow>().Any(w => w.IsVisible), 5);
+            Screenshots.Save(window.OwnedWindows.OfType<ProgressWindow>().Single(), "82-finding-the-subject");
+            PumpUntil(() => session.Selection != null);
             Assert.Equal("Select Subject", session.History.UndoName);
             Assert.True(session.Selection!.GetPixel(160, 100).Alpha > 200);
             Assert.True(session.Selection.GetPixel(10, 10).Alpha < 40);
@@ -130,21 +127,15 @@ public class SubjectDetectUiTests
         {
             session.Detect = SubjectDetect.Any;
             window.KeyPressQwerty(PhysicalKey.A, RawInputModifiers.Control | RawInputModifiers.Alt);
-            PumpUntil(() => window.OwnedWindows.OfType<ProgressWindow>().Any(w => w.IsVisible) || session.Selection != null, 5);
-            if (window.OwnedWindows.OfType<ProgressWindow>().FirstOrDefault() is { } progress)
-            {
-                var cancel = progress.GetVisualDescendants().OfType<Button>().Single();
-                cancel.Command?.Execute(null);
-                var at = cancel.TranslatePoint(new Point(cancel.Bounds.Width / 2, cancel.Bounds.Height / 2), progress)!.Value;
-                progress.MouseDown(at, MouseButton.Left);
-                progress.MouseUp(at, MouseButton.Left);
-                PumpUntil(() => !window.OwnedWindows.OfType<ProgressWindow>().Any(), 10);
-                // The model's answer, if it still came, must not have been applied.
-                Thread.Sleep(1500);
-                Dispatcher.UIThread.RunJobs();
-                Assert.Null(session.Selection);
-                Assert.False(session.CanUndo && session.History.UndoName == "Select Subject");
-            }
+            PumpUntil(() => window.OwnedWindows.OfType<ProgressWindow>().Any(w => w.IsVisible), 5);
+            var progress = window.OwnedWindows.OfType<ProgressWindow>().Single();
+            progress.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None); // Cancel is the dialog's cancel button; Escape presses it.
+            PumpUntil(() => !window.OwnedWindows.OfType<ProgressWindow>().Any(), 10);
+            // The model's answer, if it still came, must not have been applied.
+            Thread.Sleep(1500);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Null(session.Selection);
+            Assert.False(session.CanUndo && session.History.UndoName == "Select Subject");
         }
         finally { ProgressWindow.Delay = delay; }
     }
