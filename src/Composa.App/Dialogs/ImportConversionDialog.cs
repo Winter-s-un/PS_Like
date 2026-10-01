@@ -1,13 +1,14 @@
 using Avalonia.Controls;
 using Avalonia.Media;
-using Composa.IO.Psd;
+using Composa.IO;
 
 namespace Composa.App.Dialogs;
 
-/// <summary>What a Photoshop file loses on the way in, listed per layer, with the choice to go ahead or not.</summary>
-public static class PsdConversionDialog
+/// <summary>What a Photoshop or GIMP file loses on the way in, listed per layer, with the choice to go ahead or not.</summary>
+public static class ImportConversionDialog
 {
-    public static Task<bool> Confirm(Window owner, string fileName, IReadOnlyList<PsdConversion> conversions)
+    /// <param name="format">What the file is, as the intro names it: "Photoshop" or "GIMP".</param>
+    public static Task<bool> Confirm(Window owner, string fileName, string format, IReadOnlyList<ImportConversion> conversions)
     {
         var rows = new StackPanel { Spacing = 10 };
         foreach (var item in conversions.Take(500))
@@ -18,7 +19,7 @@ public static class PsdConversionDialog
             rows.Children.Add(Ui.Column(2, Ui.Label(item.LayerName, Palette.Foreground, weight: FontWeight.SemiBold), message));
         }
         if (conversions.Count > 500) rows.Children.Add(Ui.Label($"…and {conversions.Count - 500} more.", Palette.Secondary));
-        var intro = Ui.Label("Composa will convert these Photoshop features. Nothing is applied until you continue.", Palette.Secondary);
+        var intro = Ui.Label($"Composa will convert these {format} features. Nothing is applied until you continue.", Palette.Secondary);
         intro.TextWrapping = TextWrapping.Wrap;
         intro.MaxWidth = 500;
         var list = new ScrollViewer { Content = rows, MaxHeight = 320, Width = 500, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };

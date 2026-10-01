@@ -599,7 +599,7 @@ public sealed partial class MainWindow
     private async Task<PsdImport?> ImportPhotoshop(string path, long pixelBudget)
     {
         var import = await Task.Run(() => PsdImport.Load(path, pixelBudget));
-        if (import.Conversions.Count == 0 || await PsdConversionDialog.Confirm(this, Path.GetFileName(path), import.Conversions)) return import;
+        if (import.Conversions.Count == 0 || await ImportConversionDialog.Confirm(this, Path.GetFileName(path), "Photoshop", import.Conversions)) return import;
         import.Discard();
         return null;
     }
