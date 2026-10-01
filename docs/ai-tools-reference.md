@@ -70,9 +70,11 @@ The selection tools take `mode`: replace (the default), add, subtract or interse
 
 **select_wand**: selects the pixels of a similar color around a point. Parameters: `x` and `y`; `tolerance` from 0 to 255, 32 by default; `contiguous`, true by default; `allLayers`, true by default, samples every visible layer rather than the active one; `mode`.
 
-**select_object**: selects the object under a point, the connected piece of everything that is not the plain backdrop. Parameters: `x` and `y`; `allLayers`; `mode`.
+**select_object**: selects the object under a point, the connected piece of the subject there with its soft edge. Parameters: `x` and `y`; `allLayers`; `mode`; `detect`.
 
-**select_subject**: everything in the picture that is not the plain backdrop connected to its edges. Parameters: `mode`.
+**select_subject**: the subject of the whole picture. Parameters: `mode`; `detect`.
+
+Both take `detect`: `any` runs the U²-Net model on the machine Composa runs on, for any subject; `person` runs MODNet, for people with soft hair; `plain` takes everything that is not the near-uniform backdrop touching the picture's edges, which is fast and exact on product shots and defeated by busy backgrounds. Left out, the Detect choice in Composa's Object Selection options applies. A model that is not available falls back to `plain`.
 
 **select_color_range**: every pixel near the given colors anywhere in the picture, as Select > Color Range does. Parameters: `colors`, a list of colors as `#RRGGBB` or names; `exclude`, colors to leave out; `fuzziness` from 0 to 200, 40 by default; `invert`, to select everything else; `mode`.
 
@@ -126,7 +128,7 @@ Each filter tool takes `layer`.
 
 **filter_lens_correction**: `distortion` from -100 (pincushion) to 100 (corrects barrel distortion).
 
-**filter_remove_background**: `tolerance` from 0 to 100, how different a pixel may be from the backdrop and still go.
+**filter_remove_background**: `detect` as for select_subject. With `any` or `person` the layer gets a mask hiding everything but the subject the model found, which can be painted on afterwards; with `plain` the backdrop is erased and `tolerance` from 0 to 100 says how different a pixel may be from it and still go.
 
 **filter_painterly**: repaints the layer in brush strokes that follow the picture, as the Painterly filter does. Parameters: `style`, one of impressionist, expressionist, colorist_wash or pointillist; `brushSize`, the largest brush's diameter in pixels, 0 to fit it to the picture; `passes` from 1 to 4; `detail` from 0 to 100; `seed`, where the same seed paints the same strokes and 0 picks one.
 
