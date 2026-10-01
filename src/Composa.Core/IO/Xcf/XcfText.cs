@@ -42,7 +42,7 @@ internal static class XcfText
             {
                 case "text": text = value as string; break;
                 case "markup": markup = true; break;
-                case "font": font = FirstString(list); break;
+                case "font": font = FontName(list); break;
                 case "font-size": size = Number(value); break;
                 case "font-size-unit": sizeUnit = (value as Symbol)?.Name ?? sizeUnit; break;
                 case "color": color = Color(list) ?? color; break;
@@ -118,6 +118,26 @@ internal static class XcfText
         return ((installed ?? family)[..Math.Min(TextStyle.MaxFamilyName, (installed ?? family).Length)], bold, italic);
     }
 
+    /// <summary>
+    /// GIMP 2.10 names the font in one string, "DejaVu Sans Bold"; GIMP 3 wraps a <c>GimpFont</c> form around a
+    /// <c>fullname</c>, a <c>family</c> and a <c>style</c>, whose fullname is that same string.
+    /// </summary>
+    private static string? FontName(List<object> list)
+    {
+        if (list.Count > 1 && list[1] is string name && name != "GimpFont") return name;
+        string? fullname = null, family = null, style = null;
+        foreach (var item in list.Skip(1))
+        {
+            if (item is not List<object> { Count: > 1 } inner || inner[0] is not Symbol head || inner[1] is not string value) continue;
+            if (head.Name == "fullname") fullname = value;
+            else if (head.Name == "family") family = value;
+            else if (head.Name == "style") style = value;
+        }
+        if (fullname != null) return fullname;
+        if (family != null) return style != null && style != "Regular" ? $"{family} {style}" : family;
+        return FirstString(list);
+    }
+
     private static string? FirstString(List<object> list)
     {
         foreach (var item in list.Skip(1))
@@ -128,17 +148,56 @@ internal static class XcfText
         return null;
     }
 
-    /// <summary>A color form: the first inner form whose head starts with "color-rgb" carries red, green, blue and perhaps alpha as 0 to 1.</summary>
+    /// <summary>
+    /// A color form. GIMP 2.10 writes <c>(color-rgba r g b a)</c> with the channels as 0 to 1. GIMP 3 writes a GEGL
+    /// color: <c>(color "R'G'B'A float" 16 "…" 0)</c>, a pixel format, its byte count and the bytes as an escaped
+    /// string, little-endian as the machine that saved it; primes mark gamma-encoded channels, their absence linear
+    /// ones, which are brought through the sRGB curve here.
+    /// </summary>
     private static uint? Color(List<object> list)
     {
         foreach (var item in list.Skip(1))
         {
             if (item is not List<object> inner || inner.Count < 4 || inner[0] is not Symbol head) continue;
-            if (!head.Name.StartsWith("color-rgb", StringComparison.Ordinal)) return Color(inner);
-            var channels = inner.Skip(1).Select(Number).Select(v => (byte)Math.Clamp(Math.Round(v * 255), 0, 255)).ToList();
-            return (uint)new SKColor(channels[0], channels[1], channels[2], channels.Count > 3 ? channels[3] : (byte)255);
+            if (head.Name.StartsWith("color-rgb", StringComparison.Ordinal))
+            {
+                var channels = inner.Skip(1).Select(Number).Select(v => (byte)Math.Clamp(Math.Round(v * 255), 0, 255)).ToList();
+                return (uint)new SKColor(channels[0], channels[1], channels[2], channels.Count > 3 ? channels[3] : (byte)255);
+            }
+            if (head.Name == "color" && inner[1] is string format && inner[3] is string encoded) return GeglColor(format, encoded);
+            if (Color(inner) is { } nested) return nested;
         }
         return null;
+    }
+
+    private static uint? GeglColor(string format, string encoded)
+    {
+        var words = format.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length < 2) return null;
+        var layout = words[0];
+        var gamma = layout.Contains('\'');
+        var channels = layout.Count(c => c is 'R' or 'G' or 'B' or 'A' or 'Y');
+        var bytes = encoded.Select(c => (byte)c).ToArray();
+        var width = words[^1] switch { "float" => 4, "double" => 8, "u16" or "half" => 2, "u8" => 1, _ => 0 };
+        if (channels == 0 || width == 0 || bytes.Length < channels * width) return null;
+        var values = new double[channels];
+        for (var i = 0; i < channels; i++)
+        {
+            var at = i * width;
+            values[i] = words[^1] switch
+            {
+                "float" => BitConverter.ToSingle(bytes, at),
+                "double" => BitConverter.ToDouble(bytes, at),
+                "half" => (double)BitConverter.ToHalf(bytes, at),
+                "u16" => BitConverter.ToUInt16(bytes, at) / 65535.0,
+                _ => bytes[at] / 255.0
+            };
+        }
+        var gray = layout.StartsWith('Y');
+        double r = values[0], g = gray ? values[0] : values[1], b = gray ? values[0] : values[2];
+        var a = layout.Contains('A') ? values[^1] : 1;
+        byte Encode(double v) { v = Math.Clamp(double.IsFinite(v) ? v : 0, 0, 1); if (!gamma) v = Filters.CameraRawPixels.LinearToSrgb(v); return (byte)Math.Round(v * 255); }
+        return (uint)new SKColor(Encode(r), Encode(g), Encode(b), (byte)Math.Round(Math.Clamp(a, 0, 1) * 255));
     }
 
     private static double Number(object? value) => value is double d && double.IsFinite(d) ? d : 0;
@@ -187,6 +246,15 @@ internal static class XcfText
                     if (text[at] == '\\' && at + 1 < text.Length)
                     {
                         at++;
+                        if (text[at] is >= '0' and <= '7')
+                        {
+                            // An octal escape of up to three digits: a raw byte, kept as a character of that value.
+                            var value = 0;
+                            var digits = 0;
+                            while (digits < 3 && at < text.Length && text[at] is >= '0' and <= '7') { value = value * 8 + (text[at] - '0'); at++; digits++; }
+                            builder.Append((char)(value & 0xFF));
+                            continue;
+                        }
                         builder.Append(text[at] switch { 'n' => '\n', 't' => '\t', var e => e });
                     }
                     else builder.Append(text[at]);

@@ -172,9 +172,22 @@ internal static class XcfReader
             var id = cursor.U32();
             var length = cursor.U32();
             if (id == PropEnd) return;
-            visit(id, cursor.Bytes(length));
+            var payload = cursor.Bytes(length);
+            visit(id, payload);
+            // GIMP 3.2.6 declares PROP_LINK_LAYER four bytes short: flags, the path and a width are counted, the height
+            // that follows them is not. Stepping over it keeps the list, and the pointers after it, in place.
+            if (id == PropLinkLayer && LinkLayerUnderdeclared(payload)) cursor.Skip(4);
         }
         throw XcfException.Truncated();
+    }
+
+    private static bool LinkLayerUnderdeclared(ReadOnlySpan<byte> payload)
+    {
+        if (payload.Length < 12) return false;
+        var p = new XcfCursor(payload, false);
+        p.Skip(4);
+        var pathLength = p.U32();
+        return payload.Length == 4 + 4 + pathLength + 4;
     }
 
     private static void ImageProperty(XcfFile file, uint id, ReadOnlySpan<byte> payload)

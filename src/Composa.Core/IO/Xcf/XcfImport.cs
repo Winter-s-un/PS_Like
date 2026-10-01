@@ -107,7 +107,8 @@ public sealed class XcfImport
         if (file.PathCount > 0) Note(fileName, file.PathCount == 1 ? "A path was left out; Composa has no paths." : $"{file.PathCount} paths were left out; Composa has no paths.");
 
         // Groups by their item path: a member's path is its group's path with one more index. The file lists layers
-        // top to bottom and so do the paths, so each group's children are gathered top first and reversed.
+        // top to bottom and so do the paths, so each group's children are gathered top first and reversed. A layer
+        // at the top level carries no path in GIMP's own files; its path is its place among the roots, top first.
         var records = Enumerable.Reverse(file.Layers).ToList();   // top first, as the paths count
         var roots = new List<Layer>();
         var groups = new Dictionary<string, Layer>();
@@ -118,8 +119,9 @@ public sealed class XcfImport
             var name = record.Name.Length == 0 ? (record.IsGroup ? "Folder" : "Layer") : record.Name;
             var layer = record.IsGroup ? BuildGroup(record, name, canvas, Note) : BuildLayer(record, name, canvas, file.Resolution, ref remaining, Note);
             built.Add((record, layer));
-            if (record.IsGroup && record.ItemPath != null) groups[string.Join('/', record.ItemPath)] = layer;
-            var parent = record.ItemPath is { Length: > 1 } path && groups.TryGetValue(string.Join('/', path[..^1]), out var group) ? group : null;
+            var path = record.ItemPath is { Length: > 0 } own ? own : [roots.Count];
+            if (record.IsGroup) groups[string.Join('/', path)] = layer;
+            var parent = path.Length > 1 && groups.TryGetValue(string.Join('/', path[..^1]), out var group) ? group : null;
             if (parent == null) roots.Add(layer);
             else
             {
@@ -187,8 +189,9 @@ public sealed class XcfImport
         var changesColor = layer.Blend != BlendMode.Normal || layer.Opacity < 1 || (record.HasMask && record.ApplyMask);
         if (changesColor && (blendSpace == 1 || compositeSpace == 1)) note(name, "GIMP blends this layer in linear light; here it's blended in sRGB, so the result may differ a little.");
         else if (changesColor && (blendSpace == 3 || compositeSpace == 3)) note(name, "GIMP blends this layer in LAB; here it's blended in sRGB, so the result may differ.");
-        var compositeMode = Math.Abs(record.CompositeMode);
-        if (compositeMode is 2 or 3 or 4) note(name, $"The \"{XcfMode.CompositeModeName(compositeMode)}\" compositing isn't supported; the layer composites as GIMP's Union does.");
+        // GIMP picks Clip to backdrop itself for most modes (the value is then negative), which differs from Union only
+        // where the backdrop is transparent; only a compositing the person chose is worth a line.
+        if (record.CompositeMode is 2 or 3 or 4) note(name, $"The \"{XcfMode.CompositeModeName(record.CompositeMode)}\" compositing isn't supported; the layer composites as GIMP's Union does.");
 
         ApplyMask(record, layer, canvas, note);
         return layer;
