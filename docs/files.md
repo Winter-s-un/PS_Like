@@ -12,7 +12,7 @@ Files can also be dropped onto the window. Dropped projects open in tabs. Droppe
 - **Images**: PNG, JPEG, WebP, BMP, GIF and ICO, plus HEIC, HEIF, AVIF and TIFF when ImageMagick is available. The orientation stored by a camera is honoured.
 - **SVG**: drawn at the size the file declares. The result is pixels; it does not stay a vector drawing.
 - **Photoshop**: `.psd` and `.psb` files, 8-bit RGB. See [Photoshop files](#photoshop-files).
-- **GIMP**: `.xcf` files from GIMP 2.10, 3.0 and 3.2, in any precision. See [GIMP files](#gimp-files).
+- **GIMP**: `.xcf` and `.xcf.gz` files from GIMP 2.10, 3.0 and 3.2, in any precision. See [GIMP files](#gimp-files).
 - **Camera RAW**: DNG, CR2, CR3, NEF, ARW, RAF, ORF, RW2, PEF and most other RAW formats, when ImageMagick is available. See [Camera RAW files](#camera-raw-files).
 
 A single image or layer can be up to 30,000 pixels on a side and 200 megapixels. A whole document has a budget for its layers that depends on the memory in your machine, between 200 and 800 megapixels, so a banner with many large layers opens as long as the machine can hold it.
@@ -51,11 +51,11 @@ What does not: layer effects are dropped, smart objects arrive as pixels, gradie
 
 ## GIMP files
 
-Composa reads GIMP's `.xcf` files and never writes them. A file opens as an unsaved document; save it as a Composa project to keep your work. Dropped onto an open document, a GIMP file arrives inside a folder named after it.
+Composa reads GIMP's `.xcf` files, and `.xcf.gz`, and never writes them. A `.xcf.bz2` or `.xcf.xz` is refused with a message; save it from GIMP as `.xcf` or `.xcf.gz`. A file opens as an unsaved document; save it as a Composa project to keep your work. Dropped onto an open document, a GIMP file arrives inside a folder named after it.
 
-What survives: layers and folders (folded as they were), offsets, visibility, opacity, masks and whether they apply, guides and the resolution, and blend modes where the math agrees here, including GIMP's older set from before 2.10. Grayscale and indexed files become RGB. Every precision opens, 8 to 32 bits per channel and 16 to 64-bit floating point, linear or not; the pixels become Composa's 8-bit sRGB and a deep file is reported as having lost precision.
+What survives: layers and folders (folded as they were), offsets, visibility, opacity, masks and whether they apply, guides and the resolution, blend modes where the math agrees here, including GIMP's older set from before 2.10, and text in one style, which can be retyped: its wording, font, size, color, alignment, box and spacing come across. Grayscale and indexed files become RGB. Every precision opens, 8 to 32 bits per channel and 16 to 64-bit floating point, linear or not; the pixels become Composa's 8-bit sRGB and a deep file is reported as having lost precision.
 
-What does not: text arrives as pixels, GIMP 3's layer effects (its non-destructive filters) are dropped, vector and link layers arrive as pixels, saved channels, paths and color profiles are left out, and the painting modes (Dissolve, Behind, Color Erase, Erase, Merge, Split) become Normal. GIMP blends most layers in linear light where Composa blends in sRGB, which makes no difference to a Normal layer at full opacity but a little to the others, so those are listed. As with Photoshop files, an "Open" dialog lists every conversion, layer by layer, before anything is opened; a file that needs none opens straight away. A file too large for memory has its layers cropped to the canvas rather than being refused.
+What does not: text that mixes fonts or colors arrives as pixels, GIMP 3's layer effects (its non-destructive filters) are dropped and the layer shows as GIMP would with them switched off, vector and link layers arrive as pixels, saved channels, paths and color profiles are left out, and the painting modes (Dissolve, Behind, Color Erase, Erase, Merge, Split) become Normal. GIMP blends most layers in linear light where Composa blends in sRGB, which makes no difference to a Normal layer at full opacity but a little to the others, so those are listed. As with Photoshop files, an "Open" dialog lists every conversion, layer by layer, before anything is opened; a file that needs none opens straight away. A file too large for memory has its layers cropped to the canvas rather than being refused.
 
 ## Camera RAW files
 
