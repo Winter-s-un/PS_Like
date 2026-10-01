@@ -49,6 +49,7 @@ public sealed partial class MainWindow : Window
         canvas.ShowPixelGrid = settings.ShowPixelGrid;
         canvas.ShowTransformControls = settings.ShowTransformControls;
         canvas.AutoSelect = settings.AutoSelect;
+        canvas.ObjectClick = SelectObjectAt;
         jpegQuality = Math.Clamp(settings.JpegQuality, 1, 100);
         MinWidth = 800;
         MinHeight = 520;
@@ -173,7 +174,7 @@ public sealed partial class MainWindow : Window
     public void AddSession(EditorSession added)
     {
         // The first document starts from the remembered view options; later ones inherit them from the current tab.
-        if (lastToolSource == null) added.View = settings.View;
+        if (lastToolSource == null) { added.View = settings.View; added.Detect = settings.Detect; }
         sessions.Add(added);
         added.HistoryChanged += RebuildTabs;
         added.Problem += message => { if (added == session) ShowProblem(message); };
@@ -218,7 +219,7 @@ public sealed partial class MainWindow : Window
             target.Feather = from.Feather; target.WandTolerance = from.WandTolerance; target.WandContiguous = from.WandContiguous;
             target.SampleAllLayers = from.SampleAllLayers; target.CloneAligned = from.CloneAligned; target.ShapeKind = from.ShapeKind;
             target.ShapeCornerRadius = from.ShapeCornerRadius; target.GradientRadial = from.GradientRadial; target.GradientToTransparent = from.GradientToTransparent; target.TextDefaults = from.TextDefaults;
-            target.ShapeLineWidth = from.ShapeLineWidth; target.WandMode = from.WandMode; target.ObjectEdgeOffset = from.ObjectEdgeOffset; target.View = from.View;
+            target.ShapeLineWidth = from.ShapeLineWidth; target.WandMode = from.WandMode; target.ObjectEdgeOffset = from.ObjectEdgeOffset; target.View = from.View; target.Detect = from.Detect;
             target.SelectionExpandAmount = from.SelectionExpandAmount; target.SelectionContractAmount = from.SelectionContractAmount; target.SelectionFeatherAmount = from.SelectionFeatherAmount;
             target.CropRatio = from.CropRatio;
             target.Tool = tool;
@@ -347,7 +348,7 @@ public sealed partial class MainWindow : Window
         settings.ShowPixelGrid = canvas.ShowPixelGrid;
         settings.ShowTransformControls = canvas.ShowTransformControls;
         settings.AutoSelect = canvas.AutoSelect;
-        if (session != null) settings.View = session.View;
+        if (session != null) { settings.View = session.View; settings.Detect = session.Detect; }
         settings.Save();
     }
 

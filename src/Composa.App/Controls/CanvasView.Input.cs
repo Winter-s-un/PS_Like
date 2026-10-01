@@ -234,7 +234,12 @@ public sealed partial class CanvasView
                 }
                 break;
             case Tool.Wand:
-                if (session.WandMode == WandMode.Object) session.SelectObject((int)Math.Floor(pressDocument.X), (int)Math.Floor(pressDocument.Y), ModeFor(e.KeyModifiers));
+                if (session.WandMode == WandMode.Object)
+                {
+                    // A model takes a moment and runs off the UI thread, so the window owns that click; without a window the plain method answers at once.
+                    if (ObjectClick is { } click) click((int)Math.Floor(pressDocument.X), (int)Math.Floor(pressDocument.Y), ModeFor(e.KeyModifiers));
+                    else session.SelectObject((int)Math.Floor(pressDocument.X), (int)Math.Floor(pressDocument.Y), ModeFor(e.KeyModifiers));
+                }
                 else session.SelectWand((int)Math.Floor(pressDocument.X), (int)Math.Floor(pressDocument.Y), ModeFor(e.KeyModifiers));
                 break;
             case Tool.Crop:

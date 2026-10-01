@@ -8,6 +8,7 @@ using Avalonia.Platform.Storage;
 using Composa.App.Dialogs;
 using Composa.Editing;
 using Composa.Filters;
+using Composa.Vision;
 using Composa.IO;
 using Composa.IO.Psd;
 using Composa.IO.Xcf;
@@ -894,10 +895,41 @@ public sealed partial class MainWindow
         ColorRangeWindow.Open(this, session);
     }
 
-    private void SelectSubject()
+    private async void SelectSubject()
     {
         if (session == null) return;
-        if (!session.SelectSubject()) ShowProblem("No subject found: the picture has no plain backdrop to tell it apart from.");
+        var target = session;
+        try
+        {
+            if (SubjectFinder.Resolve(target.Detect) == SubjectDetect.Backdrop)
+            {
+                NoteFallback(target.Detect);
+                if (!target.SelectSubject()) ShowProblem("No subject found: the picture has no plain backdrop to tell it apart from.");
+                return;
+            }
+            var found = await ProgressWindow.Run(this, "Finding the subject…", ct => target.SelectSubjectAsync(Composa.Selections.SelectionMode.Replace, ct));
+            if (found == false) ShowProblem("No subject found in the picture.");
+        }
+        catch (Exception e) { ReportFailure(e); }
+    }
+
+    /// <summary>A click with the Object Selection tool: the plain method answers at once, a model through the progress window.</summary>
+    private async void SelectObjectAt(int x, int y, Composa.Selections.SelectionMode mode)
+    {
+        if (session == null) return;
+        var target = session;
+        try
+        {
+            if (SubjectFinder.Resolve(target.Detect) == SubjectDetect.Backdrop) { NoteFallback(target.Detect); target.SelectObject(x, y, mode); return; }
+            await ProgressWindow.Run(this, "Finding the subject…", async ct => { await target.SelectObjectAsync(x, y, mode, ct); return true; });
+        }
+        catch (Exception e) { ReportFailure(e); }
+    }
+
+    /// <summary>Says once why a model choice was not honoured, when the runtime did not load or the file is not installed.</summary>
+    private void NoteFallback(SubjectDetect detect)
+    {
+        if (SubjectFinder.FallbackReason(detect) is { } reason) ShowNote(reason);
     }
 
     private Histogram? HistogramOfActive()
@@ -946,11 +978,56 @@ public sealed partial class MainWindow
             target.CommitPreview();
             return;
         }
+        if (kind == FilterKind.RemoveBackground) { await RemoveBackground(target); return; }
         var initial = new FilterSettings { Kind = kind, Radius = kind == FilterKind.Sharpen ? 2 : kind == FilterKind.MotionBlur ? 30 : 8, Amount = kind == FilterKind.Sharpen ? 60 : 20, Seed = (uint)Random.Shared.Next() };
         var result = await AdjustmentDialogs.EditFilter(this, initial, settings => Busy(() => target.PreviewFilter(settings)));
         // A filter left at nothing (a vignette of zero) closes as Cancel does, without an undo step.
         if (result == null || result.IsIdentity) target.CancelPreview();
         else { target.PreviewFilter(result); target.CommitPreview(); }
+    }
+
+    /// <summary>
+    /// Filter > Remove Background, whose preview is open already. With a model the result is a mask, previewed as
+    /// one; with the plain backdrop the pixels are erased as before. The model runs off the UI thread while the
+    /// dialog stays live, and a choice made while it runs cancels the run it replaces.
+    /// </summary>
+    private async Task RemoveBackground(EditorSession target)
+    {
+        // A mask is edited by erasing; a model's mask would have nowhere to go.
+        var initial = new FilterSettings { Kind = FilterKind.RemoveBackground, Detect = target.IsEditingMask ? SubjectDetect.Backdrop : target.Detect, Amount = 20 };
+        CancellationTokenSource? running = null;
+        async Task Preview(FilterSettings settings)
+        {
+            running?.Cancel();
+            var mine = running = new CancellationTokenSource();
+            if (SubjectFinder.Resolve(settings.Detect) == SubjectDetect.Backdrop)
+            {
+                NoteFallback(settings.Detect);
+                target.PreviewRemoveBackground(null);
+                Busy(() => target.PreviewFilter(settings));
+                return;
+            }
+            var matte = await Busy(() => target.FindLayerSubjectAsync(settings.Detect, mine.Token));
+            if (mine.IsCancellationRequested || !target.IsPreviewing) return;
+            target.PreviewRemoveBackground(matte);
+            if (matte == null) ShowProblem("No subject found in this layer.");
+        }
+        async void PreviewSafely(FilterSettings settings)
+        {
+            try { await Preview(settings); }
+            catch (OperationCanceledException) { }
+            catch (Exception e) { ReportFailure(e); }
+        }
+        var result = await AdjustmentDialogs.EditFilter(this, initial, PreviewSafely, canDetect: !target.IsEditingMask);
+        running?.Cancel();
+        if (result == null || !target.IsPreviewing) { target.CancelPreview(); return; }
+        if (!target.IsEditingMask) target.Detect = result.Detect;
+        RememberToolSettings();
+        try { await Preview(result); }
+        catch (OperationCanceledException) { }
+        if (!target.IsPreviewing) return;
+        if (SubjectFinder.Resolve(result.Detect) != SubjectDetect.Backdrop && target.ActiveLayer is { Mask: null }) { target.CancelPreview(); return; }
+        target.CommitPreview();
     }
 
     private async Task NewAdjustmentLayer(AdjustmentKind kind)

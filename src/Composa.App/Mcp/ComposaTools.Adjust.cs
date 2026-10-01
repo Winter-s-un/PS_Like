@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Composa.Editing;
 using Composa.Filters;
+using Composa.Vision;
 using Composa.Model;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
@@ -180,9 +181,19 @@ public sealed partial class ComposaTools
         Filter(document, layer, new FilterSettings { Kind = FilterKind.LensCorrection, Distortion = Math.Clamp(distortion, -100, 100) });
 
     [McpServerTool(Name = "filter_remove_background")]
-    [Description("Remove Background: makes the plain backdrop connected to the layer's edges transparent. Tolerance 0 to 100 says how different a pixel may be from the backdrop and still go.")]
-    public Task<string> FilterRemoveBackground(double tolerance = 20, [Description(TargetLayer)] string? layer = null, int? document = null) =>
-        Filter(document, layer, new FilterSettings { Kind = FilterKind.RemoveBackground, Amount = Math.Clamp(tolerance, 0, 100) });
+    [Description("Remove Background. With detect 'any' or 'person' a model run on this machine finds the subject and the layer gets a mask hiding everything else, which can be painted on afterwards; with 'plain' the near-uniform backdrop connected to the layer's edges is erased, and tolerance 0 to 100 says how different a pixel may be from it and still go. Left out, detect follows the choice in Composa's Object Selection options. A model that is not available here falls back to 'plain'.")]
+    public Task<string> FilterRemoveBackground(double tolerance = 20, [Description("any, person or plain")] string? detect = null, [Description(TargetLayer)] string? layer = null, int? document = null) => OnUi(async () =>
+    {
+        var s = Editable(document);
+        var target = Target(s, layer);
+        if (!s.CanEditPixels) throw new McpException($"\"{target.Name}\" is a {Kind(target)} layer, so a filter cannot change its pixels. Rasterize it first.");
+        var choice = ParseDetect(detect) ?? s.Detect;
+        var settings = new FilterSettings { Kind = FilterKind.RemoveBackground, Amount = Math.Clamp(tolerance, 0, 100), Detect = choice };
+        if (!await s.ApplyRemoveBackgroundAsync(settings)) throw new McpException($"The model found no subject in \"{target.Name}\", so nothing changed.");
+        return s.IsEditingMask || SubjectFinder.Resolve(choice) == SubjectDetect.Backdrop
+            ? $"Removed the plain backdrop of \"{target.Name}\"." + (SubjectFinder.FallbackReason(choice) is { } reason ? " " + reason : "")
+            : $"Masked \"{target.Name}\" to the {SubjectFinder.DisplayName(choice).ToLowerInvariant()} the model found; the mask can be painted on.";
+    });
 
     [McpServerTool(Name = "filter_painterly")]
     [Description("Painterly: repaints the layer in brush strokes that follow the picture's edges, the largest brush first and each smaller one only where the picture still differs, so a photo becomes a painting that is still recognizably the same picture. Style impressionist (faithful), expressionist (long bending strokes, colors drift), colorist_wash (thin overlapping washes) or pointillist (dots). brushSize is the largest brush's diameter in pixels, 0 fits it to the picture; passes is how many brushes, each half the size, 1 to 4; detail 0 to 100 says how closely to follow the picture. Gaps between strokes stay transparent, so a paper-colored layer below gives a painting on paper. The same seed paints the same strokes; 0 picks one.")]

@@ -122,6 +122,15 @@ public class McpTests
         var noSuch = await Assert.ThrowsAnyAsync<McpException>(async () => await Pumped(client.ReadResourceAsync("composa://documents/9")));
         Assert.Contains("no document 9", noSuch.Message);
 
+        // The subject tools with the plain method, which is exact here: the blue text is what stands out from the red.
+        var subject = await Pumped(client.CallToolAsync("select_subject", new Dictionary<string, object?> { ["detect"] = "plain" }));
+        Assert.StartsWith("Selected the area at", Text(subject));
+        var badDetect = await Pumped(client.CallToolAsync("select_subject", new Dictionary<string, object?> { ["detect"] = "magic" }));
+        Assert.Equal(true, badDetect.IsError);
+        Assert.Equal("Nothing is selected.", Text(await Pumped(client.CallToolAsync("deselect"))));
+        Assert.Equal("Undid Deselect.", Text(await Pumped(client.CallToolAsync("undo"))));
+        Assert.Equal("Undid Select Subject.", Text(await Pumped(client.CallToolAsync("undo"))));
+
         var picture = Path.Combine(Path.GetTempPath(), $"composa-place-{Guid.NewGuid():N}.png");
         using (var wide = new SKBitmap(800, 200)) { wide.Erase(SKColors.Lime); ImageFiles.Save(wide, picture, ExportFormat.Png); }
         try

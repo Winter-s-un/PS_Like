@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Composa.Editing;
 using Composa.Selections;
+using Composa.Vision;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using SkiaSharp;
@@ -63,30 +64,51 @@ public sealed partial class ComposaTools
     });
 
     [McpServerTool(Name = "select_object")]
-    [Description("Selects the object under a canvas point: the connected piece of everything that is not the plain backdrop around the picture. On the backdrop itself it selects nothing.")]
+    [Description("Selects the object under a canvas point: the connected piece of the subject there, with its soft edge. On the backdrop itself it selects nothing. " + DetectHelp)]
     public Task<string> SelectObject(
         int x, int y,
         [Description("Sample every visible layer rather than the active layer alone")] bool allLayers = true,
         [Description(Mode)] string mode = "replace",
-        int? document = null) => OnUi(() =>
+        [Description(Detect)] string? detect = null,
+        int? document = null) => OnUi(async () =>
     {
         var s = Editable(document);
         InCanvas(s, x, y);
         var savedAll = s.SampleAllLayers;
+        var savedDetect = s.Detect;
         s.SampleAllLayers = allLayers;
-        try { s.SelectObject(x, y, ParseMode(mode)); }
-        finally { s.SampleAllLayers = savedAll; }
+        s.Detect = ParseDetect(detect) ?? savedDetect;
+        try { await s.SelectObjectAsync(x, y, ParseMode(mode)); }
+        finally { s.SampleAllLayers = savedAll; s.Detect = savedDetect; }
         return Selected(s);
     });
 
     [McpServerTool(Name = "select_subject")]
-    [Description("Select > Subject: everything in the picture that is not the plain backdrop connected to its edges. Busy backgrounds defeat it.")]
-    public Task<string> SelectSubject([Description(Mode)] string mode = "replace", int? document = null) => OnUi(() =>
+    [Description("Select > Subject: the subject of the whole picture. " + DetectHelp)]
+    public Task<string> SelectSubject([Description(Mode)] string mode = "replace", [Description(Detect)] string? detect = null, int? document = null) => OnUi(async () =>
     {
         var s = Editable(document);
-        if (!s.SelectSubject(ParseMode(mode))) throw new McpException("No subject stands out from the backdrop.");
+        var saved = s.Detect;
+        s.Detect = ParseDetect(detect) ?? saved;
+        try
+        {
+            if (!await s.SelectSubjectAsync(ParseMode(mode))) throw new McpException(SubjectFinder.Resolve(s.Detect) == SubjectDetect.Backdrop ? "No subject stands out from the backdrop." : "The model found no subject in the picture.");
+        }
+        finally { s.Detect = saved; }
         return Selected(s);
     });
+
+    private const string DetectHelp = "detect picks how: 'any' runs the U²-Net model on this machine for any subject, 'person' runs MODNet for people with soft hair, 'plain' takes everything that is not the near-uniform backdrop touching the picture's edges (fast, exact on product shots, defeated by busy backgrounds). Left out, the choice in Composa's Object Selection options applies. A model that is not available here falls back to 'plain'.";
+    private const string Detect = "any, person or plain; see the tool description";
+
+    private static SubjectDetect? ParseDetect(string? detect) => detect?.ToLowerInvariant() switch
+    {
+        null or "" => null,
+        "any" or "subject" => SubjectDetect.Any,
+        "person" or "people" or "portrait" => SubjectDetect.Person,
+        "plain" or "backdrop" or "none" => SubjectDetect.Backdrop,
+        _ => throw new McpException($"Unknown detect \"{detect}\": use any, person or plain.")
+    };
 
     [McpServerTool(Name = "select_layer_pixels")]
     [Description("Selects the shape of a layer's pixels (its mask with fromMask), as Ctrl-clicking its thumbnail does.")]

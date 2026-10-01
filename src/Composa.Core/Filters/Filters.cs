@@ -16,6 +16,8 @@ public sealed record FilterSettings
     public double Angle { get; init; }
     /// <summary>Noise amount, sharpen strength, or background tolerance: 0…100.</summary>
     public double Amount { get; init; } = 20;
+    /// <summary>Remove Background: a model adds a mask from the subject it finds; the plain backdrop erases pixels by <see cref="Amount"/>.</summary>
+    public Vision.SubjectDetect Detect { get; init; } = Vision.SubjectDetect.Backdrop;
     public bool Monochrome { get; init; } = true;
     /// <summary>Add Noise: a bell-shaped spread instead of an even one.</summary>
     public bool Gaussian { get; init; }

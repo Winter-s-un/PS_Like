@@ -14,6 +14,8 @@ public sealed class Settings
     /// <summary>Toggles that belong to the person rather than to a document, kept the way Photoshop keeps its tool options.</summary>
     public bool ShowTransformControls { get; set; } = true;
     public bool AutoSelect { get; set; } = true;
+    /// <summary>How the subject is found: by a model, or from the plain backdrop. The Object Selection options bar and the Remove Background dialog set it.</summary>
+    public Composa.Vision.SubjectDetect Detect { get; set; } = Composa.Vision.SubjectDetect.Any;
     public Composa.Editing.ViewOptions View { get; set; } = new();
     /// <summary>The panels under the Layers panel by title: whether each is shown, collapsed to its header, and how tall it is.</summary>
     public Dictionary<string, DockPanelState> Dock { get; set; } = [];

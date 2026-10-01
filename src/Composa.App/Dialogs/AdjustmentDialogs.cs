@@ -371,7 +371,8 @@ public static class AdjustmentDialogs
     }
 
     /// <summary>The editor for a Filter menu command.</summary>
-    public static async Task<FilterSettings?> EditFilter(Window owner, FilterSettings initial, Action<FilterSettings> changed)
+    /// <param name="canDetect">Remove Background: whether the Detect choice is offered. Editing a mask, only the plain backdrop makes sense.</param>
+    public static async Task<FilterSettings?> EditFilter(Window owner, FilterSettings initial, Action<FilterSettings> changed, bool canDetect = true)
     {
         var current = initial;
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
@@ -555,13 +556,28 @@ public static class AdjustmentDialogs
                 break;
             }
             case FilterKind.RemoveBackground:
-                Slider("Tolerance", initial.Amount, 1, 100, v => current with { Amount = v });
-                panel.Children.Add(new TextBlock
+            {
+                var detects = new[] { Composa.Vision.SubjectDetect.Any, Composa.Vision.SubjectDetect.Person, Composa.Vision.SubjectDetect.Backdrop };
+                var tolerance = Ui.SliderField("Tolerance", initial.Amount, 1, 100, v => Update(current with { Amount = v }), 1, "0", FieldWidth, reset: initial.Amount);
+                var note = new TextBlock { Foreground = Palette.Secondary, MaxWidth = 380, TextWrapping = TextWrapping.Wrap };
+                void Describe()
                 {
-                    Text = "Removes the plain backdrop connected to the image's edges. Raise the tolerance to take more.",
-                    Foreground = Palette.Secondary, MaxWidth = 380, TextWrapping = TextWrapping.Wrap
-                });
+                    var plain = Composa.Vision.SubjectFinder.Resolve(current.Detect) == Composa.Vision.SubjectDetect.Backdrop;
+                    tolerance.IsEnabled = plain;
+                    note.Text = plain
+                        ? "Removes the plain backdrop connected to the layer's edges by making it transparent. Raise the tolerance to take more."
+                        : "A model run on this machine finds the subject and hides everything else behind a layer mask, so a wrong edge can be painted back.";
+                    if (!plain && Composa.Vision.SubjectFinder.FallbackReason(current.Detect) is { } reason) note.Text = reason;
+                }
+                var detect = Ui.Combo(detects, initial.Detect, Composa.Vision.SubjectFinder.DisplayName, v => { Update(current with { Detect = v }); Describe(); }, 160);
+                detect.IsEnabled = canDetect;
+                ToolTip.SetTip(detect, canDetect ? "A model for any subject or for a person, or the plain backdrop touching the layer's edges" : "A mask is edited by erasing, so only the plain backdrop applies");
+                panel.Children.Add(Ui.Row(10, Ui.Label("Detect", Palette.Secondary), detect));
+                panel.Children.Add(tolerance);
+                panel.Children.Add(note);
+                Describe();
                 break;
+            }
         }
         var dialog = new DialogWindow(FilterSettings.DisplayName(initial.Kind), panel);
         dialog.Opened += (_, _) => changed(current);

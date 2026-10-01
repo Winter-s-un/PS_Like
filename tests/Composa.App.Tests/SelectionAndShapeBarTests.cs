@@ -35,6 +35,7 @@ public class SelectionAndShapeBarTests
         session.ActiveLayer!.Pixels!.Erase(SKColors.Red);
         session.InvalidateAll();
         session.SampleAllLayers = true;
+        session.Detect = Composa.Vision.SubjectDetect.Backdrop; // The plain method answers at once; the models have their own tests.
         window.SelectTool(Tool.Wand);
         window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
         Dispatcher.UIThread.RunJobs();
