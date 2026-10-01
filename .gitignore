@@ -7,3 +7,6 @@ publish/
 dist/
 plan-*.md
 artifacts/
+
+# The MODNet model is fetched by scripts/models/fetch.sh, not kept in git; u2netp.onnx is.
+src/Composa.Core/Models/modnet.onnx
