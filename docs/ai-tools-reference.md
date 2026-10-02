@@ -70,7 +70,7 @@ The selection tools take `mode`: replace (the default), add, subtract or interse
 
 **select_wand**: selects the pixels of a similar color around a point. Parameters: `x` and `y`; `tolerance` from 0 to 255, 32 by default; `contiguous`, true by default; `allLayers`, true by default, samples every visible layer rather than the active one; `mode`.
 
-**select_object**: selects the object under a point, the connected piece of the subject there with its soft edge. Parameters: `x` and `y`; `allLayers`; `mode`; `detect`.
+**select_object**: selects the object under a point, the connected piece of the subject there with its soft edge; with `width` and `height`, `x` and `y` are the top left of a box and the model runs on the box alone, selecting everything it finds inside, which suits a small object in a large picture. Parameters: `x` and `y`; `width` and `height`; `allLayers`; `mode`; `detect`.
 
 **select_subject**: the subject of the whole picture. Parameters: `mode`; `detect`.
 

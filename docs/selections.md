@@ -7,7 +7,7 @@ A selection limits what the next edit touches: a fill, a filter, an adjustment, 
 - **Marquee**: a rectangle or an ellipse.
 - **Lasso**: a freehand or a polygonal outline.
 - **Magic Wand**: the connected area of similar color, with a tolerance.
-- **Object**: the object under the click, found by the Detect choice described under the Object Selection tool.
+- **Object**: the object under the click, or everything the model finds inside a dragged box, found by the Detect choice described under the Object Selection tool.
 - **Select > All** (Ctrl+A): the whole canvas.
 - **Select > Subject** (Ctrl+Alt+A): the subject of the picture, found the way the Object Selection tool's Detect choice says: a model run on your machine for any subject or for a person, or everything that is not the plain backdrop connected to the picture's edges. The models take a moment on a large picture; a small window with Cancel appears while they run.
 - **Select > Color Range**: every pixel near a color, anywhere in the picture. Described below.

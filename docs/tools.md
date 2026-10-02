@@ -43,7 +43,7 @@ Selects a freehand or a polygonal outline; press L again or Tab to switch. Freeh
 Two modes, Magic Wand and Object Selection, picked from the button's group or switched with Tab.
 
 - **Magic Wand** selects the connected area of similar color under the click. Tolerance (0 to 255, 32 by default) says how different a color may be; Contiguous limits the selection to the connected area.
-- **Object Selection** selects the object under the click: the connected piece of the subject there, with its soft edge. The Edge setting, from -10 to 10, tightens or loosens the outline.
+- **Object Selection** selects the object under the click: the connected piece of the subject there, with its soft edge. The Edge setting, from -10 to 10, tightens or loosens the outline. Drag a box around an object instead and the model looks at the box alone, which finds a small object in a large picture far better than a click does: everything it finds inside the box is selected.
 
 Detect says how the subject is told from its surroundings, for this tool, for Select > Subject and for Image > Remove Background alike:
 
