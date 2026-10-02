@@ -48,7 +48,7 @@ A clipped layer shows only where the layer below it has pixels, as a photo clipp
 
 ## Blend modes
 
-The blend mode decides how a layer's colors combine with what is beneath. The dropdown groups them: Normal; Darken, Multiply, Color Burn and Linear Burn; Lighten, Screen, Color Dodge and Linear Dodge (Add); Overlay, Soft Light, Hard Light, Vivid Light, Linear Light, Pin Light and Hard Mix; Difference, Exclusion, Subtract and Divide; Hue, Saturation, Color and Luminosity.
+The blend mode decides how a layer's colors combine with what is beneath. The dropdown groups them: Normal; Darken, Multiply, Color Burn and Linear Burn; Lighten, Screen, Color Dodge and Linear Dodge (Add); Overlay, Soft Light, Hard Light, Vivid Light, Linear Light, Pin Light and Hard Mix; Difference, Exclusion, Subtract, Divide, Grain Extract and Grain Merge; Hue, Saturation, Color and Luminosity. Grain Extract and Grain Merge are GIMP's pair for frequency separation and have no Photoshop counterpart: Extract keeps what differs between the layer and the picture beneath, around mid-gray, and Merge adds such a difference back, so a blurred copy extracted leaves the fine detail on its own, and merging the blur back gives the picture again.
 
 ## Merging and flattening
 
