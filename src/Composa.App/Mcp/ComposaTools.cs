@@ -125,6 +125,24 @@ public sealed partial class ComposaTools(MainWindow window)
         return $"The document is now {doc.Width}×{doc.Height} px at {doc.Resolution:0.##} pixels/inch.{note}";
     });
 
+    [McpServerTool(Name = "enhance_layer_resolution")]
+    [Description("Layer > Enhance Resolution: gives a raster layer that is shown larger than its own pixels (placed small and scaled up) enough pixels for its size on the canvas, through a model run on this machine that invents fine detail, up to four times what it has. The layer keeps its place and size on the canvas. Refused for text, shapes, folders and adjustment layers, and for a layer shown at or below its own size. About a second per 65,000 pixels of the layer.")]
+    public Task<string> EnhanceLayerResolution([Description(TargetLayer)] string? layer = null, int? document = null) => OnUi(async () =>
+    {
+        var s = Editable(document);
+        var target = layer != null ? Find(s, layer) : s.ActiveLayer ?? throw new McpException("No layer is active.");
+        if (!s.CanEnhanceResolution(target)) throw new McpException($"\"{target.Name}\" cannot be enhanced: it must be a raster layer shown larger than its own pixels.");
+        if (!UpscaleModels.IsAvailable) throw new McpException(UpscaleModels.UnavailableReason!);
+        var before = target.Pixels!;
+        var enhanced = await s.PrepareEnhancedResolutionAsync(target);
+        try
+        {
+            if (!s.EnhanceResolution(target, enhanced)) throw new McpException($"\"{target.Name}\" changed while the model ran, so nothing was changed.");
+        }
+        finally { enhanced.DisposeUnused(s.Document); }
+        return $"\"{target.Name}\" now has {target.Pixels!.Width}×{target.Pixels.Height} px, up from {before.Width}×{before.Height}, at the same place and size on the canvas.";
+    });
+
     [McpServerTool(Name = "new_document")]
     [Description("Creates a new document in a new tab and makes it the active one.")]
     public Task<string> NewDocument(

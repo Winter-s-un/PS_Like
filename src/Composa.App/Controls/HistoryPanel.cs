@@ -184,7 +184,7 @@ public sealed class HistoryPanel : UserControl
         "Object Selection" or "Select Subject" => Icons.ObjectSelect,
         "Move Selection Pixels" or "Duplicate Selection" => Icons.Move,
         "Deselect" or "Color Range" => Icons.Marquee,
-        "Crop" or "Trim" or "Canvas Size" or "Image Size" or "Reveal All" => Icons.Crop,
+        "Crop" or "Trim" or "Canvas Size" or "Image Size" or "Reveal All" or "Enhance Resolution" => Icons.Crop,
         "Move" or "Nudge" or "Scale" or "Rotate" or "Distort" or "Transform" => Icons.Move,
         _ when name.StartsWith("Select", StringComparison.Ordinal) || name.EndsWith("Selection", StringComparison.Ordinal) => Icons.Marquee,
         _ when name.Contains("Text", StringComparison.Ordinal) => Icons.Text,

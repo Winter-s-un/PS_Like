@@ -177,6 +177,7 @@ public sealed partial class MainWindow
                 .Append(Line()).Append(Item("Delete Effect", () => session!.RemoveSelectedEffect(), enabled: () => session!.SelectedEffect != null)).ToArray()),
             Item("Edit Text…", () => BeginTextEdit(session!.ActiveLayer!), enabled: () => session!.ActiveLayer?.Text != null),
             Item("Rasterize Layer", () => session!.RasterizeShape(session.ActiveLayer!), enabled: () => session!.ActiveLayer?.IsLive == true),
+            Item("Enhance Resolution", () => _ = EnhanceResolution(), enabled: () => session!.CanEnhanceResolution(session.ActiveLayer)),
             Item("Rotate Layer 90° Clockwise", () => session!.RotateLayers(90)),
             Item("Rotate Layer 90° Counterclockwise", () => session!.RotateLayers(-90)),
             Item("Rotate Layer 180°", () => session!.RotateLayers(180)),
@@ -1154,6 +1155,26 @@ public sealed partial class MainWindow
         settings.Save();
         if (!await ResizeImage(target, result.Width, result.Height, result.Resolution, result.Resample)) return;
         canvas.Fit();
+    }
+
+    /// <summary>
+    /// Layer > Enhance Resolution: the model gives a raster layer shown larger than its pixels enough pixels for its
+    /// size on the canvas, behind the progress window, and the layer keeps its place. Cancel changes nothing.
+    /// </summary>
+    private async Task EnhanceResolution()
+    {
+        if (session is not { } target || target.ActiveLayer is not { } layer || !target.CanEnhanceResolution(layer)) return;
+        if (!UpscaleModels.IsAvailable) { ShowProblem(UpscaleModels.UnavailableReason!); return; }
+        var started = DateTime.UtcNow;
+        var enhanced = await ProgressWindow.Run(this, "Enhancing…", (ct, status) => target.PrepareEnhancedResolutionAsync(layer, new Progress<(int Done, int Total)>(p =>
+        {
+            var elapsed = DateTime.UtcNow - started;
+            var left = p.Done == 0 ? "" : $", about {Math.Max(1, (int)Math.Round(elapsed.TotalSeconds / p.Done * (p.Total - p.Done)))} s left";
+            status.Report($"Enhancing… tile {p.Done} of {p.Total}{left}");
+        }), ct));
+        if (enhanced == null) return; // Cancelled.
+        try { if (!target.EnhanceResolution(layer, enhanced)) ShowProblem("The layer changed while the model ran, so nothing was changed."); }
+        finally { enhanced.DisposeUnused(target.Document); }
     }
 
     /// <summary>
