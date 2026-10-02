@@ -45,7 +45,7 @@ Two modes, Magic Wand and Object Selection, picked from the button's group or sw
 - **Magic Wand** selects the connected area of similar color under the click. Tolerance (0 to 255, 32 by default) says how different a color may be; Contiguous limits the selection to the connected area.
 - **Object Selection** selects the object under the click: the connected piece of the subject there, with its soft edge. The Edge setting, from -10 to 10, tightens or loosens the outline.
 
-Detect says how the subject is told from its surroundings, for this tool, for Select > Subject and for Filter > Remove Background alike:
+Detect says how the subject is told from its surroundings, for this tool, for Select > Subject and for Image > Remove Background alike:
 
 - **Any subject** runs a small segmentation model (U²-Net lite) on your machine. It works on ordinary photos with busy backgrounds; edges are soft, and low-contrast scenes can confuse it.
 - **Person** runs a portrait matting model (MODNet) on your machine, which follows hair and soft edges far better, and is weaker on anything that is not a person.

@@ -21,6 +21,10 @@ Every dialog previews on the canvas as you drag, with a Preview checkbox to comp
 
 The Hue/Saturation, Black & White and Color Balance sliders show their colors on the track, so you see what a slider does before you drag it.
 
+## Remove Background
+
+Image > Remove Background hides everything around the layer's subject. Detect picks how the subject is found, the same choice as the Object Selection tool's: with Any subject or Person a model run on your machine finds it and the layer gets a layer mask hiding the rest, so a wrong edge can be painted back on the mask; with Plain backdrop the near-uniform backdrop connected to the layer's edges is erased, and Tolerance says how different a pixel may be from it and still go. A layer that already has a mask keeps what it hid. Editing a mask, only the plain backdrop applies.
+
 ## Filters
 
 - **Gaussian Blur**: a radius in pixels. A layer that fills the canvas keeps its edge colors; a floating layer's blur spreads past its edges and the layer grows to hold it.
@@ -32,7 +36,6 @@ The Hue/Saturation, Black & White and Color Balance sliders show their colors on
 - **Dither**: described below.
 - **Tonal Contrast**: local contrast, with an amount, a radius and how much the shadows, midtones and highlights each get.
 - **Lens Correction**: removes barrel distortion (positive) or pincushion distortion (negative).
-- **Remove Background**: hides everything around the layer's subject. Detect picks how the subject is found, the same choice as the Object Selection tool's: with Any subject or Person a model run on your machine finds it and the layer gets a layer mask hiding the rest, so a wrong edge can be painted back on the mask; with Plain backdrop the near-uniform backdrop connected to the layer's edges is erased, and Tolerance says how different a pixel may be from it and still go. A layer that already has a mask keeps what it hid. Editing a mask, only the plain backdrop applies.
 - **Camera Raw Filter**: a full grading panel, described in [Camera Raw Filter](camera-raw.md).
 - **Painterly**: described below.
 
