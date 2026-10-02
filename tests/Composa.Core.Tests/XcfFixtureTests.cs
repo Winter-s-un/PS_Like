@@ -73,8 +73,10 @@ public class XcfFixtureTests
         Assert.Equal((30, 30), (masked.Mask!.Width, masked.Mask.Height));
         Assert.Equal(0, masked.Mask.GetPixelSpan()[5]);                                   // The left half was painted black,
         Assert.Equal(255, masked.Mask.GetPixelSpan()[25]);                                // the right half left white.
-        Assert.Equal(BlendMode.LinearDodge, import.Layers[3].Blend);
-        Assert.Contains(import.Conversions, c => c.LayerName == "Grain" && c.Message.Contains("Grain merge"));
+        Assert.Equal(BlendMode.GrainMerge, import.Layers[3].Blend);
+        // GIMP's mode, exactly: the only note left on that layer is that GIMP blends it in linear light.
+        Assert.DoesNotContain(import.Conversions, c => c.LayerName == "Grain" && c.Message.Contains("no exact equivalent"));
+        Assert.Contains(import.Conversions, c => c.LayerName == "Grain" && c.Message.Contains("linear light"));
         Assert.Contains(Messages(import), m => m.Contains("path was left out"));
 
         // GIMP 3 names the font inside a GimpFont form and writes the color as linear floats.

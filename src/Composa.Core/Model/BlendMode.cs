@@ -6,7 +6,9 @@ public enum BlendMode
 {
     Normal, Multiply, Screen, Overlay, Darken, Lighten, Difference, ColorDodge, ColorBurn,
     SoftLight, HardLight, Exclusion, Hue, Saturation, Color, Luminosity,
-    LinearBurn, LinearDodge, VividLight, LinearLight, PinLight, HardMix, Subtract, Divide
+    LinearBurn, LinearDodge, VividLight, LinearLight, PinLight, HardMix, Subtract, Divide,
+    /// <summary>GIMP's frequency-separation pair: the difference from the layer around mid-gray, and that difference added back. Photoshop has neither.</summary>
+    GrainExtract, GrainMerge
 }
 
 public static class BlendModeExtensions
@@ -14,7 +16,8 @@ public static class BlendModeExtensions
     /// <summary>
     /// Photoshop's grouping: darkening modes together, then lightening, then contrast, then the comparative ones, then
     /// the component modes. Menus draw a line between each group. Darker Color and Lighter Color are left out: they
-    /// compare a pixel's whole brightness rather than working a channel at a time.
+    /// compare a pixel's whole brightness rather than working a channel at a time. Grain Extract and Grain Merge are
+    /// GIMP's and sit with the comparative modes, beside Subtract, whose arithmetic they share.
     /// </summary>
     public static readonly BlendMode[][] Groups =
     [
@@ -22,7 +25,7 @@ public static class BlendModeExtensions
         [BlendMode.Darken, BlendMode.Multiply, BlendMode.ColorBurn, BlendMode.LinearBurn],
         [BlendMode.Lighten, BlendMode.Screen, BlendMode.ColorDodge, BlendMode.LinearDodge],
         [BlendMode.Overlay, BlendMode.SoftLight, BlendMode.HardLight, BlendMode.VividLight, BlendMode.LinearLight, BlendMode.PinLight, BlendMode.HardMix],
-        [BlendMode.Difference, BlendMode.Exclusion, BlendMode.Subtract, BlendMode.Divide],
+        [BlendMode.Difference, BlendMode.Exclusion, BlendMode.Subtract, BlendMode.Divide, BlendMode.GrainExtract, BlendMode.GrainMerge],
         [BlendMode.Hue, BlendMode.Saturation, BlendMode.Color, BlendMode.Luminosity]
     ];
 
@@ -62,6 +65,8 @@ public static class BlendModeExtensions
         BlendMode.LinearLight => "Linear Light",
         BlendMode.PinLight => "Pin Light",
         BlendMode.HardMix => "Hard Mix",
+        BlendMode.GrainExtract => "Grain Extract",
+        BlendMode.GrainMerge => "Grain Merge",
         _ => mode.ToString()
     };
 }

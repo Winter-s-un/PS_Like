@@ -6,7 +6,7 @@ namespace Composa.Rendering;
 
 /// <summary>
 /// The blend modes Skia cannot draw, composited per pixel: Linear Burn, Linear Dodge, Vivid Light, Linear Light,
-/// Pin Light, Hard Mix, Subtract and Divide. Each is a separable function B(backdrop, source) on straight color,
+/// Pin Light, Hard Mix, Subtract, Divide, and GIMP's Grain Extract and Grain Merge. Each is a separable function B(backdrop, source) on straight color,
 /// combined the way the PDF compositing model (and Photoshop) does: the blended color where both layers cover the
 /// pixel, the plain source where only it does, and the backdrop where only it does.
 /// </summary>
@@ -66,6 +66,9 @@ public static class SeparableBlend
         BlendMode.HardMix => static (cb, cs) => cb + cs < 1 ? 0 : 1,
         BlendMode.Subtract => static (cb, cs) => Math.Max(0, cb - cs),
         BlendMode.Divide => static (cb, cs) => cb <= 0 ? 0 : cs <= 0 ? 1 : Math.Min(1, cb / cs),
+        // GIMP's pair for frequency separation: Extract keeps what differs from the layer, around mid-gray, and Merge puts it back.
+        BlendMode.GrainExtract => static (cb, cs) => Math.Clamp(cb - cs + 0.5f, 0, 1),
+        BlendMode.GrainMerge => static (cb, cs) => Math.Clamp(cb + cs - 0.5f, 0, 1),
         _ => throw new ArgumentException($"{mode} is drawn by Skia, not here.", nameof(mode))
     };
 
