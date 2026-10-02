@@ -110,6 +110,27 @@ public class SubjectDetectUiTests
     }
 
     [AvaloniaFact]
+    public void A_box_dragged_with_the_object_tool_runs_the_model_on_the_box_alone()
+    {
+        window.SelectTool(Tool.Wand);
+        session.WandMode = WandMode.Object;
+        session.Detect = SubjectDetect.Any;
+        window.MouseDown(At(90, 30), MouseButton.Left);
+        window.MouseMove(At(230, 170));
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(window.Canvas.IsDragging);
+        Screenshots.Save(window, "86-object-box-drag");
+        window.MouseUp(At(230, 170), MouseButton.Left);
+        PumpUntil(() => session.Selection != null);
+        Assert.Equal("Object Selection", session.History.UndoName);
+        var bounds = SelectionMask.Bounds(session.Selection!, 128);
+        Assert.InRange(bounds.Left, 85, 115);
+        Assert.InRange(bounds.Right, 205, 235);
+        Assert.Equal(0, session.Selection!.GetPixel(60, 20).Alpha); // Inside the box but backdrop.
+        Assert.Equal(0, session.Selection.GetPixel(300, 200).Alpha); // Outside the box.
+    }
+
+    [AvaloniaFact]
     public void Select_subject_shows_the_progress_window_while_the_model_runs_and_selects_the_disc()
     {
         var delay = ProgressWindow.Delay;

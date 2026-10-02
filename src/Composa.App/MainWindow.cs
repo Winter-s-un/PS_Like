@@ -50,6 +50,7 @@ public sealed partial class MainWindow : Window
         canvas.ShowTransformControls = settings.ShowTransformControls;
         canvas.AutoSelect = settings.AutoSelect;
         canvas.ObjectClick = SelectObjectAt;
+        canvas.ObjectBox = SelectObjectIn;
         jpegQuality = Math.Clamp(settings.JpegQuality, 1, 100);
         MinWidth = 800;
         MinHeight = 520;
@@ -639,7 +640,7 @@ public sealed partial class MainWindow : Window
         Tool.Move => "Drag to move · Handles resize (Shift free, Alt from center) · Outside a corner rotates · Ctrl-drag a corner distorts · Ctrl-click picks a layer · 1–0 opacity",
         Tool.Marquee => "Drag to select · Shift add · Alt subtract · Shift+Alt intersect · Drag inside to move · Delete clears · Ctrl+D deselect",
         Tool.Lasso => s.LassoKind == LassoKind.Freehand ? "Drag to select · Shift add · Alt subtract · Drag inside to move" : "Click corners · Click the start, double-click or Enter to close · Backspace removes a corner · Escape cancels",
-        Tool.Wand => s.WandMode == WandMode.Object ? "Click an object to select its outline · Tab for Wand · Shift add · Alt subtract" : "Click to select similar colors · Tab for Object · Shift add · Alt subtract",
+        Tool.Wand => s.WandMode == WandMode.Object ? "Click an object to select its outline · Drag a box around a small one · Tab for Wand · Shift add · Alt subtract" : "Click to select similar colors · Tab for Object · Shift add · Alt subtract",
         Tool.Crop => "Drag to crop · Shift keeps proportions · Alt symmetric · Enter applies · Escape cancels",
         Tool.Brush => (s.EraserMode ? "Drag to erase" : "Drag to paint · Alt-click picks a color") + " · Shift-click draws a line · [ ] size · { } hardness · 1–0 opacity",
         Tool.SpotHealing => "Drag over blemishes to heal · [ ] size",

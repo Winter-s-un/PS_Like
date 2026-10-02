@@ -930,6 +930,19 @@ public sealed partial class MainWindow
         catch (Exception e) { ReportFailure(e); }
     }
 
+    /// <summary>A box dragged with the Object Selection tool: the model runs on the box alone, through the progress window.</summary>
+    private async void SelectObjectIn(SKRectI box, Composa.Selections.SelectionMode mode)
+    {
+        if (session == null) return;
+        var target = session;
+        try
+        {
+            NoteFallback(target.Detect);
+            await ProgressWindow.Run(this, "Finding the object…", async ct => { await target.SelectObjectInBoxAsync(box, mode, ct); return true; });
+        }
+        catch (Exception e) { ReportFailure(e); }
+    }
+
     /// <summary>Says once why a model choice was not honoured, when the runtime did not load or the file is not installed.</summary>
     private void NoteFallback(SubjectDetect detect)
     {

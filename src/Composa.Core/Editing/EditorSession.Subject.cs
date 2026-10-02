@@ -83,6 +83,44 @@ public sealed partial class EditorSession
         Select(shape, mode, "Object Selection");
     }
 
+    /// <summary>
+    /// The Object Selection tool with a dragged box: the model runs on the box alone, so a small object fills its
+    /// input instead of being a few of its pixels, and everything it finds inside the box is selected with the
+    /// matte's soft edge. Nothing found deselects in Replace mode, as a click on the backdrop does. The box is clamped
+    /// to the canvas; one smaller than two pixels a side does nothing.
+    /// </summary>
+    public async Task SelectObjectInBoxAsync(SKRectI box, SelectionMode mode = SelectionMode.Replace, CancellationToken cancellation = default)
+    {
+        box = SKRectI.Intersect(box, document.Bounds);
+        if (box.Width < 2 || box.Height < 2) return;
+        var detect = SubjectFinder.Resolve(Detect);
+        var state = History.CurrentId;
+        var (source, owned) = SelectionSample();
+        var crop = Pixels.NewColor(box.Width, box.Height);
+        using (var canvas = new SKCanvas(crop))
+        using (var paint = new SKPaint { BlendMode = SKBlendMode.Src })
+            canvas.DrawBitmap(source, -box.Left, -box.Top, paint);
+        if (owned) source.Dispose();
+        SKBitmap? matte;
+        try { matte = await Task.Run(() => SubjectFinder.Matte(crop, detect, cancellation), cancellation); }
+        finally { crop.Dispose(); }
+        if (History.CurrentId != state || IsInteracting) { matte?.Dispose(); return; }
+        if (matte == null) { if (mode == SelectionMode.Replace) Deselect(); return; }
+        using (matte)
+        {
+            var shape = Pixels.NewMask(document.Width, document.Height);
+            Place(matte, shape, box.Left, box.Top);
+            Select(shape, mode, "Object Selection");
+        }
+    }
+
+    private static unsafe void Place(SKBitmap piece, SKBitmap into, int left, int top)
+    {
+        byte* src = (byte*)piece.GetPixels(), dst = (byte*)into.GetPixels();
+        for (var y = 0; y < piece.Height; y++)
+            Buffer.MemoryCopy(src + (long)y * piece.RowBytes, dst + (long)(top + y) * into.RowBytes + left, piece.Width, piece.Width);
+    }
+
     // ---- Remove Background with a model ---------------------------------------------------------------------------
 
     private SKBitmap? previewMatteMask;

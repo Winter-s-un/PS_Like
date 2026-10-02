@@ -64,9 +64,11 @@ public sealed partial class ComposaTools
     });
 
     [McpServerTool(Name = "select_object")]
-    [Description("Selects the object under a canvas point: the connected piece of the subject there, with its soft edge. On the backdrop itself it selects nothing. " + DetectHelp)]
+    [Description("Selects the object under a canvas point: the connected piece of the subject there, with its soft edge. On the backdrop itself it selects nothing. With width and height, x and y are the top left of a box and the model runs on that box alone, which finds a small object far better than a point does: everything it finds inside the box is selected. " + DetectHelp)]
     public Task<string> SelectObject(
         int x, int y,
+        [Description("With height: the box to look in, from x and y as its top left")] int? width = null,
+        [Description("With width: the box's height")] int? height = null,
         [Description("Sample every visible layer rather than the active layer alone")] bool allLayers = true,
         [Description(Mode)] string mode = "replace",
         [Description(Detect)] string? detect = null,
@@ -78,7 +80,15 @@ public sealed partial class ComposaTools
         var savedDetect = s.Detect;
         s.SampleAllLayers = allLayers;
         s.Detect = ParseDetect(detect) ?? savedDetect;
-        try { await s.SelectObjectAsync(x, y, ParseMode(mode)); }
+        try
+        {
+            if (width is { } w && height is { } h)
+            {
+                if (w < 2 || h < 2) throw new McpException("The box must be at least 2×2 pixels.");
+                await s.SelectObjectInBoxAsync(new SKRectI(x, y, x + w, y + h), ParseMode(mode));
+            }
+            else await s.SelectObjectAsync(x, y, ParseMode(mode));
+        }
         finally { s.SampleAllLayers = savedAll; s.Detect = savedDetect; }
         return Selected(s);
     });
