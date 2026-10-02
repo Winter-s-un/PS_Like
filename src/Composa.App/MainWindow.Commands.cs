@@ -131,6 +131,9 @@ public sealed partial class MainWindow
             Item("Invert", () => session!.Adjust(new InvertAdjustment()), Key.I, ctrl, () => session!.CanEditPixels),
             Item("Auto Levels", AutoLevels, Key.L, ctrl | shift, () => session!.CanEditPixels),
             Line(),
+            // Beside the adjustments rather than among the filters: it changes what the layer shows, not how its pixels look.
+            Item("Remove Background…", () => _ = Filter(FilterKind.RemoveBackground), enabled: () => session!.CanEditPixels),
+            Line(),
             Item("Canvas Size…", () => _ = CanvasSize(), Key.C, ctrl | alt),
             Item("Image Size…", () => _ = ImageSize(), Key.I, ctrl | alt),
             Item("Trim…", () => _ = Trim()),
@@ -142,7 +145,7 @@ public sealed partial class MainWindow
             Item("Flip Canvas Horizontal", () => session!.FlipCanvas(true)),
             Item("Flip Canvas Vertical", () => session!.FlipCanvas(false)));
 
-        Top("F_ilter", Enum.GetValues<FilterKind>().Select(kind => (object)Item(FilterSettings.DisplayName(kind) + "…", () => _ = Filter(kind), enabled: () => session!.CanEditPixels)).ToArray());
+        Top("F_ilter", Enum.GetValues<FilterKind>().Where(kind => kind != FilterKind.RemoveBackground).Select(kind => (object)Item(FilterSettings.DisplayName(kind) + "…", () => _ = Filter(kind), enabled: () => session!.CanEditPixels)).ToArray());
 
         mergeItem = Item("Merge Down", () => session!.MergeLayers(), Key.E, ctrl, () => session!.CanMerge);
         clipItem = Item("Create Clipping Mask", () => session!.ToggleClippingMask(session.ActiveLayer!), Key.G, ctrl | alt, () => session!.ActiveLayer is { } l && session.CanClip(l));

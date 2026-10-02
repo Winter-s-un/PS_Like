@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Composa.App.Dialogs;
@@ -74,6 +75,16 @@ public class SubjectDetectUiTests
         window.AddSession(another);
         Dispatcher.UIThread.RunJobs();
         Assert.Equal(SubjectDetect.Backdrop, another.Detect);
+    }
+
+    [AvaloniaFact]
+    public void Remove_background_sits_in_the_image_menu_and_not_among_the_filters()
+    {
+        var items = window.GetLogicalDescendants().OfType<MenuItem>().ToList();
+        var removeBackground = items.Single(m => m.Header as string == "Remove Background…");
+        Assert.Equal("_Image", (removeBackground.Parent as MenuItem)?.Header as string);
+        var filter = items.Single(m => m.Header as string == "F_ilter");
+        Assert.DoesNotContain(filter.Items.OfType<MenuItem>(), m => (m.Header as string)?.StartsWith("Remove Background") == true);
     }
 
     [AvaloniaFact]
