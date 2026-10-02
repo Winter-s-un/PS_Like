@@ -30,6 +30,10 @@ Layer > Duplicate Layer (Ctrl+J) copies the layer; with a selection it copies on
 
 Layer > Transform Layer (Ctrl+T) turns on the transform controls and selects the Move tool; see the Move tool in [Tools](tools.md). Layer > Rotate Layer 90° Clockwise, 90° Counterclockwise and 180°, Flip Layer Horizontal and Flip Layer Vertical turn or mirror each selected layer around its own center.
 
+## Enhance Resolution
+
+A picture placed small and then scaled up shows every one of its pixels stretched. Layer > Enhance Resolution gives such a layer enough pixels for its size on the canvas, up to four times what it has, through the same model Image Size's Enhance runs on your machine: fine detail is invented where the stretched pixels were, and the layer keeps its place, size and turn on the canvas, so the document does not change. A layer that lands on exactly one pixel per canvas pixel becomes a plain, paintable placement again. The command applies to raster layers shown larger than their own pixels; text and shapes are redrawn from their settings instead, and a layer shown at or below its size has nothing to gain. A progress window with Cancel counts the tiles, and Cancel changes nothing.
+
 ## Masks
 
 A mask hides parts of a layer without erasing them: white shows, black hides, gray is in between. Layer > Add Layer Mask adds one that reveals everything, or takes the shape of the current selection when there is one. The layer's context menu can also add a mask that hides everything ("Hide All (Black)").
