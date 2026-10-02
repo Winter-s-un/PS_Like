@@ -13,6 +13,8 @@
 # Both pins are the community ONNX conversions Lolly uses, hashed on 2026-10-01 against Lolly's pins:
 #   u2netp.onnx  is in git (4.6 MB), from rembg's release page; upstream xuebinqin/U-2-Net, Apache-2.0.
 #   modnet.onnx  26 MB, from Xenova/modnet on Hugging Face; upstream ZHKKKe/MODNet, Apache-2.0.
+#   realesr-general-x4v3.onnx  is in git (4.9 MB), Real-ESRGAN general v3 from OwlMaster/AllFilesRope on Hugging
+#                Face; upstream xinntao/Real-ESRGAN, BSD-3-Clause.
 # A new model goes here, into SubjectModels.cs and into packaging/THIRD-PARTY-NOTICES.txt in one change,
 # and only with weights under a permissive licence (Apache-2.0, MIT or BSD): BRIA's RMBG models are
 # non-commercial and never ship.
@@ -45,9 +47,13 @@ fetch modnet.onnx \
   "https://huggingface.co/Xenova/modnet/resolve/main/onnx/model.onnx" \
   07c308cf0fc7e6e8b2065a12ed7fc07e1de8febb7dc7839d7b7f15dd66584df9 25888640
 
-# u2netp.onnx is committed; this only confirms the checkout still carries the right file.
-if [ "$(sha256sum "$DIR/u2netp.onnx" | cut -d' ' -f1)" != "309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8" ]; then
-  echo "fetch.sh: src/Composa.Core/Models/u2netp.onnx is not the file the catalog names." >&2
-  exit 1
-fi
-echo "fetch.sh: u2netp.onnx is present and verified"
+# These are committed; this only confirms the checkout still carries the right files.
+check() {
+  if [ "$(sha256sum "$DIR/$1" | cut -d' ' -f1)" != "$2" ]; then
+    echo "fetch.sh: src/Composa.Core/Models/$1 is not the file the catalog names." >&2
+    exit 1
+  fi
+  echo "fetch.sh: $1 is present and verified"
+}
+check u2netp.onnx 309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8
+check realesr-general-x4v3.onnx 09b757accd747d7e423c1d352b3e8f23e77cc5742d04bae958d4eb8082b76fa4

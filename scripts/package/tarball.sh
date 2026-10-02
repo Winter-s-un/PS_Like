@@ -23,7 +23,7 @@ mkdir -p "$WORK/$NAME"
 dotnet publish "$ROOT/src/Composa.App" -c Release -r "$RID" --self-contained true \
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none \
   -p:UpdateChannel=github -o "$WORK/$NAME"
-for required in models/u2netp.onnx models/modnet.onnx; do
+for required in models/u2netp.onnx models/modnet.onnx models/realesr-general-x4v3.onnx; do
   [ -f "$WORK/$NAME/$required" ] || { echo "tarball.sh: $required is missing from the published build." >&2; exit 1; }
 done
 

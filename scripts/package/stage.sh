@@ -32,7 +32,7 @@ PUBLISH_ARGS+=("-p:UpdateChannel=${UPDATE_CHANNEL:-github}")
 dotnet publish "$ROOT/src/Composa.App" "${PUBLISH_ARGS[@]}" -o "$STAGE/usr/lib/$APP"
 
 # The project file copies them; this makes sure no change there can stage a build without them or their notices.
-for required in models/u2netp.onnx models/modnet.onnx THIRD-PARTY-NOTICES.txt; do
+for required in models/u2netp.onnx models/modnet.onnx models/realesr-general-x4v3.onnx THIRD-PARTY-NOTICES.txt; do
   [ -f "$STAGE/usr/lib/$APP/$required" ] || { echo "stage.sh: $required is missing from the published build." >&2; exit 1; }
 done
 
