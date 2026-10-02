@@ -131,10 +131,10 @@ public class SubjectModelTests
     public void A_swapped_or_damaged_file_is_refused_rather_than_run()
     {
         var swapped = SubjectModels.U2NetP with { Id = "swapped", Sha256 = new string('f', 64) };
-        var error = Assert.Throws<InvalidDataException>(() => SubjectModelRunner.Run(swapped, new float[3 * 320 * 320], 320));
+        var error = Assert.Throws<InvalidDataException>(() => ModelRunner.Run(swapped, new float[3 * 320 * 320], 320));
         Assert.Contains("is not the Any subject model", error.Message);
         var missing = SubjectModels.U2NetP with { Id = "missing", File = "absent.onnx" };
-        Assert.Contains("is not installed", Assert.Throws<InvalidDataException>(() => SubjectModelRunner.Run(missing, new float[3 * 320 * 320], 320)).Message);
+        Assert.Contains("is not installed", Assert.Throws<InvalidDataException>(() => ModelRunner.Run(missing, new float[3 * 320 * 320], 320)).Message);
     }
 
     [Fact]

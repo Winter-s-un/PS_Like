@@ -36,7 +36,7 @@ public static class SubjectFinder
     };
 
     /// <summary>Whether the choice can be honoured here. The backdrop method always can.</summary>
-    public static bool IsAvailable(SubjectDetect detect) => ModelFor(detect) is not { } model || SubjectModelRunner.CanRun(model);
+    public static bool IsAvailable(SubjectDetect detect) => ModelFor(detect) is not { } model || ModelRunner.CanRun(model);
 
     /// <summary>The choice that will actually run: the one asked for, or the backdrop when its model is not available.</summary>
     public static SubjectDetect Resolve(SubjectDetect detect) => IsAvailable(detect) ? detect : SubjectDetect.Backdrop;
@@ -44,8 +44,8 @@ public static class SubjectFinder
     /// <summary>Why <see cref="Resolve"/> fell back, for the status line, or null when it did not.</summary>
     public static string? FallbackReason(SubjectDetect detect)
     {
-        if (ModelFor(detect) is not { } model || SubjectModelRunner.CanRun(model)) return null;
-        return !SubjectModelRunner.IsAvailable
+        if (ModelFor(detect) is not { } model || ModelRunner.CanRun(model)) return null;
+        return !ModelRunner.IsAvailable
             ? "The subject detection runtime did not load on this machine, so the plain backdrop was used instead."
             : $"The {model.Name} model is not installed ({model.Path}), so the plain backdrop was used instead.";
     }

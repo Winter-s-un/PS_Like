@@ -32,7 +32,7 @@ public static class SubjectMatting
             input = Matting.PackNchwNormalized(square.GetPixelSpan(), edge, square.RowBytes, model);
         }
         cancellation.ThrowIfCancellationRequested();
-        var raw = SubjectModelRunner.Run(model, input, edge, cancellation);
+        var raw = ModelRunner.Run(model, input, edge, cancellation);
         var activated = Matting.ActivateMask(raw, model.Activation);
         var coarse = Matting.UnpadMask(activated, plan);
         cancellation.ThrowIfCancellationRequested();

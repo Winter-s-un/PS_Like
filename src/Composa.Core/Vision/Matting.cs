@@ -24,17 +24,24 @@ public static class Matting
     /// RGBA bytes at edge by edge to a [1,3,edge,edge] float tensor: each channel (value / 255 - mean) / std, all of
     /// red first, then green, then blue; alpha is dropped. <paramref name="rowBytes"/> is the pixel row stride.
     /// </summary>
-    public static float[] PackNchwNormalized(ReadOnlySpan<byte> rgba, int edge, int rowBytes, SubjectModel model)
+    public static float[] PackNchwNormalized(ReadOnlySpan<byte> rgba, int edge, int rowBytes, SubjectModel model) =>
+        PackNchw(rgba, edge, edge, rowBytes, model.Mean, model.Std);
+
+    /// <summary>
+    /// RGBA bytes at width by height to a [1,3,height,width] float tensor, each channel (value / 255 - mean) / std.
+    /// The upscalers take the raw 0 to 1 scale: a mean of 0 and a std of 1.
+    /// </summary>
+    public static float[] PackNchw(ReadOnlySpan<byte> rgba, int width, int height, int rowBytes, float[] mean, float[] std)
     {
-        var plane = edge * edge;
+        var plane = width * height;
         var output = new float[plane * 3];
-        float mr = model.Mean[0], mg = model.Mean[1], mb = model.Mean[2];
-        float sr = model.Std[0], sg = model.Std[1], sb = model.Std[2];
-        for (var y = 0; y < edge; y++)
+        float mr = mean[0], mg = mean[1], mb = mean[2];
+        float sr = std[0], sg = std[1], sb = std[2];
+        for (var y = 0; y < height; y++)
         {
-            var row = rgba.Slice(y * rowBytes, edge * 4);
-            var at = y * edge;
-            for (var x = 0; x < edge; x++, at++)
+            var row = rgba.Slice(y * rowBytes, width * 4);
+            var at = y * width;
+            for (var x = 0; x < width; x++, at++)
             {
                 var p = x * 4;
                 output[at] = (row[p] / 255f - mr) / sr;

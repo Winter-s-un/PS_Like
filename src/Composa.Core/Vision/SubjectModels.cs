@@ -1,6 +1,4 @@
 // Ported from Lolly (github.com/lolly-tools/lolly, packages/node-shell/src/ml/matte-models.ts and scripts/fetch-matte-models.ts at 12b26ff), MPL-2.0, used under the MIT licence by permission of Andy Fitzsimon, 2026-09-30.
-using System.Security.Cryptography;
-
 namespace Composa.Vision;
 
 /// <summary>How a model's single-channel output becomes a 0 to 1 matte.</summary>
@@ -31,28 +29,7 @@ public sealed record SubjectModel(
     float[] Mean,
     float[] Std,
     MaskActivation Activation,
-    string Note)
-{
-    /// <summary>The file's full path in the models folder, whether or not it is there.</summary>
-    public string Path => System.IO.Path.Combine(SubjectModels.Directory, File);
-
-    /// <summary>Whether the file is on this machine. Never reads it; the hash is checked when it is first loaded.</summary>
-    public bool IsInstalled => System.IO.File.Exists(Path);
-
-    /// <summary>Whether the file on disk is the one this record names. A damaged or swapped file is unavailable, not a crash.</summary>
-    public bool Verify()
-    {
-        if (!IsInstalled) return false;
-        try
-        {
-            using var stream = System.IO.File.OpenRead(Path);
-            if (stream.Length != Bytes) return false;
-            return Convert.ToHexStringLower(SHA256.HashData(stream)) == Sha256;
-        }
-        catch (IOException) { return false; }
-        catch (UnauthorizedAccessException) { return false; }
-    }
-}
+    string Note) : OnnxModel(Id, Name, File, Sha256, Bytes, Licence, Attribution, Source, Url);
 
 /// <summary>
 /// The models Composa knows. Only weights under a permissive licence (Apache-2.0, MIT or BSD) are listed: BRIA's RMBG
@@ -100,12 +77,8 @@ public static class SubjectModels
 
     public static readonly IReadOnlyList<SubjectModel> All = [U2NetP, ModNet];
 
-    /// <summary>
-    /// Where the model files are: <c>COMPOSA_MODELS_DIR</c> when set, otherwise the <c>models</c> folder beside the
-    /// application, which is where the build puts them. Nothing is ever downloaded at run time.
-    /// </summary>
-    public static string Directory =>
-        Environment.GetEnvironmentVariable("COMPOSA_MODELS_DIR") is { Length: > 0 } dir ? dir : System.IO.Path.Combine(AppContext.BaseDirectory, "models");
+    /// <summary>Where the model files are; see <see cref="OnnxModels.Directory"/>.</summary>
+    public static string Directory => OnnxModels.Directory;
 
     public static SubjectModel? Find(string id) => All.FirstOrDefault(m => m.Id == id);
 }
