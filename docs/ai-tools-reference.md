@@ -128,6 +128,8 @@ Each filter tool takes `layer`.
 
 **filter_lens_correction**: `distortion` from -100 (pincushion) to 100 (corrects barrel distortion).
 
+**image_size**: Image > Image Size. Parameters: `width` and `height` in pixels (one may be left out to keep the proportions); `resolution` in pixels per inch; `resample`: `automatic`, `nearest` for hard pixel blocks, or `enhance` to enlarge photo layers with a model run on the machine, which invents detail and takes about a second per 65,000 pixels of each layer. Where the model is not available, `enhance` resamples as `automatic` does and the result says so.
+
 **filter_remove_background**: `detect` as for select_subject. With `any` or `person` the layer gets a mask hiding everything but the subject the model found, which can be painted on afterwards; with `plain` the backdrop is erased and `tolerance` from 0 to 100 says how different a pixel may be from it and still go.
 
 **filter_painterly**: repaints the layer in brush strokes that follow the picture, as the Painterly filter does. Parameters: `style`, one of impressionist, expressionist, colorist_wash or pointillist; `brushSize`, the largest brush's diameter in pixels, 0 to fit it to the picture; `passes` from 1 to 4; `detail` from 0 to 100; `seed`, where the same seed paints the same strokes and 0 picks one.

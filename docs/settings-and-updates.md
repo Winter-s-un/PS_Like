@@ -2,7 +2,7 @@
 
 ## What Composa remembers
 
-Between launches, Composa keeps: the window size and whether it was maximized, the recent files, the JPEG export quality, the view options (rulers, grid, guides, snapping and what to snap to, locked guides, the pixel grid and the transform controls), Auto Select, the Detect choice for subjects, whether the History panel is shown or collapsed and how tall it is, your changed keyboard shortcuts, whether AI control is allowed, and the update check settings. Tool settings and colors carry from tab to tab within a session but start fresh at the next launch.
+Between launches, Composa keeps: the window size and whether it was maximized, the recent files, the JPEG export quality, the view options (rulers, grid, guides, snapping and what to snap to, locked guides, the pixel grid and the transform controls), Auto Select, the Detect choice for subjects, the Resample choice of Image Size, whether the History panel is shown or collapsed and how tall it is, your changed keyboard shortcuts, whether AI control is allowed, and the update check settings. Tool settings and colors carry from tab to tab within a session but start fresh at the next launch.
 
 ## Where files live
 
