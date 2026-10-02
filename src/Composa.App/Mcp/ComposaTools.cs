@@ -8,6 +8,7 @@ using Composa.IO.Psd;
 using Composa.Model;
 using Composa.Rendering;
 using Composa.Selections;
+using Composa.Vision;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
@@ -101,6 +102,28 @@ public sealed partial class ComposaTools(MainWindow window)
     private static string Kind(Layer layer) =>
         layer.IsGroup ? "group" : layer.IsAdjustment ? $"{layer.Adjustment?.DisplayName ?? "adjustment"} adjustment" :
         layer.Text != null ? "text" : layer.Shape != null ? $"{ShapeStyle.DisplayName(layer.Shape.Kind).ToLowerInvariant()} shape" : "pixels";
+
+    [McpServerTool(Name = "image_size")]
+    [Description("Image > Image Size: resamples the whole document to a new size in pixels. Give width, height or both; one alone keeps the proportions. resample is automatic (smooth when shrinking, sharp when enlarging), nearest (hard pixel blocks, for pixel art) or enhance (a model run on this machine enlarges photo layers four times and fits the result, inventing fine detail; about a second per 65,000 pixels of each layer; where the model is not available it resamples as automatic and says so). resolution sets pixels per inch.")]
+    public Task<string> ImageSize(int? width = null, int? height = null, string resample = "automatic", double? resolution = null, int? document = null) => OnUi(async () =>
+    {
+        var s = Editable(document);
+        var doc = s.Document;
+        if (width is null && height is null && resolution is null) throw new McpException("Give a width, a height or a resolution.");
+        var w = width ?? (height is { } h0 ? Math.Max(1, (int)Math.Round((double)h0 * doc.Width / doc.Height)) : doc.Width);
+        var h = height ?? (width is { } w0 ? Math.Max(1, (int)Math.Round((double)w0 * doc.Height / doc.Width)) : doc.Height);
+        if (w < 1 || h < 1 || w > DocumentLimits.MaxSide || h > DocumentLimits.MaxSide) throw new McpException($"The size must be 1 to {DocumentLimits.MaxSide} pixels a side.");
+        var mode = resample.ToLowerInvariant() switch
+        {
+            "automatic" or "auto" or "" => ResampleMode.Automatic,
+            "nearest" or "nearest_neighbor" or "nearest neighbor" or "pixel" => ResampleMode.Nearest,
+            "enhance" or "ai" or "model" => ResampleMode.Enhance,
+            _ => throw new McpException($"Unknown resample \"{resample}\": use automatic, nearest or enhance.")
+        };
+        var note = mode == ResampleMode.Enhance && !UpscaleModels.IsAvailable ? " " + UpscaleModels.UnavailableReason + " The picture was resampled as automatic does." : "";
+        if (!await window.ResizeImage(s, w, h, resolution ?? doc.Resolution, mode)) throw new McpException("Image Size was cancelled.");
+        return $"The document is now {doc.Width}×{doc.Height} px at {doc.Resolution:0.##} pixels/inch.{note}";
+    });
 
     [McpServerTool(Name = "new_document")]
     [Description("Creates a new document in a new tab and makes it the active one.")]

@@ -16,6 +16,8 @@ public sealed class Settings
     public bool AutoSelect { get; set; } = true;
     /// <summary>How the subject is found: by a model, or from the plain backdrop. The Object Selection options bar and the Remove Background dialog set it.</summary>
     public Composa.Vision.SubjectDetect Detect { get; set; } = Composa.Vision.SubjectDetect.Any;
+    /// <summary>How Image Size resamples: the last choice made in its dialog.</summary>
+    public Composa.Editing.ResampleMode Resample { get; set; } = Composa.Editing.ResampleMode.Automatic;
     public Composa.Editing.ViewOptions View { get; set; } = new();
     /// <summary>The panels under the Layers panel by title: whether each is shown, collapsed to its header, and how tall it is.</summary>
     public Dictionary<string, DockPanelState> Dock { get; set; } = [];

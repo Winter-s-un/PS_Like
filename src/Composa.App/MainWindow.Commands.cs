@@ -1148,9 +1148,37 @@ public sealed partial class MainWindow
     private async Task ImageSize()
     {
         if (session == null) return;
-        if (await CanvasDialogs.ImageSize(this, session.Document.Width, session.Document.Height, session.Document.Resolution) is not { } result) return;
-        Busy(() => session.ResizeImage(result.Width, result.Height, result.Resolution));
+        var target = session;
+        if (await CanvasDialogs.ImageSize(this, target.Document.Width, target.Document.Height, target.Document.Resolution, settings.Resample) is not { } result) return;
+        settings.Resample = result.Resample;
+        settings.Save();
+        if (!await ResizeImage(target, result.Width, result.Height, result.Resolution, result.Resample)) return;
         canvas.Fit();
+    }
+
+    /// <summary>
+    /// Image Size with its Resample choice. Enhance runs the model over every layer first, behind the progress
+    /// window and off the UI thread, and the resize itself then swaps the results in as one undo step; a cancel
+    /// changes nothing. Where the model is not available, Enhance resamples as Automatic does and says so.
+    /// </summary>
+    public async Task<bool> ResizeImage(EditorSession target, int width, int height, double resolution, ResampleMode mode)
+    {
+        if (mode == ResampleMode.Enhance && !UpscaleModels.IsAvailable) { ShowNote(UpscaleModels.UnavailableReason + " The picture was resampled as Automatic does."); mode = ResampleMode.Automatic; }
+        EnhancedLayers? enhanced = null;
+        if (mode == ResampleMode.Enhance)
+        {
+            var started = DateTime.UtcNow;
+            enhanced = await ProgressWindow.Run(this, "Enhancing…", (ct, status) => target.PrepareEnhancedAsync(width, height, new Progress<(int Done, int Total)>(p =>
+            {
+                var elapsed = DateTime.UtcNow - started;
+                var left = p.Done == 0 ? "" : $", about {Math.Max(1, (int)Math.Round(elapsed.TotalSeconds / p.Done * (p.Total - p.Done)))} s left";
+                status.Report($"Enhancing… tile {p.Done} of {p.Total}{left}");
+            }), ct));
+            if (enhanced == null) return false; // Cancelled.
+        }
+        try { Busy(() => target.ResizeImage(width, height, resolution, mode, enhanced)); }
+        finally { enhanced?.DisposeUnused(target.Document); }
+        return true;
     }
 
     /// <summary>

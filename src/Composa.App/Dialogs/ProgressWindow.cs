@@ -16,6 +16,7 @@ public sealed class ProgressWindow : Window
     public static TimeSpan Delay { get; set; } = TimeSpan.FromMilliseconds(300);
 
     private bool finished;
+    private readonly TextBlock text;
 
     private ProgressWindow(string message, Action cancel)
     {
@@ -33,7 +34,7 @@ public sealed class ProgressWindow : Window
             Width = 300,
             Children =
             {
-                new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap },
+                (text = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap }),
                 new ProgressBar { IsIndeterminate = true, Height = 6 },
                 new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Children = { button } }
             }
@@ -47,14 +48,20 @@ public sealed class ProgressWindow : Window
     /// after <see cref="Delay"/>. Returns the result, or default when it was cancelled. Any other failure is thrown
     /// to the caller once the window has closed.
     /// </summary>
-    public static async Task<T?> Run<T>(Window owner, string message, Func<CancellationToken, Task<T>> work)
+    public static Task<T?> Run<T>(Window owner, string message, Func<CancellationToken, Task<T>> work) =>
+        Run(owner, message, (ct, _) => work(ct));
+
+    /// <summary>As <see cref="Run{T}(Window, string, Func{CancellationToken, Task{T}})"/>, with a line the work may replace as it goes, such as a tile count or a time left.</summary>
+    public static async Task<T?> Run<T>(Window owner, string message, Func<CancellationToken, IProgress<string>, Task<T>> work)
     {
         using var cancellation = new CancellationTokenSource();
-        var task = work(cancellation.Token);
         ProgressWindow? window = null;
+        var current = message;
+        var status = new Progress<string>(line => { current = line; if (window != null) window.text.Text = line; });
+        var task = work(cancellation.Token, status);
         if (await Task.WhenAny(task, Task.Delay(Delay)) != task)
         {
-            window = new ProgressWindow(message, cancellation.Cancel);
+            window = new ProgressWindow(current, cancellation.Cancel);
             _ = window.ShowDialog(owner);
         }
         try { return await task; }

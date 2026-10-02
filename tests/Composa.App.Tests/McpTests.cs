@@ -65,7 +65,7 @@ public class McpTests
         Assert.Equal(
             ["add_line", "add_shape", "add_text", "adjust_black_and_white", "adjust_brightness_contrast", "adjust_color_balance", "adjust_color_lookup", "adjust_curves", "adjust_exposure", "adjust_gradient_map",
              "adjust_hue_saturation", "adjust_invert", "adjust_levels", "delete_layer", "describe_document", "deselect", "duplicate_layer", "export_image", "export_look", "fill_layer", "filter_add_noise",
-             "filter_bloom", "filter_blur", "filter_dither", "filter_lens_correction", "filter_motion_blur", "filter_painterly", "filter_remove_background", "filter_sharpen", "filter_tonal_contrast", "filter_vignette", "list_documents",
+             "filter_bloom", "filter_blur", "filter_dither", "filter_lens_correction", "filter_motion_blur", "filter_painterly", "filter_remove_background", "filter_sharpen", "filter_tonal_contrast", "filter_vignette", "image_size", "list_documents",
              "modify_selection", "new_document", "new_layer", "open_document", "paint_stroke", "paint_strokes", "place_image", "render", "reorder_layer", "sample_color", "save_document", "select_all", "select_color_range", "select_inverse",
              "select_layer", "select_layer_pixels", "select_object", "select_shape", "select_subject", "select_wand", "set_layer", "trace_edges", "transform_layer", "undo"],
             tools.Select(t => t.Name).Order());
@@ -130,6 +130,14 @@ public class McpTests
         Assert.Equal("Nothing is selected.", Text(await Pumped(client.CallToolAsync("deselect"))));
         Assert.Equal("Undid Deselect.", Text(await Pumped(client.CallToolAsync("undo"))));
         Assert.Equal("Undid Select Subject.", Text(await Pumped(client.CallToolAsync("undo"))));
+
+        // Image Size by width alone keeps the proportions; nearest neighbour keeps the hard edge of the red fill.
+        Assert.Equal("The document is now 200×150 px at 72 pixels/inch.", Text(await Pumped(client.CallToolAsync("image_size", new Dictionary<string, object?> { ["width"] = 200, ["resample"] = "nearest" }))));
+        Assert.Equal((200, 150), (session.Document.Width, session.Document.Height));
+        var badResample = await Pumped(client.CallToolAsync("image_size", new Dictionary<string, object?> { ["width"] = 300, ["resample"] = "magic" }));
+        Assert.Equal(true, badResample.IsError);
+        Assert.Equal("Undid Image Size.", Text(await Pumped(client.CallToolAsync("undo"))));
+        Assert.Equal((400, 300), (session.Document.Width, session.Document.Height));
 
         var picture = Path.Combine(Path.GetTempPath(), $"composa-place-{Guid.NewGuid():N}.png");
         using (var wide = new SKBitmap(800, 200)) { wide.Erase(SKColors.Lime); ImageFiles.Save(wide, picture, ExportFormat.Png); }
