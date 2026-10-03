@@ -50,6 +50,11 @@
     added along with the CHANGELOG.md section when a release is cut; see RELEASING.md.
   -->
   <releases>
+    <release version="1.4.0" date="2026-10-03">
+      <description>
+        <p>Select Subject, Object Selection and Remove Background find the subject of an ordinary photo with a model that runs on your own machine, Image Size enlarges with invented detail and gains Nearest Neighbor, a Color Lookup adjustment with bundled film looks and a .cube export, Save Look in the Camera Raw Filter, GIMP files open as layers, and the Grain Extract and Grain Merge blend modes.</p>
+      </description>
+    </release>
     <release version="1.3.0" date="2026-09-30">
       <description>
         <p>A Color Range selection, fonts, bold and italic per letter, a Dither filter from the classic Mac look to ASCII, a History panel that goes back any number of steps, whole-picture commands such as Merge Visible, Reveal All and Paste in Place, and an update strip that downloads the new version and hands it to its installer.</p>
