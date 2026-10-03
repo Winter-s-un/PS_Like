@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace Composa.Filters;
 
-public enum AdjustmentKind { HueSaturation, Levels, Curves, Exposure, GradientMap, Grain, Invert, BrightnessContrast, BlackAndWhite, ColorBalance, GaussianBlur, MotionBlur, AddNoise }
+public enum AdjustmentKind { HueSaturation, Levels, Curves, Exposure, GradientMap, Grain, Invert, BrightnessContrast, BlackAndWhite, ColorBalance, GaussianBlur, MotionBlur, AddNoise, ColorLookup }
 
 /// <summary>
 /// A color adjustment. The same settings drive a destructive Image menu command and a live adjustment layer.
@@ -23,6 +23,7 @@ public enum AdjustmentKind { HueSaturation, Levels, Curves, Exposure, GradientMa
 [JsonDerivedType(typeof(GaussianBlurAdjustment), "gaussianBlur")]
 [JsonDerivedType(typeof(MotionBlurAdjustment), "motionBlur")]
 [JsonDerivedType(typeof(AddNoiseAdjustment), "addNoise")]
+[JsonDerivedType(typeof(ColorLookupAdjustment), "colorLookup")]
 public abstract record Adjustment
 {
     [JsonIgnore] public abstract AdjustmentKind Kind { get; }
@@ -33,6 +34,8 @@ public abstract record Adjustment
     /// blurs need this much of the picture around any area that is rendered on its own.
     /// </summary>
     [JsonIgnore] public virtual double SamplingMargin => 0;
+    /// <summary>Whether a pixel's result depends on where it is (grain and noise), so the adjustment is no function of color alone.</summary>
+    [JsonIgnore] public virtual bool DependsOnPosition => false;
 
     /// <summary>Builds the per-pixel operation. <paramref name="originX"/>/<paramref name="originY"/> locate the buffer in the document.</summary>
     internal abstract PixelOp CreateOp();
@@ -108,6 +111,7 @@ public abstract record Adjustment
         AdjustmentKind.GaussianBlur => new GaussianBlurAdjustment(),
         AdjustmentKind.MotionBlur => new MotionBlurAdjustment(),
         AdjustmentKind.AddNoise => new AddNoiseAdjustment { Seed = (uint)Random.Shared.Next() },
+        AdjustmentKind.ColorLookup => new ColorLookupAdjustment(),
         _ => new BrightnessContrastAdjustment()
     };
 }
@@ -344,6 +348,7 @@ public sealed record GrainAdjustment : Adjustment
     public override AdjustmentKind Kind => AdjustmentKind.Grain;
     public override string DisplayName => "Grain";
     public override bool IsIdentity => Amount <= 0;
+    public override bool DependsOnPosition => true;
 
     internal static float Hash(int x, int y, uint seed)
     {
@@ -455,6 +460,7 @@ public sealed record AddNoiseAdjustment : Adjustment
     public override AdjustmentKind Kind => AdjustmentKind.AddNoise;
     public override string DisplayName => "Add Noise";
     public override bool IsIdentity => Amount <= 0;
+    public override bool DependsOnPosition => true;
 
     // Zoomed out, each screen pixel averages many noisy ones; one sample at full strength would look far noisier than the export.
     internal override PixelOp? CreateOp(double step) => (this with { Amount = Amount / step }).CreateOp();

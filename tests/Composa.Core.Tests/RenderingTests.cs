@@ -44,6 +44,8 @@ public class RenderingTests
     [InlineData(BlendMode.HardMix)]
     [InlineData(BlendMode.Subtract)]
     [InlineData(BlendMode.Divide)]
+    [InlineData(BlendMode.GrainExtract)]
+    [InlineData(BlendMode.GrainMerge)]
     public void Photoshop_only_blend_modes_follow_their_formula_and_the_layer_opacity(BlendMode mode)
     {
         var backdrop = new SKColor(200, 100, 50);
@@ -72,6 +74,31 @@ public class RenderingTests
         AssertColor(new SKColor(128, 255, 0), Blend(BlendMode.Divide, new SKColor(100, 200, 0), new SKColor(200, 100, 0)));
         AssertColor(new SKColor(0, 255, 255), Blend(BlendMode.HardMix, new SKColor(100, 200, 128), new SKColor(100, 100, 128)));
         AssertColor(new SKColor(45, 0, 0), Blend(BlendMode.LinearBurn, new SKColor(200, 100, 0), new SKColor(100, 100, 255)));
+        // GIMP's pair: Extract is the backdrop minus the layer around mid-gray, Merge adds the layer back around it, so
+        // a layer of pure mid-gray changes nothing under either, and Extract followed by Merge of the same layer restores the picture.
+        AssertColor(new SKColor(228, 28, 128), Blend(BlendMode.GrainExtract, new SKColor(200, 100, 128), new SKColor(100, 200, 128)));
+        AssertColor(new SKColor(172, 172, 128), Blend(BlendMode.GrainMerge, new SKColor(200, 100, 128), new SKColor(100, 200, 128)));
+        AssertColor(new SKColor(200, 100, 50), Blend(BlendMode.GrainExtract, new SKColor(200, 100, 50), new SKColor(128, 128, 128)), 1);
+        AssertColor(new SKColor(200, 100, 50), Blend(BlendMode.GrainMerge, new SKColor(200, 100, 50), new SKColor(128, 128, 128)), 1);
+    }
+
+    [Fact]
+    public void Grain_extract_then_grain_merge_of_the_same_layer_gives_the_picture_back()
+    {
+        // Frequency separation: the blurred picture extracted leaves the detail; merging the blur back restores the picture, within rounding.
+        var picture = new SKColor(200, 100, 50);
+        var blur = new SKColor(180, 120, 70);
+        var extracted = Blend(BlendMode.GrainExtract, picture, blur);
+        AssertColor(new SKColor(148, 108, 108), extracted);
+        AssertColor(picture, Blend(BlendMode.GrainMerge, extracted, blur), 1);
+
+        static SKColor Blend(BlendMode mode, SKColor bottom, SKColor top)
+        {
+            var document = TwoLayers(bottom, top, out var layer);
+            layer.Blend = mode;
+            using var flat = DocumentRenderer.Flatten(document);
+            return flat.GetPixel(0, 0);
+        }
     }
 
     [Fact]

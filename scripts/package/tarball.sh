@@ -14,14 +14,22 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/$NAME"
 
-# One executable is the whole point of this format, so this is the one build that is single-file.
+# The subject detection models travel with the build; the one not in git is fetched and verified first.
+"$ROOT/scripts/models/fetch.sh"
+
+# One executable is the whole point of this format, so this is the one build that is single-file. The
+# models are content, not libraries, and stay beside the executable in a models folder, which is where
+# the application looks for them (AppContext.BaseDirectory is the executable's folder for a single file).
 dotnet publish "$ROOT/src/Composa.App" -c Release -r "$RID" --self-contained true \
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none \
   -p:UpdateChannel=github -o "$WORK/$NAME"
+for required in models/u2netp.onnx models/modnet.onnx models/realesr-general-x4v3.onnx; do
+  [ -f "$WORK/$NAME/$required" ] || { echo "tarball.sh: $required is missing from the published build." >&2; exit 1; }
+done
 
 cp "$ROOT/packaging/$APP.desktop" "$ROOT/packaging/$APP.svg" "$ROOT/packaging/$APP-mime.xml" \
    "$ROOT/packaging/$APP.metainfo.xml" "$ROOT/scripts/install.sh" \
-   "$ROOT/LICENSE" "$ROOT/README.md" "$ROOT/CHANGELOG.md" "$WORK/$NAME/"
+   "$ROOT/LICENSE" "$ROOT/README.md" "$ROOT/CHANGELOG.md" "$ROOT/packaging/THIRD-PARTY-NOTICES.txt" "$WORK/$NAME/"
 mkdir -p "$WORK/$NAME/icons" && cp "$ROOT"/packaging/icons/$APP-*.png "$WORK/$NAME/icons/"
 
 tar -C "$WORK" --owner=0 --group=0 --numeric-owner -czf "$OUT/$NAME.tar.gz" "$NAME"

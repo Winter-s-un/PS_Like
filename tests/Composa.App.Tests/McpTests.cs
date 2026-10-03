@@ -2,6 +2,7 @@ using System.IO.Pipes;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Composa.App.Mcp;
+using Composa.Core.Tests;
 using Composa.Editing;
 using Composa.Filters;
 using Composa.IO;
@@ -62,9 +63,9 @@ public class McpTests
         await Pumped(() => host.Connections == 1);
         var tools = await client.ListToolsAsync();
         Assert.Equal(
-            ["add_line", "add_shape", "add_text", "adjust_black_and_white", "adjust_brightness_contrast", "adjust_color_balance", "adjust_curves", "adjust_exposure", "adjust_gradient_map",
-             "adjust_hue_saturation", "adjust_invert", "adjust_levels", "delete_layer", "describe_document", "deselect", "duplicate_layer", "export_image", "fill_layer", "filter_add_noise",
-             "filter_bloom", "filter_blur", "filter_dither", "filter_lens_correction", "filter_motion_blur", "filter_painterly", "filter_remove_background", "filter_sharpen", "filter_tonal_contrast", "filter_vignette", "list_documents",
+            ["add_line", "add_shape", "add_text", "adjust_black_and_white", "adjust_brightness_contrast", "adjust_color_balance", "adjust_color_lookup", "adjust_curves", "adjust_exposure", "adjust_gradient_map",
+             "adjust_hue_saturation", "adjust_invert", "adjust_levels", "delete_layer", "describe_document", "deselect", "duplicate_layer", "enhance_layer_resolution", "export_image", "export_look", "fill_layer", "filter_add_noise",
+             "filter_bloom", "filter_blur", "filter_dither", "filter_lens_correction", "filter_motion_blur", "filter_painterly", "filter_remove_background", "filter_sharpen", "filter_tonal_contrast", "filter_vignette", "image_size", "list_documents",
              "modify_selection", "new_document", "new_layer", "open_document", "paint_stroke", "paint_strokes", "place_image", "render", "reorder_layer", "sample_color", "save_document", "select_all", "select_color_range", "select_inverse",
              "select_layer", "select_layer_pixels", "select_object", "select_shape", "select_subject", "select_wand", "set_layer", "trace_edges", "transform_layer", "undo"],
             tools.Select(t => t.Name).Order());
@@ -120,6 +121,27 @@ public class McpTests
         using (var fromResource = SKBitmap.Decode(blob.DecodedData.ToArray())) { Assert.Equal(400, fromResource.Width); Assert.Equal(SKColors.Red, fromResource.GetPixel(390, 290)); }
         var noSuch = await Assert.ThrowsAnyAsync<McpException>(async () => await Pumped(client.ReadResourceAsync("composa://documents/9")));
         Assert.Contains("no document 9", noSuch.Message);
+
+        // The subject tools with the plain method, which is exact here: the blue text is what stands out from the red.
+        var subject = await Pumped(client.CallToolAsync("select_subject", new Dictionary<string, object?> { ["detect"] = "plain" }));
+        Assert.StartsWith("Selected the area at", Text(subject));
+        var badDetect = await Pumped(client.CallToolAsync("select_subject", new Dictionary<string, object?> { ["detect"] = "magic" }));
+        Assert.Equal(true, badDetect.IsError);
+        Assert.Equal("Nothing is selected.", Text(await Pumped(client.CallToolAsync("deselect"))));
+        Assert.Equal("Undid Deselect.", Text(await Pumped(client.CallToolAsync("undo"))));
+        Assert.Equal("Undid Select Subject.", Text(await Pumped(client.CallToolAsync("undo"))));
+
+        // Image Size by width alone keeps the proportions; nearest neighbour keeps the hard edge of the red fill.
+        Assert.Equal("The document is now 200×150 px at 72 pixels/inch.", Text(await Pumped(client.CallToolAsync("image_size", new Dictionary<string, object?> { ["width"] = 200, ["resample"] = "nearest" }))));
+        Assert.Equal((200, 150), (session.Document.Width, session.Document.Height));
+        var badResample = await Pumped(client.CallToolAsync("image_size", new Dictionary<string, object?> { ["width"] = 300, ["resample"] = "magic" }));
+        Assert.Equal(true, badResample.IsError);
+        Assert.Equal("Undid Image Size.", Text(await Pumped(client.CallToolAsync("undo"))));
+        Assert.Equal((400, 300), (session.Document.Width, session.Document.Height));
+        // A text layer has settings to redraw from, so Enhance Resolution refuses it.
+        var notRaster = await Pumped(client.CallToolAsync("enhance_layer_resolution", new Dictionary<string, object?> { ["layer"] = "Hello" }));
+        Assert.Equal(true, notRaster.IsError);
+        Assert.Contains("must be a raster layer shown larger than its own pixels", Text(notRaster));
 
         var picture = Path.Combine(Path.GetTempPath(), $"composa-place-{Guid.NewGuid():N}.png");
         using (var wide = new SKBitmap(800, 200)) { wide.Erase(SKColors.Lime); ImageFiles.Save(wide, picture, ExportFormat.Png); }
@@ -225,6 +247,17 @@ public class McpTests
         var asLayer = await Pumped(client.CallToolAsync("adjust_brightness_contrast", new Dictionary<string, object?> { ["contrast"] = 30, ["asLayer"] = true, ["layer"] = "Background" }));
         Assert.Matches("Added adjustment layer \"Brightness/Contrast( \\d+)?\" above \"Background\", now active\\.", Text(asLayer));
         Assert.Equal(30, ((BrightnessContrastAdjustment)session.ActiveLayer!.Adjustment!).Contrast);
+        var looked = await Pumped(client.CallToolAsync("adjust_color_lookup", new Dictionary<string, object?> { ["look"] = "Vivid Slide", ["amount"] = 80, ["asLayer"] = true, ["layer"] = "Background" }));
+        Assert.Equal("Added adjustment layer \"Vivid Slide\" above \"Background\", now active.", Text(looked));
+        var lookup = Assert.IsType<ColorLookupAdjustment>(session.ActiveLayer!.Adjustment);
+        Assert.Equal((Looks.Find("Vivid Slide")!.Id, 80d), (lookup.LatticeId, lookup.Amount));
+        Assert.Equal("Undid New Adjustment Layer.", Text(await Pumped(client.CallToolAsync("undo"))));       // One step, name and all.
+        var badLook = await Pumped(client.CallToolAsync("adjust_color_lookup", new Dictionary<string, object?> { ["look"] = "Kodachrome" }));
+        Assert.Equal(true, badLook.IsError);
+        Assert.Contains("Fine Mono", Text(badLook));
+        var noFile = await Pumped(client.CallToolAsync("adjust_color_lookup", new Dictionary<string, object?> { ["look"] = Path.Combine(Path.GetTempPath(), "composa-missing-look.cube") }));
+        Assert.Equal(true, noFile.IsError);
+        Assert.Contains("no file", Text(noFile));
         var onLive = await Pumped(client.CallToolAsync("adjust_exposure", new Dictionary<string, object?> { ["exposure"] = 1, ["layer"] = "Greeting" }));
         Assert.Equal(true, onLive.IsError);
         Assert.Contains("asLayer", Text(onLive));
@@ -325,6 +358,23 @@ public class McpTests
             Assert.NotEqual(true, (await Pumped(client.CallToolAsync("export_image", new Dictionary<string, object?> { ["path"] = jpeg, ["overwrite"] = true }))).IsError);
             Assert.False(session.IsModified);                                                       // Exporting is not a change.
 
+            var cube = Path.Combine(folder, "look.cube");
+            var badSize = await Pumped(client.CallToolAsync("export_look", new Dictionary<string, object?> { ["path"] = cube, ["size"] = 40 }));
+            Assert.Equal(true, badSize.IsError);
+            Assert.Contains("17, 33, 65", Text(badSize));
+            var notCube = await Pumped(client.CallToolAsync("export_look", new Dictionary<string, object?> { ["path"] = Path.Combine(folder, "look.3dl") }));
+            Assert.Equal(true, notCube.IsError);
+            var look = await Pumped(client.CallToolAsync("export_look", new Dictionary<string, object?> { ["path"] = cube, ["size"] = 17 }));
+            Assert.StartsWith($"Exported the look of \"copy\" as a 17-point .cube to {cube}, baked from \"Brightness/Contrast", Text(look));   // The contrast layer added above.
+            Assert.Equal(17, ColorLattice.Load(cube).Size);
+            Assert.False(session.IsModified);
+            var cubeTaken = await Pumped(client.CallToolAsync("export_look", new Dictionary<string, object?> { ["path"] = cube }));
+            Assert.Equal(true, cubeTaken.IsError);
+            Assert.Contains("overwrite", Text(cubeTaken));
+            var fromFile = await Pumped(client.CallToolAsync("adjust_color_lookup", new Dictionary<string, object?> { ["look"] = cube, ["layer"] = "Background" }));
+            Assert.Equal("Applied Color Lookup to \"Background\".", Text(fromFile));
+            Assert.Equal("Undid Color Lookup.", Text(await Pumped(client.CallToolAsync("undo"))));
+
             var again = await Pumped(client.CallToolAsync("open_document", new Dictionary<string, object?> { ["path"] = copy }));
             Assert.Equal("Document 1 \"copy\" was already open, now active.", Text(again));
             Assert.Single(window.Sessions);
@@ -343,6 +393,23 @@ public class McpTests
             Assert.Equal(true, unreadable.IsError);
             Assert.Contains("Couldn't open broken.cmps", Text(unreadable));
             Assert.Equal(3, window.Sessions.Count);
+
+            // A GIMP file opens when nothing needs converting; one that would ask the person is refused with what it would ask.
+            var plain = new XcfWriter { Version = 11, Width = 30, Height = 20 };
+            plain.Layers.Add(new XcfWriterLayer { Name = "Only", Width = 30, Height = 20 }.Filled(SKColors.Olive));
+            var plainPath = Path.Combine(folder, "plain.xcf");
+            File.WriteAllBytes(plainPath, plain.Build());
+            var opened = await Pumped(client.CallToolAsync("open_document", new Dictionary<string, object?> { ["path"] = plainPath }));
+            Assert.NotEqual(true, opened.IsError);
+            Assert.Contains("\"plain\"", Text(opened));
+            Assert.Equal("Only", Assert.Single(window.Session!.Document.Layers).Name);
+            var asks = new XcfWriter { Version = 11, Width = 30, Height = 20 };
+            asks.Layers.Add(new XcfWriterLayer { Name = "Dissolved", Width = 30, Height = 20, Mode = 1 }.Filled(SKColors.Olive));
+            var asksPath = Path.Combine(folder, "asks.xcf");
+            File.WriteAllBytes(asksPath, asks.Build());
+            var asksRefused = await Pumped(client.CallToolAsync("open_document", new Dictionary<string, object?> { ["path"] = asksPath }));
+            Assert.Equal(true, asksRefused.IsError);
+            Assert.Contains("Dissolved: Blend mode \"Dissolve\"", Text(asksRefused));
         }
         finally { Directory.Delete(folder, recursive: true); }
 

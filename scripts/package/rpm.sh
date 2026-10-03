@@ -80,6 +80,7 @@ exit 0
 %doc /usr/share/doc/$APP/README.md
 %doc /usr/share/doc/$APP/CHANGELOG.md
 %license /usr/share/doc/$APP/copyright
+%license /usr/share/doc/$APP/THIRD-PARTY-NOTICES.txt
 
 %changelog
 SPEC

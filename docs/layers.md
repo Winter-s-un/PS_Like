@@ -9,7 +9,7 @@ A document is a stack of layers, listed in the Layers panel with the top layer f
 - **Adjustment layers** change the look of every layer below them without touching those layers' pixels, and can be edited again later. See [Adjustments and filters](adjustments-and-filters.md).
 - **Folders** group layers. Layer > Group Selected Layers (Ctrl+G) puts the selected layers in a folder; Ungroup (Ctrl+Shift+G) dissolves it. A folder can be collapsed in the panel, and hiding a folder hides everything in it.
 
-New layers are named "Layer 1", "Layer 2" and so on, folders "Folder n", shapes after their kind, adjustment layers after their adjustment, pasted layers "Pasted Layer n", and a duplicate takes the original's name with "copy". Rename a layer with Layer > Rename Layer (F2) or by double-clicking its name.
+New layers are named "Layer 1", "Layer 2" and so on, folders "Folder n", shapes after their kind, adjustment layers after their adjustment (a Color Lookup after its look), pasted layers "Pasted Layer n", and a duplicate takes the original's name with "copy". Rename a layer with Layer > Rename Layer (F2) or by double-clicking its name.
 
 ## The Layers panel
 
@@ -30,6 +30,10 @@ Layer > Duplicate Layer (Ctrl+J) copies the layer; with a selection it copies on
 
 Layer > Transform Layer (Ctrl+T) turns on the transform controls and selects the Move tool; see the Move tool in [Tools](tools.md). Layer > Rotate Layer 90° Clockwise, 90° Counterclockwise and 180°, Flip Layer Horizontal and Flip Layer Vertical turn or mirror each selected layer around its own center.
 
+## Enhance Resolution
+
+A picture placed small and then scaled up shows every one of its pixels stretched. Layer > Enhance Resolution gives such a layer enough pixels for its size on the canvas, up to four times what it has, through the same model Image Size's Enhance runs on your machine: fine detail is invented where the stretched pixels were, and the layer keeps its place, size and turn on the canvas, so the document does not change. A layer that lands on exactly one pixel per canvas pixel becomes a plain, paintable placement again. The command applies to raster layers shown larger than their own pixels; text and shapes are redrawn from their settings instead, and a layer shown at or below its size has nothing to gain. A progress window with Cancel counts the tiles, and Cancel changes nothing.
+
 ## Masks
 
 A mask hides parts of a layer without erasing them: white shows, black hides, gray is in between. Layer > Add Layer Mask adds one that reveals everything, or takes the shape of the current selection when there is one. The layer's context menu can also add a mask that hides everything ("Hide All (Black)").
@@ -44,7 +48,7 @@ A clipped layer shows only where the layer below it has pixels, as a photo clipp
 
 ## Blend modes
 
-The blend mode decides how a layer's colors combine with what is beneath. The dropdown groups them: Normal; Darken, Multiply, Color Burn and Linear Burn; Lighten, Screen, Color Dodge and Linear Dodge (Add); Overlay, Soft Light, Hard Light, Vivid Light, Linear Light, Pin Light and Hard Mix; Difference, Exclusion, Subtract and Divide; Hue, Saturation, Color and Luminosity.
+The blend mode decides how a layer's colors combine with what is beneath. The dropdown groups them: Normal; Darken, Multiply, Color Burn and Linear Burn; Lighten, Screen, Color Dodge and Linear Dodge (Add); Overlay, Soft Light, Hard Light, Vivid Light, Linear Light, Pin Light and Hard Mix; Difference, Exclusion, Subtract, Divide, Grain Extract and Grain Merge; Hue, Saturation, Color and Luminosity. Grain Extract and Grain Merge are GIMP's pair for frequency separation and have no Photoshop counterpart: Extract keeps what differs between the layer and the picture beneath, around mid-gray, and Merge adds such a difference back, so a blurred copy extracted leaves the fine detail on its own, and merging the blur back gives the picture again.
 
 ## Merging and flattening
 

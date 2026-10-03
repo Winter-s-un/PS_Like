@@ -19,4 +19,9 @@
     <ProjectReference Include="..\..\src\Composa.Core\Composa.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Files GIMP itself wrote (see Fixtures/Xcf/make-fixtures.py), read by XcfFixtureTests. -->
+    <None Include="Fixtures/**/*.xcf" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

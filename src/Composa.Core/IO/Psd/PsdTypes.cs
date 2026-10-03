@@ -10,9 +10,6 @@ public sealed class PsdException(string message) : IOException(message)
     public static PsdException TooLarge() => new($"The Photoshop file is larger than Composa can hold: {DocumentLimits.MaxSide:N0} pixels a side and {DocumentLimits.MaxSurfaceMegapixels} megapixels for any one layer, {DocumentLimits.DocumentBudgetMegapixels} megapixels of layers in all.");
 }
 
-/// <summary>One thing that had to change on the way in, reported per layer before anything is applied.</summary>
-public sealed record PsdConversion(string LayerName, string Message);
-
 /// <summary>What a Photoshop layer was, judged from the extra data it carries.</summary>
 internal enum PsdLayerKind { Raster, Group, Adjustment, Text, SmartObject, Vector, Fill, Other }
 

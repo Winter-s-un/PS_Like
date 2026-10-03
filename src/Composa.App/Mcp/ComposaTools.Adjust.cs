@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Composa.Editing;
 using Composa.Filters;
+using Composa.Vision;
 using Composa.Model;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
@@ -102,6 +103,28 @@ public sealed partial class ComposaTools
     public Task<string> AdjustGradientMap(string shadows = "#000000", string highlights = "#FFFFFF", bool reversed = false, [Description(AsLayer)] bool asLayer = false, [Description(TargetLayer)] string? layer = null, int? document = null) =>
         Adjust(document, layer, asLayer, new GradientMapAdjustment { Shadows = (uint)ParseColor(shadows), Highlights = (uint)ParseColor(highlights), Reversed = reversed });
 
+    [McpServerTool(Name = "adjust_color_lookup")]
+    [Description("Color Lookup: grades the layer through a lookup table, either a bundled look by name (Fine Mono, Muted Chrome, Standard Slide or Vivid Slide) or a .cube or .3dl file at an absolute path. Amount, 0 to 100, mixes the look into the original. An adjustment layer made this way is named after the look.")]
+    public Task<string> AdjustColorLookup(
+        [Description("A bundled look's name, or an absolute path to a .cube or .3dl file")] string look,
+        [Description("How much of the look shows, 0 to 100")] double amount = 100,
+        [Description(AsLayer)] bool asLayer = false, [Description(TargetLayer)] string? layer = null, int? document = null)
+    {
+        ColorLattice lattice;
+        string source;
+        if (Looks.Find(look) is { } bundled) { lattice = bundled; source = look; }
+        else if (Path.IsPathRooted(look))
+        {
+            var path = Path.GetFullPath(look);
+            if (!File.Exists(path)) throw new McpException($"There is no file at {path}.");
+            try { lattice = ColorLattice.Load(path); }
+            catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException) { throw new McpException($"Couldn't read {Path.GetFileName(path)}: {error.Message}"); }
+            source = Path.GetFileName(path);
+        }
+        else throw new McpException($"\"{look}\" is neither a bundled look ({string.Join(", ", Looks.Names)}) nor an absolute path to a .cube or .3dl file.");
+        return Adjust(document, layer, asLayer, new ColorLookupAdjustment { Lattice = lattice, Source = source, Amount = Math.Clamp(amount, 0, 100) });
+    }
+
     [McpServerTool(Name = "adjust_invert")]
     [Description("Invert the layer's colors.")]
     public Task<string> AdjustInvert([Description(AsLayer)] bool asLayer = false, [Description(TargetLayer)] string? layer = null, int? document = null) =>
@@ -158,9 +181,19 @@ public sealed partial class ComposaTools
         Filter(document, layer, new FilterSettings { Kind = FilterKind.LensCorrection, Distortion = Math.Clamp(distortion, -100, 100) });
 
     [McpServerTool(Name = "filter_remove_background")]
-    [Description("Remove Background: makes the plain backdrop connected to the layer's edges transparent. Tolerance 0 to 100 says how different a pixel may be from the backdrop and still go.")]
-    public Task<string> FilterRemoveBackground(double tolerance = 20, [Description(TargetLayer)] string? layer = null, int? document = null) =>
-        Filter(document, layer, new FilterSettings { Kind = FilterKind.RemoveBackground, Amount = Math.Clamp(tolerance, 0, 100) });
+    [Description("Remove Background. With detect 'any' or 'person' a model run on this machine finds the subject and the layer gets a mask hiding everything else, which can be painted on afterwards; with 'plain' the near-uniform backdrop connected to the layer's edges is erased, and tolerance 0 to 100 says how different a pixel may be from it and still go. Left out, detect follows the choice in Composa's Object Selection options. A model that is not available here falls back to 'plain'.")]
+    public Task<string> FilterRemoveBackground(double tolerance = 20, [Description("any, person or plain")] string? detect = null, [Description(TargetLayer)] string? layer = null, int? document = null) => OnUi(async () =>
+    {
+        var s = Editable(document);
+        var target = Target(s, layer);
+        if (!s.CanEditPixels) throw new McpException($"\"{target.Name}\" is a {Kind(target)} layer, so a filter cannot change its pixels. Rasterize it first.");
+        var choice = ParseDetect(detect) ?? s.Detect;
+        var settings = new FilterSettings { Kind = FilterKind.RemoveBackground, Amount = Math.Clamp(tolerance, 0, 100), Detect = choice };
+        if (!await s.ApplyRemoveBackgroundAsync(settings)) throw new McpException($"The model found no subject in \"{target.Name}\", so nothing changed.");
+        return s.IsEditingMask || SubjectFinder.Resolve(choice) == SubjectDetect.Backdrop
+            ? $"Removed the plain backdrop of \"{target.Name}\"." + (SubjectFinder.FallbackReason(choice) is { } reason ? " " + reason : "")
+            : $"Masked \"{target.Name}\" to the {SubjectFinder.DisplayName(choice).ToLowerInvariant()} the model found; the mask can be painted on.";
+    });
 
     [McpServerTool(Name = "filter_painterly")]
     [Description("Painterly: repaints the layer in brush strokes that follow the picture's edges, the largest brush first and each smaller one only where the picture still differs, so a photo becomes a painting that is still recognizably the same picture. Style impressionist (faithful), expressionist (long bending strokes, colors drift), colorist_wash (thin overlapping washes) or pointillist (dots). brushSize is the largest brush's diameter in pixels, 0 fits it to the picture; passes is how many brushes, each half the size, 1 to 4; detail 0 to 100 says how closely to follow the picture. Gaps between strokes stay transparent, so a paper-colored layer below gives a painting on paper. The same seed paints the same strokes; 0 picks one.")]
@@ -230,7 +263,10 @@ public sealed partial class ComposaTools
         var target = Target(s, layer);
         if (asLayer)
         {
-            var added = s.AddAdjustmentLayer(adjustment);
+            // A look names its layer, as the dialog does; the rename stays inside the layer's own step.
+            var look = adjustment as ColorLookupAdjustment;
+            var added = s.AddAdjustmentLayer(adjustment, commit: look is not { Source.Length: > 0 });
+            if (look is { Source.Length: > 0 }) { added.Name = look.Source; s.Commit(); s.NotifyLayersChanged(); }
             return $"Added adjustment layer \"{added.Name}\" above \"{target.Name}\", now active.";
         }
         if (!s.CanEditPixels)

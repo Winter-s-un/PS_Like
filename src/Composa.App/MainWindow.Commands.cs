@@ -8,8 +8,10 @@ using Avalonia.Platform.Storage;
 using Composa.App.Dialogs;
 using Composa.Editing;
 using Composa.Filters;
+using Composa.Vision;
 using Composa.IO;
 using Composa.IO.Psd;
+using Composa.IO.Xcf;
 using Composa.Model;
 using Composa.Rendering;
 using SkiaSharp;
@@ -77,6 +79,7 @@ public sealed partial class MainWindow
             Item("Export PNG…", () => _ = Export(ExportFormat.Png), Key.E, ctrl | shift),
             Item("Export JPEG…", () => _ = Export(ExportFormat.Jpeg), Key.S, ctrl | shift | alt),
             Item("Export WebP…", () => _ = Export(ExportFormat.Webp)),
+            Item("Export Look as .cube…", () => _ = ExportLook()),
             Line(),
             Item("Close Project", () => _ = CloseSession(session!), Key.W, ctrl),
             Item("Quit", Close, Key.Q, ctrl, needsDocument: false));
@@ -123,9 +126,13 @@ public sealed partial class MainWindow
             Item("Black & White…", () => _ = Adjust(AdjustmentKind.BlackAndWhite), enabled: () => session!.CanEditPixels),
             Item("Color Balance…", () => _ = Adjust(AdjustmentKind.ColorBalance), enabled: () => session!.CanEditPixels),
             Item("Gradient Map…", () => _ = Adjust(AdjustmentKind.GradientMap), enabled: () => session!.CanEditPixels),
+            Item("Color Lookup…", () => _ = Adjust(AdjustmentKind.ColorLookup), enabled: () => session!.CanEditPixels),
             Item("Grain…", () => _ = Adjust(AdjustmentKind.Grain), enabled: () => session!.CanEditPixels),
             Item("Invert", () => session!.Adjust(new InvertAdjustment()), Key.I, ctrl, () => session!.CanEditPixels),
             Item("Auto Levels", AutoLevels, Key.L, ctrl | shift, () => session!.CanEditPixels),
+            Line(),
+            // Beside the adjustments rather than among the filters: it changes what the layer shows, not how its pixels look.
+            Item("Remove Background…", () => _ = Filter(FilterKind.RemoveBackground), enabled: () => session!.CanEditPixels),
             Line(),
             Item("Canvas Size…", () => _ = CanvasSize(), Key.C, ctrl | alt),
             Item("Image Size…", () => _ = ImageSize(), Key.I, ctrl | alt),
@@ -138,7 +145,7 @@ public sealed partial class MainWindow
             Item("Flip Canvas Horizontal", () => session!.FlipCanvas(true)),
             Item("Flip Canvas Vertical", () => session!.FlipCanvas(false)));
 
-        Top("F_ilter", Enum.GetValues<FilterKind>().Select(kind => (object)Item(FilterSettings.DisplayName(kind) + "…", () => _ = Filter(kind), enabled: () => session!.CanEditPixels)).ToArray());
+        Top("F_ilter", Enum.GetValues<FilterKind>().Where(kind => kind != FilterKind.RemoveBackground).Select(kind => (object)Item(FilterSettings.DisplayName(kind) + "…", () => _ = Filter(kind), enabled: () => session!.CanEditPixels)).ToArray());
 
         mergeItem = Item("Merge Down", () => session!.MergeLayers(), Key.E, ctrl, () => session!.CanMerge);
         clipItem = Item("Create Clipping Mask", () => session!.ToggleClippingMask(session.ActiveLayer!), Key.G, ctrl | alt, () => session!.ActiveLayer is { } l && session.CanClip(l));
@@ -170,6 +177,7 @@ public sealed partial class MainWindow
                 .Append(Line()).Append(Item("Delete Effect", () => session!.RemoveSelectedEffect(), enabled: () => session!.SelectedEffect != null)).ToArray()),
             Item("Edit Text…", () => BeginTextEdit(session!.ActiveLayer!), enabled: () => session!.ActiveLayer?.Text != null),
             Item("Rasterize Layer", () => session!.RasterizeShape(session.ActiveLayer!), enabled: () => session!.ActiveLayer?.IsLive == true),
+            Item("Enhance Resolution", () => _ = EnhanceResolution(), enabled: () => session!.CanEnhanceResolution(session.ActiveLayer)),
             Item("Rotate Layer 90° Clockwise", () => session!.RotateLayers(90)),
             Item("Rotate Layer 90° Counterclockwise", () => session!.RotateLayers(-90)),
             Item("Rotate Layer 180°", () => session!.RotateLayers(180)),
@@ -473,6 +481,7 @@ public sealed partial class MainWindow
     private static readonly string[] ImageExtensions = [.. ImageFiles.ImportExtensions, .. RawImporter.Extensions];
     private static readonly FilePickerFileType ImageType = new("Images") { Patterns = ImageExtensions.Select(e => "*" + e).ToArray() };
     private static readonly FilePickerFileType RawType = new("Camera RAW") { Patterns = RawImporter.Extensions.Select(e => "*" + e).ToArray() };
+    private static readonly FilePickerFileType LookupType = new("Color lookup tables") { Patterns = ["*.cube", "*.3dl"] };
     private static readonly FilePickerFileType AnyOpenable = new("Projects and images") { Patterns = ImageExtensions.Select(e => "*" + e).Append("*" + ProjectFile.Extension).ToArray() };
 
     private async Task NewCanvas()
@@ -510,6 +519,12 @@ public sealed partial class MainWindow
             // Photoshop files open as unsaved documents; what had to be converted is shown before anything is applied.
             if (await ImportPhotoshop(path, DocumentLimits.DocumentPixelBudget) is not { } import) return null;
             AddSession(opened = EditorSession.OpenPhotoshop(import, Path.GetFileNameWithoutExtension(path)));
+        }
+        else if (XcfImport.IsXcf(path))
+        {
+            // GIMP files open the same way; their guides come along.
+            if (await ImportGimp(path, DocumentLimits.DocumentPixelBudget) is not { } import) return null;
+            AddSession(opened = EditorSession.OpenGimp(import, Path.GetFileNameWithoutExtension(path)));
         }
         else if (Path.GetExtension(path).Equals(ProjectFile.Extension, StringComparison.OrdinalIgnoreCase))
         {
@@ -557,6 +572,13 @@ public sealed partial class MainWindow
                     if (target != session) { import.Discard(); continue; }
                     session.PlacePhotoshop(import, name, at);
                 }
+                else if (XcfImport.IsXcf(path))
+                {
+                    var target = session;
+                    if (await ImportGimp(path, DocumentLimits.DocumentPixelBudget - session.Document.RasterPixels()) is not { } import) continue;
+                    if (target != session) { import.Discard(); continue; }
+                    session.PlaceGimp(import, name, at);
+                }
                 else if (RawImporter.IsRaw(path))
                 {
                     var target = session;
@@ -596,7 +618,16 @@ public sealed partial class MainWindow
     private async Task<PsdImport?> ImportPhotoshop(string path, long pixelBudget)
     {
         var import = await Task.Run(() => PsdImport.Load(path, pixelBudget));
-        if (import.Conversions.Count == 0 || await PsdConversionDialog.Confirm(this, Path.GetFileName(path), import.Conversions)) return import;
+        if (import.Conversions.Count == 0 || await ImportConversionDialog.Confirm(this, Path.GetFileName(path), "Photoshop", import.Conversions)) return import;
+        import.Discard();
+        return null;
+    }
+
+    /// <summary>Reads a GIMP file and, when anything has to be converted, asks before going on. Null means the user declined.</summary>
+    private async Task<XcfImport?> ImportGimp(string path, long pixelBudget)
+    {
+        var import = await Task.Run(() => XcfImport.Load(path, pixelBudget));
+        if (import.Conversions.Count == 0 || await ImportConversionDialog.Confirm(this, Path.GetFileName(path), "GIMP", import.Conversions)) return import;
         import.Discard();
         return null;
     }
@@ -699,6 +730,37 @@ public sealed partial class MainWindow
                 using var flat = session.Flatten();
                 ImageFiles.Save(flat, path, format, format == ExportFormat.Png ? 100 : jpegQuality);
             });
+        }
+        catch (Exception error) { await Prompts.Alert(this, "Couldn't export", error.Message); }
+    }
+
+    /// <summary>The size of the last look exported, so the dialog opens on it.</summary>
+    private int lookSize = 33;
+
+    /// <summary>File > Export Look as .cube: the document's adjustment layers baked into one lookup table any editor can load.</summary>
+    private async Task ExportLook()
+    {
+        if (this.session is not { } session) return;
+        var (baked, leftOut) = LookBake.Survey(session.Document);
+        if (baked.Count == 0)
+        {
+            ShowProblem(leftOut.Count > 0 ? "None of the adjustment layers can be baked into a look: " + string.Join("; ", leftOut.Select(l => $"{l.Layer.Name} {l.Why}")) + "."
+                : "There is no adjustment layer to bake into a look.");
+            return;
+        }
+        if (await LookDialogs.ExportLook(this, baked.Select(l => l.Name).ToList(), leftOut.Select(l => (l.Layer.Name, l.Why)).ToList(), lookSize) is not { } size) return;
+        lookSize = size;
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export Look", SuggestedFileName = session.Title + ".cube", DefaultExtension = "cube",
+            FileTypeChoices = [new FilePickerFileType("Color lookup table") { Patterns = ["*.cube"] }]
+        });
+        if (file?.TryGetLocalPath() is not { } path) return;
+        try
+        {
+            var title = session.Title;
+            var names = string.Join(", ", baked.Select(l => l.Name));
+            Busy(() => File.WriteAllText(path, LookBake.Bake(baked, size, title).ToCube(title, $"Exported from Composa: {names}")));
         }
         catch (Exception error) { await Prompts.Alert(this, "Couldn't export", error.Message); }
     }
@@ -837,10 +899,54 @@ public sealed partial class MainWindow
         ColorRangeWindow.Open(this, session);
     }
 
-    private void SelectSubject()
+    private async void SelectSubject()
     {
         if (session == null) return;
-        if (!session.SelectSubject()) ShowProblem("No subject found: the picture has no plain backdrop to tell it apart from.");
+        var target = session;
+        try
+        {
+            if (SubjectFinder.Resolve(target.Detect) == SubjectDetect.Backdrop)
+            {
+                NoteFallback(target.Detect);
+                if (!target.SelectSubject()) ShowProblem("No subject found: the picture has no plain backdrop to tell it apart from.");
+                return;
+            }
+            var found = await ProgressWindow.Run(this, "Finding the subject…", ct => target.SelectSubjectAsync(Composa.Selections.SelectionMode.Replace, ct));
+            if (found == false) ShowProblem("No subject found in the picture.");
+        }
+        catch (Exception e) { ReportFailure(e); }
+    }
+
+    /// <summary>A click with the Object Selection tool: the plain method answers at once, a model through the progress window.</summary>
+    private async void SelectObjectAt(int x, int y, Composa.Selections.SelectionMode mode)
+    {
+        if (session == null) return;
+        var target = session;
+        try
+        {
+            if (SubjectFinder.Resolve(target.Detect) == SubjectDetect.Backdrop) { NoteFallback(target.Detect); target.SelectObject(x, y, mode); return; }
+            await ProgressWindow.Run(this, "Finding the subject…", async ct => { await target.SelectObjectAsync(x, y, mode, ct); return true; });
+        }
+        catch (Exception e) { ReportFailure(e); }
+    }
+
+    /// <summary>A box dragged with the Object Selection tool: the model runs on the box alone, through the progress window.</summary>
+    private async void SelectObjectIn(SKRectI box, Composa.Selections.SelectionMode mode)
+    {
+        if (session == null) return;
+        var target = session;
+        try
+        {
+            NoteFallback(target.Detect);
+            await ProgressWindow.Run(this, "Finding the object…", async ct => { await target.SelectObjectInBoxAsync(box, mode, ct); return true; });
+        }
+        catch (Exception e) { ReportFailure(e); }
+    }
+
+    /// <summary>Says once why a model choice was not honoured, when the runtime did not load or the file is not installed.</summary>
+    private void NoteFallback(SubjectDetect detect)
+    {
+        if (SubjectFinder.FallbackReason(detect) is { } reason) ShowNote(reason);
     }
 
     private Histogram? HistogramOfActive()
@@ -861,7 +967,7 @@ public sealed partial class MainWindow
         var target = session;
         var histogram = HistogramOfActive();
         if (!target.BeginPreview(Adjustment.Create(kind).DisplayName)) { ShowProblem("Select a pixel layer or a mask first."); return; }
-        var result = await AdjustmentDialogs.Edit(this, Adjustment.Create(kind), target.PreviewAdjustment, histogram, target.Foreground, target.Background);
+        var result = await AdjustmentDialogs.Edit(this, Adjustment.Create(kind), target.PreviewAdjustment, histogram, target.Foreground, target.Background, () => target.PreviewOriginal, PickLookupFile);
         if (result == null || result.IsIdentity) target.CancelPreview();
         else { target.PreviewAdjustment(result); target.CommitPreview(); }
     }
@@ -880,7 +986,8 @@ public sealed partial class MainWindow
             var seed = (uint)Random.Shared.Next();
             var grade = await CameraRawDialog.Show(this, lastCameraRaw, original,
                 settings => Busy(() => target.PreviewFilter(new FilterSettings { Kind = kind, CameraRaw = settings, Seed = seed })),
-                () => target.ActiveLayer is { } layer ? (target.IsEditingMask ? layer.Mask : layer.Pixels) : null);
+                () => target.ActiveLayer is { } layer ? (target.IsEditingMask ? layer.Mask : layer.Pixels) : null,
+                () => PickLookSavePath(target.Title), target.Title);
             if (grade == null) { target.CancelPreview(); return; }
             lastCameraRaw = grade;
             if (grade.IsIdentity) { target.CancelPreview(); return; }
@@ -888,11 +995,56 @@ public sealed partial class MainWindow
             target.CommitPreview();
             return;
         }
+        if (kind == FilterKind.RemoveBackground) { await RemoveBackground(target); return; }
         var initial = new FilterSettings { Kind = kind, Radius = kind == FilterKind.Sharpen ? 2 : kind == FilterKind.MotionBlur ? 30 : 8, Amount = kind == FilterKind.Sharpen ? 60 : 20, Seed = (uint)Random.Shared.Next() };
         var result = await AdjustmentDialogs.EditFilter(this, initial, settings => Busy(() => target.PreviewFilter(settings)));
         // A filter left at nothing (a vignette of zero) closes as Cancel does, without an undo step.
         if (result == null || result.IsIdentity) target.CancelPreview();
         else { target.PreviewFilter(result); target.CommitPreview(); }
+    }
+
+    /// <summary>
+    /// Filter > Remove Background, whose preview is open already. With a model the result is a mask, previewed as
+    /// one; with the plain backdrop the pixels are erased as before. The model runs off the UI thread while the
+    /// dialog stays live, and a choice made while it runs cancels the run it replaces.
+    /// </summary>
+    private async Task RemoveBackground(EditorSession target)
+    {
+        // A mask is edited by erasing; a model's mask would have nowhere to go.
+        var initial = new FilterSettings { Kind = FilterKind.RemoveBackground, Detect = target.IsEditingMask ? SubjectDetect.Backdrop : target.Detect, Amount = 20 };
+        CancellationTokenSource? running = null;
+        async Task Preview(FilterSettings settings)
+        {
+            running?.Cancel();
+            var mine = running = new CancellationTokenSource();
+            if (SubjectFinder.Resolve(settings.Detect) == SubjectDetect.Backdrop)
+            {
+                NoteFallback(settings.Detect);
+                target.PreviewRemoveBackground(null);
+                Busy(() => target.PreviewFilter(settings));
+                return;
+            }
+            var matte = await Busy(() => target.FindLayerSubjectAsync(settings.Detect, mine.Token));
+            if (mine.IsCancellationRequested || !target.IsPreviewing) return;
+            target.PreviewRemoveBackground(matte);
+            if (matte == null) ShowProblem("No subject found in this layer.");
+        }
+        async void PreviewSafely(FilterSettings settings)
+        {
+            try { await Preview(settings); }
+            catch (OperationCanceledException) { }
+            catch (Exception e) { ReportFailure(e); }
+        }
+        var result = await AdjustmentDialogs.EditFilter(this, initial, PreviewSafely, canDetect: !target.IsEditingMask);
+        running?.Cancel();
+        if (result == null || !target.IsPreviewing) { target.CancelPreview(); return; }
+        if (!target.IsEditingMask) target.Detect = result.Detect;
+        RememberToolSettings();
+        try { await Preview(result); }
+        catch (OperationCanceledException) { }
+        if (!target.IsPreviewing) return;
+        if (SubjectFinder.Resolve(result.Detect) != SubjectDetect.Backdrop && target.ActiveLayer is { Mask: null }) { target.CancelPreview(); return; }
+        target.CommitPreview();
     }
 
     private async Task NewAdjustmentLayer(AdjustmentKind kind)
@@ -903,14 +1055,33 @@ public sealed partial class MainWindow
         // The layer and its settings are one undo step, and cancelling the dialog leaves no trace of either.
         var target = session;
         var layer = target.AddAdjustmentLayer(adjustment, commit: false);
-        var result = await AdjustmentDialogs.Edit(this, adjustment, a => target.SetAdjustment(layer, a), Histogram.Of(target.Composite()), target.Foreground, target.Background);
+        var result = await AdjustmentDialogs.Edit(this, adjustment, a => target.SetAdjustment(layer, a), Histogram.Of(target.Composite()), target.Foreground, target.Background, target.Composite, PickLookupFile);
         if (result == null) target.Cancel();
         else
         {
             target.SetAdjustment(layer, result);
+            NameByLook(layer, adjustment, result);
             target.Commit();
             target.NotifyLayersChanged();
         }
+    }
+
+    /// <summary>Asks where the Camera Raw panel saves its look as a .cube; null when nowhere.</summary>
+    private async Task<string?> PickLookSavePath(string title)
+    {
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Save Look", SuggestedFileName = title + ".cube", DefaultExtension = "cube",
+            FileTypeChoices = [new FilePickerFileType("Color lookup table") { Patterns = ["*.cube"] }]
+        });
+        return file?.TryGetLocalPath();
+    }
+
+    /// <summary>Asks for a .cube or .3dl for the Color Lookup dialog; null when none was chosen.</summary>
+    private async Task<string?> PickLookupFile()
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Load Color Lookup Table", FileTypeFilter = [LookupType] });
+        return files.Count > 0 ? files[0].TryGetLocalPath() : null;
     }
 
     private async Task EditAdjustmentLayer(Layer layer, bool isNew)
@@ -921,13 +1092,24 @@ public sealed partial class MainWindow
         if (original is InvertAdjustment) return;
         var histogram = Histogram.Of(target.Composite());
         target.Begin("Edit Adjustment");
-        var result = await AdjustmentDialogs.Edit(this, original, a => target.SetAdjustment(layer, a), histogram, target.Foreground, target.Background);
+        var result = await AdjustmentDialogs.Edit(this, original, a => target.SetAdjustment(layer, a), histogram, target.Foreground, target.Background, target.Composite, PickLookupFile);
         if (result != null && !result.ContentEquals(original))
         {
             target.SetAdjustment(layer, result);
+            NameByLook(layer, original, result);
             target.Commit();
         }
         else target.Cancel();
+    }
+
+    /// <summary>
+    /// A look names its layer, as a text layer is named by its words, for as long as the name is still the look's
+    /// (or the numbered default): a name the person typed stays. The edit is open, so the rename is part of its step.
+    /// </summary>
+    private static void NameByLook(Layer layer, Adjustment before, Adjustment after)
+    {
+        if (after is not ColorLookupAdjustment { Source.Length: > 0 } look || look.Source == layer.Name) return;
+        if (layer.Name == (before as ColorLookupAdjustment)?.Source || layer.Name.StartsWith(look.DisplayName, StringComparison.Ordinal)) layer.Name = look.Source;
     }
 
     /// <summary>Adds an effect to the active layer and opens its settings; cancelling the dialog takes the effect away again.</summary>
@@ -980,9 +1162,57 @@ public sealed partial class MainWindow
     private async Task ImageSize()
     {
         if (session == null) return;
-        if (await CanvasDialogs.ImageSize(this, session.Document.Width, session.Document.Height, session.Document.Resolution) is not { } result) return;
-        Busy(() => session.ResizeImage(result.Width, result.Height, result.Resolution));
+        var target = session;
+        if (await CanvasDialogs.ImageSize(this, target.Document.Width, target.Document.Height, target.Document.Resolution, settings.Resample) is not { } result) return;
+        settings.Resample = result.Resample;
+        settings.Save();
+        if (!await ResizeImage(target, result.Width, result.Height, result.Resolution, result.Resample)) return;
         canvas.Fit();
+    }
+
+    /// <summary>
+    /// Layer > Enhance Resolution: the model gives a raster layer shown larger than its pixels enough pixels for its
+    /// size on the canvas, behind the progress window, and the layer keeps its place. Cancel changes nothing.
+    /// </summary>
+    private async Task EnhanceResolution()
+    {
+        if (session is not { } target || target.ActiveLayer is not { } layer || !target.CanEnhanceResolution(layer)) return;
+        if (!UpscaleModels.IsAvailable) { ShowProblem(UpscaleModels.UnavailableReason!); return; }
+        var started = DateTime.UtcNow;
+        var enhanced = await ProgressWindow.Run(this, "Enhancing…", (ct, status) => target.PrepareEnhancedResolutionAsync(layer, new Progress<(int Done, int Total)>(p =>
+        {
+            var elapsed = DateTime.UtcNow - started;
+            var left = p.Done == 0 ? "" : $", about {Math.Max(1, (int)Math.Round(elapsed.TotalSeconds / p.Done * (p.Total - p.Done)))} s left";
+            status.Report($"Enhancing… tile {p.Done} of {p.Total}{left}");
+        }), ct));
+        if (enhanced == null) return; // Cancelled.
+        try { if (!target.EnhanceResolution(layer, enhanced)) ShowProblem("The layer changed while the model ran, so nothing was changed."); }
+        finally { enhanced.DisposeUnused(target.Document); }
+    }
+
+    /// <summary>
+    /// Image Size with its Resample choice. Enhance runs the model over every layer first, behind the progress
+    /// window and off the UI thread, and the resize itself then swaps the results in as one undo step; a cancel
+    /// changes nothing. Where the model is not available, Enhance resamples as Automatic does and says so.
+    /// </summary>
+    public async Task<bool> ResizeImage(EditorSession target, int width, int height, double resolution, ResampleMode mode)
+    {
+        if (mode == ResampleMode.Enhance && !UpscaleModels.IsAvailable) { ShowNote(UpscaleModels.UnavailableReason + " The picture was resampled as Automatic does."); mode = ResampleMode.Automatic; }
+        EnhancedLayers? enhanced = null;
+        if (mode == ResampleMode.Enhance)
+        {
+            var started = DateTime.UtcNow;
+            enhanced = await ProgressWindow.Run(this, "Enhancing…", (ct, status) => target.PrepareEnhancedAsync(width, height, new Progress<(int Done, int Total)>(p =>
+            {
+                var elapsed = DateTime.UtcNow - started;
+                var left = p.Done == 0 ? "" : $", about {Math.Max(1, (int)Math.Round(elapsed.TotalSeconds / p.Done * (p.Total - p.Done)))} s left";
+                status.Report($"Enhancing… tile {p.Done} of {p.Total}{left}");
+            }), ct));
+            if (enhanced == null) return false; // Cancelled.
+        }
+        try { Busy(() => target.ResizeImage(width, height, resolution, mode, enhanced)); }
+        finally { enhanced?.DisposeUnused(target.Document); }
+        return true;
     }
 
     /// <summary>

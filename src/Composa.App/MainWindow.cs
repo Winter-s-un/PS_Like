@@ -49,6 +49,8 @@ public sealed partial class MainWindow : Window
         canvas.ShowPixelGrid = settings.ShowPixelGrid;
         canvas.ShowTransformControls = settings.ShowTransformControls;
         canvas.AutoSelect = settings.AutoSelect;
+        canvas.ObjectClick = SelectObjectAt;
+        canvas.ObjectBox = SelectObjectIn;
         jpegQuality = Math.Clamp(settings.JpegQuality, 1, 100);
         MinWidth = 800;
         MinHeight = 520;
@@ -173,7 +175,7 @@ public sealed partial class MainWindow : Window
     public void AddSession(EditorSession added)
     {
         // The first document starts from the remembered view options; later ones inherit them from the current tab.
-        if (lastToolSource == null) added.View = settings.View;
+        if (lastToolSource == null) { added.View = settings.View; added.Detect = settings.Detect; }
         sessions.Add(added);
         added.HistoryChanged += RebuildTabs;
         added.Problem += message => { if (added == session) ShowProblem(message); };
@@ -218,7 +220,7 @@ public sealed partial class MainWindow : Window
             target.Feather = from.Feather; target.WandTolerance = from.WandTolerance; target.WandContiguous = from.WandContiguous;
             target.SampleAllLayers = from.SampleAllLayers; target.CloneAligned = from.CloneAligned; target.ShapeKind = from.ShapeKind;
             target.ShapeCornerRadius = from.ShapeCornerRadius; target.GradientRadial = from.GradientRadial; target.GradientToTransparent = from.GradientToTransparent; target.TextDefaults = from.TextDefaults;
-            target.ShapeLineWidth = from.ShapeLineWidth; target.WandMode = from.WandMode; target.ObjectEdgeOffset = from.ObjectEdgeOffset; target.View = from.View;
+            target.ShapeLineWidth = from.ShapeLineWidth; target.WandMode = from.WandMode; target.ObjectEdgeOffset = from.ObjectEdgeOffset; target.View = from.View; target.Detect = from.Detect;
             target.SelectionExpandAmount = from.SelectionExpandAmount; target.SelectionContractAmount = from.SelectionContractAmount; target.SelectionFeatherAmount = from.SelectionFeatherAmount;
             target.CropRatio = from.CropRatio;
             target.Tool = tool;
@@ -347,7 +349,7 @@ public sealed partial class MainWindow : Window
         settings.ShowPixelGrid = canvas.ShowPixelGrid;
         settings.ShowTransformControls = canvas.ShowTransformControls;
         settings.AutoSelect = canvas.AutoSelect;
-        if (session != null) settings.View = session.View;
+        if (session != null) { settings.View = session.View; settings.Detect = session.Detect; }
         settings.Save();
     }
 
@@ -638,7 +640,7 @@ public sealed partial class MainWindow : Window
         Tool.Move => "Drag to move · Handles resize (Shift free, Alt from center) · Outside a corner rotates · Ctrl-drag a corner distorts · Ctrl-click picks a layer · 1–0 opacity",
         Tool.Marquee => "Drag to select · Shift add · Alt subtract · Shift+Alt intersect · Drag inside to move · Delete clears · Ctrl+D deselect",
         Tool.Lasso => s.LassoKind == LassoKind.Freehand ? "Drag to select · Shift add · Alt subtract · Drag inside to move" : "Click corners · Click the start, double-click or Enter to close · Backspace removes a corner · Escape cancels",
-        Tool.Wand => s.WandMode == WandMode.Object ? "Click an object to select its outline · Tab for Wand · Shift add · Alt subtract" : "Click to select similar colors · Tab for Object · Shift add · Alt subtract",
+        Tool.Wand => s.WandMode == WandMode.Object ? "Click an object to select its outline · Drag a box around a small one · Tab for Wand · Shift add · Alt subtract" : "Click to select similar colors · Tab for Object · Shift add · Alt subtract",
         Tool.Crop => "Drag to crop · Shift keeps proportions · Alt symmetric · Enter applies · Escape cancels",
         Tool.Brush => (s.EraserMode ? "Drag to erase" : "Drag to paint · Alt-click picks a color") + " · Shift-click draws a line · [ ] size · { } hardness · 1–0 opacity",
         Tool.SpotHealing => "Drag over blemishes to heal · [ ] size",

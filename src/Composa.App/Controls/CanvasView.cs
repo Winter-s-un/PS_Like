@@ -79,6 +79,10 @@ public sealed partial class CanvasView : Control
     public bool ShowTransformControls { get; set; } = true;
     /// <summary>A Move-tool press selects the layer under the pointer. Off, it drags the active layer from anywhere and Ctrl-click picks.</summary>
     public bool AutoSelect { get; set; } = true;
+    /// <summary>Handles a click with the Object Selection tool (document x, y and the selection mode) when the window wants to, as it does when a model may run.</summary>
+    public Action<int, int, Composa.Selections.SelectionMode>? ObjectClick { get; set; }
+    /// <summary>Handles a box dragged with the Object Selection tool (document pixels and the selection mode), as <see cref="ObjectClick"/> handles a click.</summary>
+    public Action<SKRectI, Composa.Selections.SelectionMode>? ObjectBox { get; set; }
     public double Zoom => zoom;
 
     public EditorSession? Session

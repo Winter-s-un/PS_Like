@@ -33,12 +33,12 @@ public sealed partial class CanvasView
             });
         }
         // Shapes being dragged out.
-        else if (drag is Drag.Marquee or Drag.Shape)
+        else if (drag is Drag.Marquee or Drag.Shape or Drag.ObjectBox)
         {
             var shift = dragModifiers.HasFlag(Avalonia.Input.KeyModifiers.Shift);
             var alt = dragModifiers.HasFlag(Avalonia.Input.KeyModifiers.Alt);
-            var rect = drag == Drag.Shape ? MarqueeRect(shift, alt) : MarqueeRect(ConstrainsMarquee(dragModifiers), false);
-            var ellipse = drag == Drag.Marquee ? session.MarqueeKind == MarqueeKind.Ellipse : session.ShapeKind == Model.ShapeKind.Ellipse;
+            var rect = drag == Drag.Shape ? MarqueeRect(shift, alt) : drag == Drag.ObjectBox ? MarqueeRect(false, false) : MarqueeRect(ConstrainsMarquee(dragModifiers), false);
+            var ellipse = drag == Drag.Marquee ? session.MarqueeKind == MarqueeKind.Ellipse : drag == Drag.Shape && session.ShapeKind == Model.ShapeKind.Ellipse;
             var radius = drag == Drag.Shape && session.ShapeKind == Model.ShapeKind.RoundedRectangle ? (float)session.ShapeCornerRadius : 0;
             var fill = drag == Drag.Shape ? session.Foreground : (SKColor?)null;
             steps.Add(canvas =>

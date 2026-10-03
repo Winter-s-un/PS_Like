@@ -22,7 +22,17 @@ public static class CameraRawDialog
 
     /// <param name="original">The layer's pixels before the filter, for the eyedropper and Auto.</param>
     /// <param name="graded">Reads the layer as currently previewed, for the histogram.</param>
-    public static async Task<CameraRawSettings?> Show(Window owner, CameraRawSettings initial, SKBitmap original, Action<CameraRawSettings> changed, Func<SKBitmap?> graded)
+    /// <param name="saveLookPath">Asks where to save the grade as a .cube; null hides Save Look.</param>
+    /// <param name="title">The document's title, for the saved look's TITLE.</param>
+    private static string GroupName(CameraRawGroup group) => group switch
+    {
+        CameraRawGroup.Grading => "Color Grading",
+        CameraRawGroup.Mixer => "Color Mixer",
+        _ => group.ToString()
+    };
+
+    public static async Task<CameraRawSettings?> Show(Window owner, CameraRawSettings initial, SKBitmap original, Action<CameraRawSettings> changed, Func<SKBitmap?> graded,
+        Func<Task<string?>>? saveLookPath = null, string title = "")
     {
         var current = initial;
         var hidden = new HashSet<CameraRawGroup>();
@@ -36,10 +46,12 @@ public static class CameraRawDialog
             if (graded() is { } pixels) { histogram.Histogram = Histogram.Of(pixels); histogram.InvalidateVisual(); }
         };
         var eyes = new Dictionary<CameraRawGroup, Button>();
+        Button? saveLook = null;
         void Update(CameraRawSettings value)
         {
             current = value;
             foreach (var (group, eye) in eyes) eye.IsVisible = current.Adjusts(group);
+            if (saveLook != null) saveLook.IsEnabled = !LookBake.ColorOnly(Rendered()).IsIdentity;
             timer.Stop();
             timer.Start();
         }
@@ -293,7 +305,32 @@ public static class CameraRawDialog
         var scroll = new ScrollViewer { Content = groups, MaxHeight = 520, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Padding = new Thickness(0, 0, 8, 0) };
         var head = Ui.Column(6, histogram, Ui.Row(0, preview), readout);
         histogram.HorizontalAlignment = preview.HorizontalAlignment = HorizontalAlignment.Left;
-        var body = Ui.Column(10, head, Ui.Separator(false), scroll);
+        // Save Look: the grade's color stages as a .cube any editor can load. What reads neighbours or the position
+        // (Effects, Detail, Optics) cannot go into a table and is named in the file and in the note beside the button.
+        var saved = Ui.Label("", Palette.Secondary, 11);
+        saved.VerticalAlignment = VerticalAlignment.Center;
+        saved.TextTrimming = TextTrimming.CharacterEllipsis;
+        saveLook = Ui.TextButton("Save Look…", async () =>
+        {
+            var grade = Rendered();
+            if (saveLookPath == null || LookBake.ColorOnly(grade).IsIdentity || await saveLookPath() is not { } path) return;
+            var leftOut = LookBake.LeftOutOf(grade).Select(GroupName).ToList();
+            try
+            {
+                var comment = leftOut.Count > 0 ? $"Saved from Composa's Camera Raw Filter without {string.Join(", ", leftOut)}, which a table cannot hold" : "Saved from Composa's Camera Raw Filter";
+                await Task.Run(() => File.WriteAllText(path, LookBake.Bake(grade, 33, title).ToCube(title, comment)));
+                saved.Text = leftOut.Count > 0 ? $"Saved {Path.GetFileName(path)} without {string.Join(", ", leftOut)}" : $"Saved {Path.GetFileName(path)}";
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                await Prompts.Alert(owner, "Couldn't save the look", error.Message);
+            }
+        });
+        saveLook.IsEnabled = !LookBake.ColorOnly(Rendered()).IsIdentity;
+        ToolTip.SetTip(saveLook, "Saves the grade as a .cube lookup table for other editors. Effects, Detail and Optics change pixels by their neighbours or their place and are left out.");
+        var footer = Ui.Row(8, saveLook, saved);
+        footer.IsVisible = saveLookPath != null;
+        var body = Ui.Column(10, head, Ui.Separator(false), scroll, footer);
         body.Width = 360;
         var dialog = new DialogWindow("Camera Raw Filter", body);
         dialog.Opened += (_, _) => { timer.Stop(); timer.Start(); };

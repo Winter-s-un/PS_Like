@@ -14,11 +14,16 @@ Every dialog previews on the canvas as you drag, with a Preview checkbox to comp
 - **Black & White**: how light each color range comes out, from -200 to 300, and an optional tint with a hue and a saturation for a sepia or a cyanotype.
 - **Color Balance**: cyan to red, magenta to green and yellow to blue for the shadows, midtones and highlights separately, with Preserve Luminosity keeping each pixel's brightness.
 - **Gradient Map**: maps the tones onto a gradient from a shadows color to a highlights color, with buttons for the current foreground and background colors and a Reverse option.
+- **Color Lookup**: grades the picture through a 3D lookup table, the `.cube` and `.3dl` files that DaVinci Resolve, Lightroom and purchased look packs exchange. Four film looks come bundled (Fine Mono, Muted Chrome, Standard Slide and Vivid Slide); each is drawn on the picture you are editing as a small tile, so you see what it does before you choose it, and Load File… adds a table of your own as a tile beside them. Amount mixes the look into the original. As an adjustment layer it is named after the look, the table travels inside the project file, and the layer's opacity does what Amount does. A table expects ordinary sRGB pixels; one made for log footage looks wrong here, as it does everywhere else. File > Export Look as .cube writes the document's own adjustments as a table; see [Files](files.md#exporting).
 - **Grain**: film grain with an amount, a size and a roughness.
 - **Invert** (Ctrl+I): inverts the colors.
 - **Gaussian Blur**, **Motion Blur** and **Add Noise** exist as adjustment layers, so a blur or a grain can sit above a stack and be turned off later; as direct edits they are in the Filter menu.
 
 The Hue/Saturation, Black & White and Color Balance sliders show their colors on the track, so you see what a slider does before you drag it.
+
+## Remove Background
+
+Image > Remove Background hides everything around the layer's subject. Detect picks how the subject is found, the same choice as the Object Selection tool's: with Any subject or Person a model run on your machine finds it and the layer gets a layer mask hiding the rest, so a wrong edge can be painted back on the mask; with Plain backdrop the near-uniform backdrop connected to the layer's edges is erased, and Tolerance says how different a pixel may be from it and still go. A layer that already has a mask keeps what it hid. Editing a mask, only the plain backdrop applies.
 
 ## Filters
 
@@ -31,7 +36,6 @@ The Hue/Saturation, Black & White and Color Balance sliders show their colors on
 - **Dither**: described below.
 - **Tonal Contrast**: local contrast, with an amount, a radius and how much the shadows, midtones and highlights each get.
 - **Lens Correction**: removes barrel distortion (positive) or pincushion distortion (negative).
-- **Remove Background**: makes the plain backdrop connected to the layer's edges transparent. Tolerance says how different a pixel may be from the backdrop and still go. It suits product shots and portraits on a plain background; it is not a subject detector.
 - **Camera Raw Filter**: a full grading panel, described in [Camera Raw Filter](camera-raw.md).
 - **Painterly**: described below.
 

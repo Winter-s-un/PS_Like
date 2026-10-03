@@ -208,31 +208,60 @@ public static class CanvasDialogs
         return (Math.Clamp(width, 1, DocumentLimits.MaxSide), Math.Clamp(height, 1, DocumentLimits.MaxSide), anchor);
     }
 
-    public static async Task<(int Width, int Height, double Resolution)?> ImageSize(Window owner, int currentWidth, int currentHeight, double resolution)
+    public static readonly ResampleMode[] ResampleModes = [ResampleMode.Automatic, ResampleMode.Nearest, ResampleMode.Enhance];
+
+    public static string ResampleName(ResampleMode mode) => mode switch
+    {
+        ResampleMode.Nearest => "Nearest Neighbor",
+        ResampleMode.Enhance => "Enhance",
+        _ => "Automatic"
+    };
+
+    /// <param name="resample">The last Resample choice, which the dialog opens on; Enhance applies only when enlarging and the model is available.</param>
+    public static async Task<(int Width, int Height, double Resolution, ResampleMode Resample)?> ImageSize(Window owner, int currentWidth, int currentHeight, double resolution, ResampleMode resample = ResampleMode.Automatic)
     {
         int width = currentWidth, height = currentHeight;
         var constrain = true;
         var syncing = false;
         NumericUpDown widthBox = null!, heightBox = null!;
+        var note = new TextBlock { Foreground = Palette.Secondary, MaxWidth = 380, TextWrapping = TextWrapping.Wrap };
+        var mode = resample;
+        void Describe()
+        {
+            var enlarging = width > currentWidth || height > currentHeight;
+            note.Text = mode switch
+            {
+                ResampleMode.Nearest => "Every pixel becomes a hard-edged block, which keeps pixel art crisp.",
+                ResampleMode.Enhance when !Composa.Vision.UpscaleModels.IsAvailable => Composa.Vision.UpscaleModels.UnavailableReason + " The picture is resampled as Automatic does.",
+                ResampleMode.Enhance when !enlarging => "Enhance only applies when enlarging; at this size the picture is resampled as Automatic does.",
+                ResampleMode.Enhance => "A model run on this machine enlarges each photo layer four times, inventing fine detail that was not there, then fits it to the new size. It takes about a second per 65,000 pixels of each layer; text and shapes are redrawn instead, and masks are resampled.",
+                _ => "Smooth when shrinking, sharp cubic when enlarging."
+            };
+        }
         widthBox = Ui.Number(width, 1, DocumentLimits.MaxSide, v =>
         {
             width = (int)v;
-            if (!constrain || syncing) return;
-            syncing = true; heightBox.Value = Math.Max(1, (int)Math.Round(v * currentHeight / currentWidth)); syncing = false;
+            if (constrain && !syncing) { syncing = true; heightBox.Value = Math.Max(1, (int)Math.Round(v * currentHeight / currentWidth)); syncing = false; }
+            Describe();
         }, width: 120);
         heightBox = Ui.Number(height, 1, DocumentLimits.MaxSide, v =>
         {
             height = (int)v;
-            if (!constrain || syncing) return;
-            syncing = true; widthBox.Value = Math.Max(1, (int)Math.Round(v * currentWidth / currentHeight)); syncing = false;
+            if (constrain && !syncing) { syncing = true; widthBox.Value = Math.Max(1, (int)Math.Round(v * currentWidth / currentHeight)); syncing = false; }
+            Describe();
         }, width: 120);
         var resolutionBox = Ui.Number(resolution, 1, 9600, v => resolution = v, width: 120);
+        var modes = Ui.Combo(ResampleModes, mode, ResampleName, v => { mode = v; Describe(); }, 160);
+        ToolTip.SetTip(modes, "How the pixels are resampled: Automatic for most pictures, Nearest Neighbor for pixel art, Enhance to invent detail with a model while enlarging");
+        Describe();
         var body = Ui.Column(12,
             Ui.Label($"Current size: {currentWidth} × {currentHeight} px", Palette.Secondary),
             Form(("Width", Ui.Row(6, widthBox, Ui.Label("px", Palette.Secondary))), ("Height", Ui.Row(6, heightBox, Ui.Label("px", Palette.Secondary))),
-                ("", Ui.Check("Constrain proportions", true, v => constrain = v)), ("Resolution", Ui.Row(6, resolutionBox, Ui.Label("pixels/inch", Palette.Secondary)))));
+                ("", Ui.Check("Constrain proportions", true, v => constrain = v)), ("Resolution", Ui.Row(6, resolutionBox, Ui.Label("pixels/inch", Palette.Secondary))),
+                ("Resample", modes)),
+            note);
         if (!await new DialogWindow("Image Size", body).Ask(owner)) return null;
-        return (width, height, resolution);
+        return (width, height, resolution, mode);
     }
 
     /// <summary>Picks the JPEG quality while showing what the compression does to the picture and how large the file gets.</summary>

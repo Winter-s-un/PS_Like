@@ -10,6 +10,8 @@ namespace Composa.App;
 
 public sealed partial class MainWindow
 {
+    private static readonly Composa.Vision.SubjectDetect[] Detects = [Composa.Vision.SubjectDetect.Any, Composa.Vision.SubjectDetect.Person, Composa.Vision.SubjectDetect.Backdrop];
+
     /// <summary>Rebuilds the bar under the tabs with the current tool's settings.</summary>
     private void RebuildOptions()
     {
@@ -69,6 +71,9 @@ public sealed partial class MainWindow
                         var edge = Ui.Number(s.ObjectEdgeOffset, -10, 10, v => s.ObjectEdgeOffset = (int)v, 1, "0", 52);
                         ToolTip.SetTip(edge, "Positive values tighten the detected outline inward; negative values loosen it outward");
                         Add(Ui.Row(5, Ui.Scrub(Ui.Label("Edge", Palette.Secondary), edge), edge, Ui.Label("px", Palette.Secondary)));
+                        var detect = Ui.Combo(Detects, s.Detect, Composa.Vision.SubjectFinder.DisplayName, v => { s.Detect = v; RememberToolSettings(); }, 128);
+                        ToolTip.SetTip(detect, "How the subject is found: a model for any subject or for a person, run on this machine, or the plain backdrop that touches the picture's edges. The same choice drives Select > Subject and Remove Background.");
+                        Add(Ui.Row(5, Ui.Label("Detect", Palette.Secondary), detect));
                     }
                     Add(Ui.Check("Sample all layers", s.SampleAllLayers, v => s.SampleAllLayers = v));
                 }

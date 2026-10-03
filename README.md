@@ -15,7 +15,7 @@ Composa is developed on Linux, on X11 and Wayland (through XWayland), and that i
 - Layer effects: Stroke (outside or inside), Drop Shadow, Outer Glow, Inner Glow, Color Overlay and Inner Shadow, each switchable, editable with a live preview and copied between layers by Alt-dragging
 - Layer masks on layers, folders and adjustment layers: paint, fill, gradient, invert, blur, apply, disable
 - Clipping masks (Alt-click a layer, or Ctrl+Alt+G)
-- Adjustment layers: Hue/Saturation, Levels, Curves, Exposure, Gradient Map, Grain, Brightness/Contrast, Black & White, Color Balance, Invert, and the live Gaussian Blur, Motion Blur and Add Noise, which work on everything beneath them
+- Adjustment layers: Hue/Saturation, Levels, Curves, Exposure, Gradient Map, Color Lookup, Grain, Brightness/Contrast, Black & White, Color Balance, Invert, and the live Gaussian Blur, Motion Blur and Add Noise, which work on everything beneath them
 - Merge Down, Merge Layers, Merge Group (Ctrl+E) and Flatten Image
 - Duplicate (several at once, stacked together above the topmost), rename inline, reorder and nest by drag and drop; Alt-drag to duplicate
 - Copy and paste whole layers, folders and adjustments included, within a project or into another tab, where they arrive centered; a right-click menu on every row for the layer, its folder and its mask
@@ -50,9 +50,9 @@ Composa is developed on Linux, on X11 and Wayland (through XWayland), and that i
 - Every painting tool also works on masks
 
 ### Adjustments and filters
-- Levels (with Auto and a histogram), Curves, Hue/Saturation (master and six color ranges, Colorize), Exposure, Gradient Map, Grain, Brightness/Contrast, Invert
+- Levels (with Auto and a histogram), Curves, Hue/Saturation (master and six color ranges, Colorize), Exposure, Gradient Map, Grain, Brightness/Contrast, Invert; Color Lookup through `.cube` and `.3dl` tables, with four bundled film looks drawn on your picture, and Export Look to write your own adjustments as a `.cube`
 - Black & White with Photoshop's six color weights, so reds and greens stay apart instead of flattening into one gray, and an optional tint for sepia or cyanotype; Color Balance for shadows, midtones and highlights separately, with Preserve Luminosity
-- Gaussian Blur and Motion Blur that spread past a layer's edges, Sharpen, Add Noise (uniform or Gaussian), Lens Correction, Remove Background
+- Gaussian Blur and Motion Blur that spread past a layer's edges, Sharpen, Add Noise (uniform or Gaussian), Lens Correction
 - Finishing filters: Vignette in any color (on an empty layer it paints across the whole canvas), Bloom / Glow, Tonal Contrast and Dither (Atkinson, Floyd-Steinberg, Bayer, halftone, Mac patterns and ASCII, in two colors or the picture's own)
 - Camera Raw Filter: a grade panel with Light, Color (Auto white balance and an eyedropper), Effects (texture, clarity, dehaze, glow, vignette, grain), Curve, Color Mixer, Color Grading, Detail, Optics and Calibration, each group switchable off without losing its sliders, with a histogram of the result
 - Live previews, limited to the selection when there is one
@@ -66,6 +66,7 @@ Composa is developed on Linux, on X11 and Wayland (through XWayland), and that i
 - Smooth downsampling when zoomed out, crisp pixels and a pixel grid when zoomed in
 - Open PNG, JPEG, WebP, BMP and GIF (and HEIC, AVIF, TIFF and SVG through ImageMagick when it is installed); drop files onto the window; paste images from other apps. An SVG placed into a document is drawn to fit the canvas, so a small icon comes in sharp
 - Open camera RAW files (Canon, Nikon, Sony, Fujifilm, DNG and more) through ImageMagick when it is installed: a develop step with exposure, temperature and tint and a live preview comes first, working on a 16-bit decode, so you choose what to keep before the image becomes an 8-bit layer
+- Open GIMP files, `.xcf` from 2.10 through 3.2: layers, folders, masks, opacity, blend modes, guides and every precision come in, with the same report of conversions before anything is applied
 - Open Photoshop files, `.psd` and Large Document `.psb`: layers, folders, masks, clipping, opacity, blend modes, solid fill shapes, adjustments and simple horizontal text come in editable, and a report lists everything that has to be converted before anything is applied; dropped onto an open document, a Photoshop file arrives inside a folder
 - Export PNG, JPEG (with a live preview of the compression and the file size) and WebP; Copy Merged
 - Undo history limited by memory, not by a fixed step count
@@ -92,7 +93,7 @@ The tools create a document, list and describe the open ones, place an image fil
 ## Differences from the macOS app
 
 - Projects are saved as `.cmps` files: a zip archive with a JSON manifest and one PNG per layer and mask. Projects saved by the macOS app (`.comp` packages) cannot be opened.
-- Remove Background, Select > Subject and the Magic tool's Object mode work from the plain backdrop connected to the image's edges: the subject is everything else, and an object is the connected piece of it under the click. The macOS app uses Apple's Vision subject detection, which exists only on Apple's platforms, so busy backgrounds defeat these here.
+- Remove Background, Select > Subject and the Magic tool's Object mode find the subject with a segmentation model run on your own machine (U²-Net lite for any subject, MODNet for people), where the macOS app uses Apple's Vision framework; the plain-backdrop method, exact on product shots, remains as a choice and as the fallback.
 - HEIC, AVIF, TIFF, SVG and camera RAW open through ImageMagick, because Skia does not decode them itself. The Windows build includes it; on Linux they open when ImageMagick (`magick` or `convert`) is installed. SVG files are drawn by ImageMagick's librsvg rather than by macOS's own renderer, so an SVG that leans on features librsvg lacks may look different.
 - A mask always moves and scales with its layer; it cannot be unlinked and transformed on its own.
 - Layers cannot be dragged between tabs. Copy and paste (Ctrl+C, Ctrl+V) carries whole layers across when nothing is selected, and pixels when something is; layers pasted into another project arrive centered on its canvas.

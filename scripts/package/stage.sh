@@ -26,7 +26,15 @@ fi
 # package that comes from a repository, whose package manager owns updates and must not be sidestepped.
 PUBLISH_ARGS+=("-p:UpdateChannel=${UPDATE_CHANNEL:-github}")
 
+# The subject detection models travel with the build; the one not in git is fetched and verified first.
+"$ROOT/scripts/models/fetch.sh"
+
 dotnet publish "$ROOT/src/Composa.App" "${PUBLISH_ARGS[@]}" -o "$STAGE/usr/lib/$APP"
+
+# The project file copies them; this makes sure no change there can stage a build without them or their notices.
+for required in models/u2netp.onnx models/modnet.onnx models/realesr-general-x4v3.onnx THIRD-PARTY-NOTICES.txt; do
+  [ -f "$STAGE/usr/lib/$APP/$required" ] || { echo "stage.sh: $required is missing from the published build." >&2; exit 1; }
+done
 
 ln -sf "../lib/$APP/$APP" "$STAGE/usr/bin/$APP"
 
@@ -41,6 +49,7 @@ done
 install -Dm644 "$ROOT/LICENSE"      "$STAGE/usr/share/doc/$APP/copyright"
 install -Dm644 "$ROOT/README.md"    "$STAGE/usr/share/doc/$APP/README.md"
 install -Dm644 "$ROOT/CHANGELOG.md" "$STAGE/usr/share/doc/$APP/CHANGELOG.md"
+install -Dm644 "$ROOT/packaging/THIRD-PARTY-NOTICES.txt" "$STAGE/usr/share/doc/$APP/THIRD-PARTY-NOTICES.txt"
 
 chmod 755 "$STAGE/usr/lib/$APP/$APP"
 echo "staged $RID into $STAGE"

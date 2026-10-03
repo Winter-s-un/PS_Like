@@ -43,9 +43,17 @@ Selects a freehand or a polygonal outline; press L again or Tab to switch. Freeh
 Two modes, Magic Wand and Object Selection, picked from the button's group or switched with Tab.
 
 - **Magic Wand** selects the connected area of similar color under the click. Tolerance (0 to 255, 32 by default) says how different a color may be; Contiguous limits the selection to the connected area.
-- **Object Selection** traces the object under the click: the connected piece of everything that is not the plain backdrop touching the picture's edges. The Edge setting, from -10 to 10, tightens or loosens the outline.
+- **Object Selection** selects the object under the click: the connected piece of the subject there, with its soft edge. The Edge setting, from -10 to 10, tightens or loosens the outline. Drag a box around an object instead and the model looks at the box alone, which finds a small object in a large picture far better than a click does: everything it finds inside the box is selected.
 
-Sample all layers reads the merged picture instead of the active layer alone. Shift adds and Alt subtracts, as with the marquee. Object Selection and Select > Subject work from the plain backdrop connected to the picture's edges, so a busy background defeats them.
+Detect says how the subject is told from its surroundings, for this tool, for Select > Subject and for Image > Remove Background alike:
+
+- **Any subject** runs a small segmentation model (U²-Net lite) on your machine. It works on ordinary photos with busy backgrounds; edges are soft, and low-contrast scenes can confuse it.
+- **Person** runs a portrait matting model (MODNet) on your machine, which follows hair and soft edges far better, and is weaker on anything that is not a person.
+- **Plain backdrop** uses no model: the backdrop is what touches the picture's edges in a near-uniform color, and the subject is everything else. It is exact on product shots and portraits against a plain background, and a busy background defeats it.
+
+The models run on your machine only and nothing is sent anywhere. A model takes about half a second on a typical computer, plus a little for a very large picture; a small window with Cancel appears when it takes longer than a moment, and the answer is kept, so a second click or Select > Subject on the same picture is immediate. Where a model is not available (its file is not installed, or the runtime could not load) the plain backdrop is used and the status line says why.
+
+Sample all layers reads the merged picture instead of the active layer alone. Shift adds and Alt subtracts, as with the marquee.
 
 ## Crop (C)
 

@@ -17,9 +17,9 @@ public sealed class PsdImport
     public double Resolution { get; }
     /// <summary>Root layers, bottom to top, with folders holding their children. Meant to be placed once.</summary>
     public List<Layer> Layers { get; }
-    public IReadOnlyList<PsdConversion> Conversions { get; }
+    public IReadOnlyList<ImportConversion> Conversions { get; }
 
-    private PsdImport(int width, int height, double resolution, List<Layer> layers, List<PsdConversion> conversions)
+    private PsdImport(int width, int height, double resolution, List<Layer> layers, List<ImportConversion> conversions)
     {
         Width = width;
         Height = height;
@@ -100,7 +100,7 @@ public sealed class PsdImport
 
     private static PsdImport Build(PsdFile file, long pixelBudget)
     {
-        var conversions = new List<PsdConversion>();
+        var conversions = new List<ImportConversion>();
         var canvas = new SKSizeI(file.Width, file.Height);
         var remaining = pixelBudget - file.Layers.Sum(l => (long)(l.Image?.Width ?? 0) * (l.Image?.Height ?? 0));
 
@@ -130,7 +130,7 @@ public sealed class PsdImport
                 continue;
             }
             var name = record.Name.Length == 0 ? "Layer" : record.Name;
-            if (record.Cropped) conversions.Add(new PsdConversion(name, CroppedNote));
+            if (record.Cropped) conversions.Add(new ImportConversion(name, CroppedNote));
             var target = openGroups.Count > 0 ? pending[openGroups.Peek()] : roots;
             Layer? layer;
             if (record.IsGroup)
@@ -139,7 +139,7 @@ public sealed class PsdImport
                 layer = new Layer { Id = id, Name = name, Kind = LayerKind.Group, Collapsed = record.Section == 2 };
                 if (pending.TryGetValue(id, out var children)) layer.Children.AddRange(children);
                 target = openGroups.Count > 0 ? pending[openGroups.Peek()] : roots;
-                if (record.BlendKey is not ("pass" or "norm")) conversions.Add(new PsdConversion(name, $"Folder blend mode \"{record.BlendKey.Trim()}\" isn't supported. The folder will be pass-through."));
+                if (record.BlendKey is not ("pass" or "norm")) conversions.Add(new ImportConversion(name, $"Folder blend mode \"{record.BlendKey.Trim()}\" isn't supported. The folder will be pass-through."));
                 record.Image?.Dispose();
             }
             else
@@ -147,7 +147,7 @@ public sealed class PsdImport
                 layer = BuildLayer(record, name, canvas, ref remaining, conversions);
                 if (layer == null) continue;
                 if (!Blends.ContainsKey(record.BlendKey) && record.BlendKey != "pass")
-                    conversions.Add(new PsdConversion(name, $"Blend mode \"{record.BlendKey.Trim()}\" isn't supported and will be applied as Normal."));
+                    conversions.Add(new ImportConversion(name, $"Blend mode \"{record.BlendKey.Trim()}\" isn't supported and will be applied as Normal."));
                 layer.Blend = Blends.GetValueOrDefault(record.BlendKey, BlendMode.Normal);
                 if (record.Clipping) clipping.Add(layer.Id);
             }
@@ -170,10 +170,10 @@ public sealed class PsdImport
         return Math.Clamp(hasEffects && record.Fill != 255 ? opacity : opacity * (record.Fill / 255.0), 0, 1);
     }
 
-    private static Layer? BuildLayer(PsdLayer record, string name, SKSizeI canvas, ref long remaining, List<PsdConversion> conversions)
+    private static Layer? BuildLayer(PsdLayer record, string name, SKSizeI canvas, ref long remaining, List<ImportConversion> conversions)
     {
         var extra = record.Extra;
-        void Note(string message) => conversions.Add(new PsdConversion(name, message));
+        void Note(string message) => conversions.Add(new ImportConversion(name, message));
         var kind = TextKeys.Any(extra.ContainsKey) ? PsdLayerKind.Text
             : VectorKeys.Any(extra.ContainsKey) ? PsdLayerKind.Vector
             : SmartObjectKeys.Any(extra.ContainsKey) ? PsdLayerKind.SmartObject
@@ -248,7 +248,7 @@ public sealed class PsdImport
     /// Photoshop keeps a mask over its own rectangle with a default value outside it; here a mask shares its layer's
     /// pixel grid (or the document's, for folders and adjustments), so the plane is placed into one of that size.
     /// </summary>
-    private static void ApplyMask(PsdLayer record, Layer layer, SKSizeI canvas, List<PsdConversion> conversions)
+    private static void ApplyMask(PsdLayer record, Layer layer, SKSizeI canvas, List<ImportConversion> conversions)
     {
         if (!record.HasMask || record.MaskFromRender) { record.MaskImage?.Dispose(); return; }
         int width, height, dx, dy;
@@ -275,11 +275,11 @@ public sealed class PsdImport
         }
         layer.Mask = mask;
         layer.MaskEnabled = !record.MaskDisabled;
-        if (!record.MaskLinked) conversions.Add(new PsdConversion(layer.Name, "The mask was unlinked from its layer in Photoshop; here it moves with the layer."));
+        if (!record.MaskLinked) conversions.Add(new ImportConversion(layer.Name, "The mask was unlinked from its layer in Photoshop; here it moves with the layer."));
     }
 
     /// <summary>A clipped layer follows the sibling below it here, so clipping onto a folder or an adjustment has no base to keep.</summary>
-    private static void ResolveClipping(List<Layer> siblings, HashSet<Guid> clipping, List<PsdConversion> conversions)
+    private static void ResolveClipping(List<Layer> siblings, HashSet<Guid> clipping, List<ImportConversion> conversions)
     {
         for (var i = 0; i < siblings.Count; i++)
         {
@@ -290,7 +290,7 @@ public sealed class PsdImport
             for (var j = i - 1; j >= 0; j--)
                 if (!clipping.Contains(siblings[j].Id)) { baseLayer = siblings[j]; break; }
             if (baseLayer is { Pixels: not null }) layer.Clipped = true;
-            else conversions.Add(new PsdConversion(layer.Name, "This clipping mask's base isn't supported, so clipping was skipped."));
+            else conversions.Add(new ImportConversion(layer.Name, "This clipping mask's base isn't supported, so clipping was skipped."));
         }
     }
 }

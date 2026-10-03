@@ -131,7 +131,7 @@ public class DialogTests
         Assert.Equal(540, height.Value);                                  // Proportions still follow after the bad entry.
         dialog.Close(true);
         Dispatcher.UIThread.RunJobs();
-        Assert.Equal((960, 540, 300d), task.Result);
+        Assert.Equal((960, 540, 300d, ResampleMode.Automatic), task.Result);
     }
 
     [AvaloniaFact]

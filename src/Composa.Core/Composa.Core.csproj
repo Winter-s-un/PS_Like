@@ -5,6 +5,25 @@
   <ItemGroup>
     <PackageReference Include="SkiaSharp" Version="$(SkiaSharpVersion)" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="$(SkiaSharpVersion)" />
+    <!--
+      ONNX Runtime (MIT) runs the subject detection models on the CPU. Its native library is 16 to 28 MB per
+      platform and loads lazily; where it cannot load, SubjectModelRunner.IsAvailable is false and the
+      plain-backdrop method takes over. Its notice is in packaging/THIRD-PARTY-NOTICES.txt.
+    -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.30.0" />
     <InternalsVisibleTo Include="Composa.Core.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The film looks of the Color Lookup adjustment, made by scripts/make-looks.sh; see packaging/THIRD-PARTY-NOTICES.txt. -->
+    <EmbeddedResource Include="Looks/*.cube" LogicalName="Looks/%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <!--
+      The subject detection models, read at run time from the models folder beside the application
+      (SubjectModels.Directory). u2netp.onnx (4.6 MB) is in git; modnet.onnx (26 MB) is fetched by
+      scripts/models/fetch.sh, which the packaging scripts run, and is absent from a checkout that has
+      not run it: the Person choice then falls back. Their licences are in packaging/THIRD-PARTY-NOTICES.txt.
+    -->
+    <None Include="Models/*.onnx" Link="models/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

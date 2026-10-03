@@ -12,11 +12,13 @@ Most tools take a `document` parameter: the tab number as `list_documents` repor
 
 **new_document**: creates a document in a new tab and makes it active. Parameters: `width` and `height` in pixels; `background` as a color, left out for a transparent canvas.
 
-**open_document**: opens a project or an image file in a new tab, or makes an already open file the active document. Photoshop and camera RAW files are refused because they need a dialog. Parameter: `path`, absolute.
+**open_document**: opens a project, an image file or a GIMP file that needs nothing converted in a new tab, or makes an already open file the active document. Photoshop and camera RAW files, and a GIMP file whose layers would be converted, are refused because they need a dialog; the refusal lists what the dialog would say. Parameter: `path`, absolute.
 
 **save_document**: saves the project with all its layers, in the background as Ctrl+S does. Parameters: `path`, absolute and ending in `.cmps`, left out to save to the document's own file; `overwrite`, needed to replace an existing file at a new path.
 
 **export_image**: exports the document flattened to a PNG, JPEG or WebP, by the extension of `path`. Parameters: `path`; `quality` from 1 to 100 for JPEG and WebP, 90 by default; `overwrite`.
+
+**export_look**: bakes the document's visible adjustment layers into a `.cube` lookup table at `path`, as File > Export Look does. Only what is a function of a pixel's color goes in; a masked, clipped or grouped layer and grain, noise and blurs are left out and named in the result. Parameters: `path` ending in `.cube`; `size` of 17, 33 or 65 points, 33 by default; `overwrite`.
 
 **render**: the document as it looks now, as a PNG, so the agent can see the result of its work. Parameters: `maxSide`, the longest side in pixels, 1024 by default, never larger than the document; `grid`, a spacing in canvas pixels for a labelled grid over the picture, 0 for none; `x`, `y`, `width` and `height` for a region to render instead of the whole canvas, at full size up to `maxSide`.
 
@@ -68,9 +70,11 @@ The selection tools take `mode`: replace (the default), add, subtract or interse
 
 **select_wand**: selects the pixels of a similar color around a point. Parameters: `x` and `y`; `tolerance` from 0 to 255, 32 by default; `contiguous`, true by default; `allLayers`, true by default, samples every visible layer rather than the active one; `mode`.
 
-**select_object**: selects the object under a point, the connected piece of everything that is not the plain backdrop. Parameters: `x` and `y`; `allLayers`; `mode`.
+**select_object**: selects the object under a point, the connected piece of the subject there with its soft edge; with `width` and `height`, `x` and `y` are the top left of a box and the model runs on the box alone, selecting everything it finds inside, which suits a small object in a large picture. Parameters: `x` and `y`; `width` and `height`; `allLayers`; `mode`; `detect`.
 
-**select_subject**: everything in the picture that is not the plain backdrop connected to its edges. Parameters: `mode`.
+**select_subject**: the subject of the whole picture. Parameters: `mode`; `detect`.
+
+Both take `detect`: `any` runs the U²-Net model on the machine Composa runs on, for any subject; `person` runs MODNet, for people with soft hair; `plain` takes everything that is not the near-uniform backdrop touching the picture's edges, which is fast and exact on product shots and defeated by busy backgrounds. Left out, the Detect choice in Composa's Object Selection options applies. A model that is not available falls back to `plain`.
 
 **select_color_range**: every pixel near the given colors anywhere in the picture, as Select > Color Range does. Parameters: `colors`, a list of colors as `#RRGGBB` or names; `exclude`, colors to leave out; `fuzziness` from 0 to 200, 40 by default; `invert`, to select everything else; `mode`.
 
@@ -102,6 +106,8 @@ Each adjustment tool takes `asLayer`, which adds an adjustment layer above the l
 
 **adjust_invert**: no values.
 
+**adjust_color_lookup**: grades the layer through a lookup table. Parameters: `look`, a bundled look's name (Fine Mono, Muted Chrome, Standard Slide or Vivid Slide) or an absolute path to a `.cube` or `.3dl` file; `amount` from 0 to 100, 100 by default. An adjustment layer made this way is named after the look.
+
 ## Filters
 
 Each filter tool takes `layer`.
@@ -122,7 +128,11 @@ Each filter tool takes `layer`.
 
 **filter_lens_correction**: `distortion` from -100 (pincushion) to 100 (corrects barrel distortion).
 
-**filter_remove_background**: `tolerance` from 0 to 100, how different a pixel may be from the backdrop and still go.
+**enhance_layer_resolution**: Layer > Enhance Resolution for a raster layer shown larger than its own pixels: the model gives it pixels for its size on the canvas, up to four times what it has, and the layer keeps its place and size. Parameters: `layer`. Refused for text, shapes, folders, adjustment layers and layers shown at or below their size.
+
+**image_size**: Image > Image Size. Parameters: `width` and `height` in pixels (one may be left out to keep the proportions); `resolution` in pixels per inch; `resample`: `automatic`, `nearest` for hard pixel blocks, or `enhance` to enlarge photo layers with a model run on the machine, which invents detail and takes about a second per 65,000 pixels of each layer. Where the model is not available, `enhance` resamples as `automatic` does and the result says so.
+
+**filter_remove_background**: `detect` as for select_subject. With `any` or `person` the layer gets a mask hiding everything but the subject the model found, which can be painted on afterwards; with `plain` the backdrop is erased and `tolerance` from 0 to 100 says how different a pixel may be from it and still go.
 
 **filter_painterly**: repaints the layer in brush strokes that follow the picture, as the Painterly filter does. Parameters: `style`, one of impressionist, expressionist, colorist_wash or pointillist; `brushSize`, the largest brush's diameter in pixels, 0 to fit it to the picture; `passes` from 1 to 4; `detail` from 0 to 100; `seed`, where the same seed paints the same strokes and 0 picks one.
 

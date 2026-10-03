@@ -12,3 +12,43 @@ Several of those components are licensed under the GNU Lesser General Public Lic
   https://github.com/dlemstra/Magick.NET
 
 and each component's own upstream source is linked from ImageMagick-NOTICE.txt.
+
+Film looks
+
+Every build of Composa bundles four film looks for the Color Lookup adjustment, derived from sguyader/FilmSim (https://github.com/sguyader/FilmSim) at commit 1453b2b55c48d99a889b1e455f91f6898ba2db41, authored by Sebastien Guyader and dedicated to the public domain under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/). CC0 asks for nothing; this record is a courtesy and lets anyone re-derive and verify the files. The sources are 144-point HaldCLUT TIFF images, each resampled to a 33-point .cube by scripts/make-looks.sh:
+
+  Fine Mono       from Acros.tif            SHA-256 d4c9f720c1588531b7f748e13505e11f392af663415e625bda0ff3455b41c7a5
+  Muted Chrome    from Classic_Chrome.tif   SHA-256 cc303723b76205aedf970dc814dbecd6d9795955411aa2d6b265873864de7a66
+  Standard Slide  from Provia_Std.tif       SHA-256 acf26aee152dbce9fff685aa727a5550855d425aa90610dd63b3ff2f15be0fe7
+  Vivid Slide     from Velvia_Vivid_v2.tif  SHA-256 1b347b4c5afec78ad7f79103bf04b319e182b7133ffe2a8864c732a7003b7eea
+
+The source files are named after Fujifilm film stocks. Those names are trademarks of Fujifilm, which the CC0 dedication does not touch, so Composa ships the looks under descriptive names and shows the stock names nowhere but here and in each file's provenance comment, as a record of origin.
+
+On-device models
+
+Every build of Composa includes ONNX Runtime and three models: two segmentation models, which is how Select > Subject, the Object Selection tool and Remove Background find the subject of an ordinary photo on your own machine, and one enlarging model, which is what Enhance in Image Size runs. Nothing is sent anywhere and nothing is downloaded at run time.
+
+ONNX Runtime (https://github.com/microsoft/onnxruntime), Copyright (c) Microsoft Corporation, is licensed under the MIT License and arrives through the Microsoft.ML.OnnxRuntime NuGet package, version 1.30.0. Its native library (libonnxruntime.so, onnxruntime.dll or libonnxruntime.dylib) sits next to the Composa executable; its own LICENSE and ThirdPartyNotices.txt are in that package and in its repository.
+
+The models are not source code and are not covered by Composa's MIT licence; each carries the licence of its own project, which covers the trained weights as well as the code. Composa ships the community ONNX conversions that Lolly (github.com/lolly-tools/lolly) also uses, pinned by the SHA-256 of the exact file, so anyone can verify what is in a build. They are in the models folder beside the executable.
+
+  models/u2netp.onnx    U²-Net lite (U²-Net: Going Deeper with Nested U-Structure for Salient Object Detection, Qin et al., 2020)
+                        Copyright (c) 2020 Xuebin Qin et al., Apache License 2.0
+                        Upstream: https://github.com/xuebinqin/U-2-Net
+                        ONNX conversion from https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx
+                        4,574,861 bytes, SHA-256 309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8
+
+  models/modnet.onnx    MODNet (Is a Green Screen Really Necessary for Real-Time Portrait Matting?, Ke et al., 2020)
+                        Copyright (c) 2020 Zhanghan Ke et al., Apache License 2.0
+                        Upstream: https://github.com/ZHKKKe/MODNet
+                        ONNX conversion from https://huggingface.co/Xenova/modnet/resolve/main/onnx/model.onnx
+                        25,888,640 bytes, SHA-256 07c308cf0fc7e6e8b2065a12ed7fc07e1de8febb7dc7839d7b7f15dd66584df9
+
+  models/realesr-general-x4v3.onnx
+                        Real-ESRGAN general v3, SRVGGNetCompact (Real-ESRGAN: Training Real-World Blind Super-Resolution with Pure Synthetic Data, Wang et al., 2021)
+                        Copyright (c) 2021 Xintao Wang and contributors, BSD 3-Clause License
+                        Upstream: https://github.com/xinntao/Real-ESRGAN (release v0.2.5.0 weights)
+                        ONNX conversion from https://huggingface.co/OwlMaster/AllFilesRope/resolve/main/realesr-general-x4v3.onnx
+                        4,871,181 bytes, SHA-256 09b757accd747d7e423c1d352b3e8f23e77cc5742d04bae958d4eb8082b76fa4
+
+The Apache License 2.0 is at https://www.apache.org/licenses/LICENSE-2.0 and the BSD 3-Clause License at https://opensource.org/license/bsd-3-clause. The models are used unmodified; BRIA's RMBG models, which are better known, are licensed for non-commercial use only and are deliberately not included, and so is GFPGAN face restoration, which invents faces.

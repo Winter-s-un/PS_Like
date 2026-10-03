@@ -68,8 +68,11 @@ public sealed partial class EditorSession
         Crop(new SKRectI(left, top, left + width, top + height), "Canvas Size");
     }
 
-    /// <summary>Resamples the whole document to a new pixel size.</summary>
-    public void ResizeImage(int width, int height, double? resolution = null)
+    /// <summary>
+    /// Resamples the whole document to a new pixel size. <paramref name="enhanced"/> carries pixels a model enlarged
+    /// beforehand (<see cref="PrepareEnhancedAsync"/>); a layer whose pixels changed since takes the plain path.
+    /// </summary>
+    public void ResizeImage(int width, int height, double? resolution = null, ResampleMode mode = ResampleMode.Automatic, EnhancedLayers? enhanced = null)
     {
         width = Math.Clamp(width, 1, Document.MaxSide);
         height = Math.Clamp(height, 1, Document.MaxSide);
@@ -107,7 +110,7 @@ public sealed partial class EditorSession
                         else
                         {
                             layer.Text = null; // Stretched unevenly, text can no longer be redrawn from its settings.
-                            layer.Pixels = Resample(pixels, w, h);
+                            layer.Pixels = enhanced?.For(layer) ?? Resample(pixels, w, h, mode);
                         }
                         if (layer.Mask != null) layer.Mask = Resample(layer.Mask, w, h);
                         layer.Transform = LayerTransform.Identity(w, h) with { X = Math.Round(t.X * sx), Y = Math.Round(t.Y * sy) };
@@ -133,7 +136,7 @@ public sealed partial class EditorSession
                             }
                             layer.Mask = Resample(maskDrawn, w, h);
                         }
-                        layer.Pixels = Resample(drawn, w, h);
+                        layer.Pixels = Resample(drawn, w, h, mode);
                         layer.Shape = null;
                         layer.Text = null;
                         layer.Transform = LayerTransform.Identity(w, h) with { X = Math.Round(bounds.Left * sx), Y = Math.Round(bounds.Top * sy) };
@@ -161,10 +164,12 @@ public sealed partial class EditorSession
         SelectionChanged?.Invoke();
     }
 
-    public static SKBitmap Resample(SKBitmap source, int width, int height)
+    /// <summary>Resamples a bitmap: smooth when shrinking and Catmull-Rom when enlarging, or hard pixel edges for <see cref="ResampleMode.Nearest"/>.</summary>
+    public static SKBitmap Resample(SKBitmap source, int width, int height, ResampleMode mode = ResampleMode.Automatic)
     {
         var result = new SKBitmap(source.Info.WithSize(width, height));
-        var sampling = width < source.Width || height < source.Height
+        var sampling = mode == ResampleMode.Nearest ? new SKSamplingOptions(SKFilterMode.Nearest)
+            : width < source.Width || height < source.Height
             ? new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear)
             : new SKSamplingOptions(SKCubicResampler.CatmullRom);
         if (!source.ScalePixels(result, sampling)) throw new InvalidOperationException("The image could not be resampled.");

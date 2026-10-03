@@ -10,7 +10,7 @@ namespace Composa.App.Controls;
 
 public sealed partial class CanvasView
 {
-    private enum Drag { None, Pan, Marquee, MoveSelection, MovePixels, Lasso, Crop, Stroke, Gradient, Shape, Transform, Eyedropper, ZoomScrub, TextBox, TextSelect, TextResize, Guide }
+    private enum Drag { None, Pan, Marquee, MoveSelection, MovePixels, Lasso, Crop, Stroke, Gradient, Shape, Transform, Eyedropper, ZoomScrub, TextBox, TextSelect, TextResize, Guide, ObjectBox }
 
     private Drag drag;
     private MouseButton dragButton;
@@ -234,7 +234,13 @@ public sealed partial class CanvasView
                 }
                 break;
             case Tool.Wand:
-                if (session.WandMode == WandMode.Object) session.SelectObject((int)Math.Floor(pressDocument.X), (int)Math.Floor(pressDocument.Y), ModeFor(e.KeyModifiers));
+                if (session.WandMode == WandMode.Object)
+                {
+                    // A click or a dragged box; which it was is known on release, so the choice waits until then.
+                    dragMode = ModeFor(e.KeyModifiers);
+                    drag = Drag.ObjectBox;
+                    snapFrom = snapTo = pressDocument;
+                }
                 else session.SelectWand((int)Math.Floor(pressDocument.X), (int)Math.Floor(pressDocument.Y), ModeFor(e.KeyModifiers));
                 break;
             case Tool.Crop:
@@ -374,6 +380,20 @@ public sealed partial class CanvasView
         {
             case Drag.Pan: UpdateCursor(); break;
             case Drag.Stroke: session.EndStroke(); break;
+            case Drag.ObjectBox:
+                if (!moved)
+                {
+                    // A model takes a moment and runs off the UI thread, so the window owns that click; without a window the plain method answers at once.
+                    if (ObjectClick is { } click) click((int)Math.Floor(pressDocument.X), (int)Math.Floor(pressDocument.Y), dragMode);
+                    else session.SelectObject((int)Math.Floor(pressDocument.X), (int)Math.Floor(pressDocument.Y), dragMode);
+                }
+                else
+                {
+                    var box = Geometry.RoundOut(MarqueeRect(false, false));
+                    if (ObjectBox is { } boxed) boxed(box, dragMode);
+                    else _ = session.SelectObjectInBoxAsync(box, dragMode);
+                }
+                break;
             case Drag.Marquee:
                 guides.Clear();
                 if (!moved) { if (dragMode == SelectionMode.Replace) session.Deselect(); break; }
