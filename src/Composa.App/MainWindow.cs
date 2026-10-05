@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using Composa.App.Controls;
 using Composa.Editing;
 using Composa.Model;
@@ -404,6 +405,10 @@ public sealed partial class MainWindow : Window
         CommitCameraRaw();
         if (closingConfirmed || (saving.Count == 0 && sessions.All(s => !s.IsModified) && download == null)) return;
         e.Cancel = true;
+        // The close has to unwind before anything modal opens on top of this window. Windows shows a window created
+        // from inside Closing behind it or not at all, and this window is disabled by then, so a prompt nobody can see
+        // and answer looks like a frozen application.
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         if (!await ConfirmQuit()) return;
         closingConfirmed = true;
         Close();

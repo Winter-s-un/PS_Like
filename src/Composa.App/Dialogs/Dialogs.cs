@@ -23,6 +23,13 @@ public class DialogWindow : Window
         CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ShowInTaskbar = false;
+        // A window that was made to stay on top of everything covers an ordinary dialog, and its owner is disabled
+        // while the dialog is up, so nobody can reach either of them. Matching that state keeps the dialog answerable.
+        Opened += (_, _) =>
+        {
+            Activate();
+            if (Owner?.Topmost == true) Topmost = true;
+        };
         ok = Ui.TextButton(okText, Accept, accent: true);
         ok.IsDefault = true;
         Buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
@@ -38,7 +45,13 @@ public class DialogWindow : Window
 
     public bool CanAccept { set => ok.IsEnabled = value; }
 
-    public async Task<bool> Ask(Window owner) => await ShowDialog<bool?>(owner) == true;
+    public async Task<bool> Ask(Window owner)
+    {
+        // A window that stays on top of everything covers an ordinary dialog, and its owner is disabled while the
+        // dialog is up, so nobody can reach either of them. Matching that state keeps the dialog answerable.
+        if (owner.Topmost) Opened += (_, _) => Topmost = true;
+        return await ShowDialog<bool?>(owner) == true;
+    }
 
     /// <summary>OK and Enter. A panel shown without <see cref="Ask"/> overrides these to act instead of closing with a result.</summary>
     protected virtual void Accept() => Close(true);
