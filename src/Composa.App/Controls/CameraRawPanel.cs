@@ -24,6 +24,9 @@ public sealed class CameraRawPanel : UserControl
 {
     private readonly double labelWidth, fieldWidth, previewSide, headerWidth, histogramWidth, histogramHeight;
     private readonly bool narrow;
+    /// <summary>The panel's own text size, smaller than the application's, as a developing panel's rows are.</summary>
+    private const double RowFontSize = 11;
+    private const double TitleFontSize = 11;
     private readonly HistogramView histogram;
     private readonly Image preview = new();
     private readonly TextBlock readout = Ui.Label("R —   G —   B —", Palette.Secondary);
@@ -105,10 +108,10 @@ public sealed class CameraRawPanel : UserControl
             // Left-aligned and narrower than the fields, so the group's own eye and the expander's chevron never push
             // the caption off the panel's left edge: a centred header of a fixed width does exactly that when it fits tight.
             var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Width = headerWidth, HorizontalAlignment = HorizontalAlignment.Left };
-            header.Children.Add(Ui.Label(caption, weight: FontWeight.SemiBold));
+            header.Children.Add(Ui.Label(caption, weight: FontWeight.SemiBold, size: TitleFontSize));
             Grid.SetColumn(eye, 1);
             header.Children.Add(eye);
-            body.Margin = new Thickness(8, 6, 0, 4);
+            body.Margin = new Thickness(0, 4, 0, 6);
             var expander = new Expander
             {
                 Header = header, Content = body, IsExpanded = open, Padding = new Thickness(0),
@@ -121,14 +124,14 @@ public sealed class CameraRawPanel : UserControl
         var defaults = new CameraRawSettings();
         SliderField Slider(string label, Func<CameraRawSettings, double> get, double min, double max, Func<CameraRawSettings, double, CameraRawSettings> set, double step = 1, string format = "0", string? tip = null, IReadOnlyList<Color>? track = null)
         {
-            var field = Ui.SliderField(label, get(current), min, max, v => User(() => Update(set(current, v))), step, format, fieldWidth, track, get(defaults));
+            var field = Row(label, get(current), min, max, v => User(() => Update(set(current, v))), step, format, track, get(defaults));
             // The field's own tip explains its gestures; what the slider adjusts goes above that.
             if (tip != null) ToolTip.SetTip(field, Ui.Column(6, Ui.Label(tip), (Control)ToolTip.GetTip(field)!));
             fields.Add((field, get));
             return field;
         }
-        Control Column(params Control[] rows) => Ui.Column(6, rows);
-        Control Heading(string text) { var label = Ui.Label(text, Palette.Secondary); label.Margin = new Thickness(0, 4, 0, 0); return label; }
+        Control Column(params Control[] rows) => Ui.Column(4, rows);
+        Control Heading(string text) { var label = Ui.Label(text, Palette.Secondary, TitleFontSize); label.Margin = new Thickness(0, 6, 0, 0); return label; }
 
         // Light.
         Group(CameraRawGroup.Light, "Light", Column(
@@ -142,7 +145,7 @@ public sealed class CameraRawPanel : UserControl
         // Color, with Auto white balance from the layer's average.
         var temperature = Slider("Temperature", s => s.Temperature, -100, 100, (s, v) => s with { Temperature = v, WhiteBalance = CameraRawWhiteBalance.Custom }, tip: "Shifts the picture from blue to yellow", track: SliderTracks.Temperature);
         var tint = Slider("Tint", s => s.Tint, -100, 100, (s, v) => s with { Tint = v, WhiteBalance = CameraRawWhiteBalance.Custom }, tip: "Shifts the picture from green to magenta", track: SliderTracks.Tint);
-        var balanceLabel = Ui.Label("White Balance");
+        var balanceLabel = Ui.Label("White Balance", Palette.Secondary, RowFontSize);
         balanceLabel.Width = labelWidth;
         balance = Ui.Combo(new[] { "Custom", "Auto" }, current.WhiteBalance == CameraRawWhiteBalance.Auto ? "Auto" : "Custom", c => c, choice => User(() =>
         {
@@ -188,7 +191,7 @@ public sealed class CameraRawPanel : UserControl
             CameraRawVignetteStyle.HighlightPriority => "Highlight Priority", CameraRawVignetteStyle.ColorPriority => "Color Priority",
             CameraRawVignetteStyle.PaintOverlay => "Paint Overlay", _ => style.ToString()
         };
-        Control StyleRow(string label, Control combo) { var text = Ui.Label(label); text.Width = labelWidth; return Ui.Row(8, text, combo); }
+        Control StyleRow(string label, Control combo) { var text = Ui.Label(label, Palette.Secondary, RowFontSize); text.Width = labelWidth; return Ui.Row(8, text, combo); }
         glowStyle = Ui.Combo(glowStyles, current.GlowStyle, v => StyleName(v), v => User(() => Update(current with { GlowStyle = v })), 140);
         vignetteStyle = Ui.Combo(vignetteStyles, current.VignetteStyle, v => StyleName(v), v => User(() => Update(current with { VignetteStyle = v })), 140);
         Group(CameraRawGroup.Effects, "Effects", Column(
@@ -234,7 +237,7 @@ public sealed class CameraRawPanel : UserControl
             Slider("Shadows", s => s.Curve.Shadows, -100, 100, (s, v) => s with { Curve = s.Curve with { Shadows = v } }),
             Slider("Refine Saturation", s => s.Curve.RefineSaturation, -100, 100, (s, v) => s with { Curve = s.Curve with { RefineSaturation = v } }, tip: "How much the curve also changes saturation"),
             Heading("Point"),
-            Ui.Row(8, Ui.Label("Channel", Palette.Secondary), channel, resetCurve),
+            Ui.Row(8, Ui.Label("Channel", Palette.Secondary, RowFontSize), channel, resetCurve),
             editor));
 
         // Color Mixer: one tab of eight families at a time.
@@ -242,7 +245,7 @@ public sealed class CameraRawPanel : UserControl
         mixerTab = Ui.Combo(mixerTabs, "Hue", t => t, t => User(() => { mixerTabIndex = Array.IndexOf(mixerTabs, t); BuildMixerFromCurrent(); }), 130);
         BuildMixerFromCurrent();
         Group(CameraRawGroup.Mixer, "Color Mixer", Column(
-            Ui.Row(8, Ui.Label("Adjust", Palette.Secondary), mixerTab),
+            Ui.Row(8, Ui.Label("Adjust", Palette.Secondary, RowFontSize), mixerTab),
             mixerRows));
 
         // Detail.
@@ -322,6 +325,19 @@ public sealed class CameraRawPanel : UserControl
 
         // Every control exists by now: the debounce runs the preview the person's change asked for, then the histogram.
         timer.Tick += (_, _) => Run();
+    }
+
+    /// <summary>
+    /// One row of the panel: a thin track with a small knob and the label and value at its ends, at the panel's own
+    /// small text size. Lightroom draws a developing panel this way, and the gestures are <see cref="SliderField"/>'s.
+    /// </summary>
+    private SliderField Row(string label, double value, double min, double max, Action<double> changed, double step, string format, IReadOnlyList<Color>? track, double? reset)
+    {
+        var field = Ui.SliderField(label, value, min, max, changed, step, format, fieldWidth, track, reset);
+        field.Compact = true;
+        field.CompactFontSize = RowFontSize;
+        field.Height = SliderField.CompactHeight;
+        return field;
     }
 
     /// <summary>The grade the panel is showing, as rendered: a group switched off contributes nothing.</summary>
@@ -432,8 +448,7 @@ public sealed class CameraRawPanel : UserControl
             var (t, f) = (mixerTabIndex, family);
             var centre = CameraRawMixer.Centers[family];
             var track = t switch { 0 => SliderTracks.Hue(centre), 1 => SliderTracks.Saturation(centre), _ => SliderTracks.Luminance(centre) };
-            var field = Ui.SliderField(CameraRawMixer.Names[family], current.Mixer.Get(t, f), -100, 100, v => User(() => Update(current with { Mixer = current.Mixer.With(t, f, v) })), 1, "0", fieldWidth, track, 0);
-            mixerRows.Children.Add(field);
+            mixerRows.Children.Add(Row(CameraRawMixer.Names[family], current.Mixer.Get(t, f), -100, 100, v => User(() => Update(current with { Mixer = current.Mixer.With(t, f, v) })), 1, "0", track, 0));
         }
     }
 

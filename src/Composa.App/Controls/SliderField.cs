@@ -29,6 +29,9 @@ public sealed class SliderField : Control
     private static readonly IPen FocusPen = new Pen(Palette.Accent);
     private static readonly IPen HoverPen = new Pen(new SolidColorBrush(Color.Parse("#6A6A6A")));
     private static readonly IBrush TextShadowBrush = new SolidColorBrush(Color.Parse("#B0000000"));
+    /// <summary>The compact row's thin track and its knob, as a developing panel in Lightroom draws them.</summary>
+    private static readonly IBrush CompactTrackBrush = new SolidColorBrush(Color.Parse("#3C3C3C"));
+    private static readonly IBrush CompactFillBrush = new SolidColorBrush(Color.Parse("#9BA1A6"));
     /// <summary>How much of the track shows beyond the value, and how much up to it.</summary>
     private const double TrackRestOpacity = 0.3, TrackFillOpacity = 0.85;
     private const double ResetWidth = 48, ResetMargin = 3;
@@ -86,6 +89,18 @@ public sealed class SliderField : Control
     public double Maximum => max;
     public double Step => step;
     public bool IsEditing => editing;
+
+    /// <summary>
+    /// Draws the row as a thin track with a small knob and the label and value at its ends, the way a Lightroom
+    /// developing panel does, instead of as a box whose fill is the slider. The gestures are the same either way.
+    /// </summary>
+    public bool Compact { get; set; }
+
+    /// <summary>The text size of a <see cref="Compact"/> row's label and value, so a dense panel can ask for smaller ones.</summary>
+    public double CompactFontSize { get; set; } = 11;
+
+    /// <summary>The height a <see cref="Compact"/> row wants, for a host that lays rows out itself.</summary>
+    public const double CompactHeight = 20;
 
     /// <summary>The colors along the box, left to right, when the value is a color or moves one; null keeps the plain fill.</summary>
     public IReadOnlyList<Color>? Track
@@ -194,6 +209,7 @@ public sealed class SliderField : Control
 
     public override void Render(DrawingContext context)
     {
+        if (Compact) { RenderCompact(context); return; }
         var bounds = new Rect(Bounds.Size);
         var radius = 4.0;
         var outline = bounds.Deflate(0.5);
@@ -240,6 +256,52 @@ public sealed class SliderField : Control
         }
         var pen = dragging || editing || IsFocused ? FocusPen : hovered ? HoverPen : BorderPen;
         context.DrawRectangle(null, pen, outline, radius, radius);
+    }
+
+    /// <summary>
+    /// A row the way a Lightroom developing panel draws one: the label at the left, the value at the right, and a thin
+    /// track between them whose knob marks the value. A track of colors paints the thin bar itself, so a white balance
+    /// or hue row still reads at a glance. The gestures are the field's own, unchanged.
+    /// </summary>
+    private void RenderCompact(DrawingContext context)
+    {
+        var bounds = new Rect(Bounds.Size);
+        var margin = 6.0;
+        var typeface = new Typeface(TextElement.GetFontFamily(this));
+        var size = CompactFontSize > 0 ? CompactFontSize : TextElement.GetFontSize(this);
+        var name = new FormattedText(label, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface, size, Palette.Secondary);
+        var number = new FormattedText(Text, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface, size, Palette.Foreground);
+        var middle = bounds.Height / 2;
+        var start = margin + name.Width + 8;
+        var end = bounds.Width - margin - number.Width - 8;
+        using (context.PushOpacity(IsEnabled ? 1.0 : 0.45))
+        {
+            if (end > start + 10)
+            {
+                const double height = 4;
+                var full = new Rect(start, Math.Round(middle - height / 2), end - start, height);
+                var fraction = max > min ? Math.Clamp((value - min) / (max - min), 0, 1) : 0;
+                var filled = new Rect(full.X, full.Y, Math.Round(full.Width * fraction), full.Height);
+                if (trackBrush != null)
+                {
+                    using (context.PushClip(new RoundedRect(full, height / 2)))
+                    {
+                        using (context.PushOpacity(TrackRestOpacity)) context.DrawRectangle(trackBrush, null, full);
+                        if (filled.Width > 0) using (context.PushOpacity(TrackFillOpacity)) context.DrawRectangle(trackBrush, null, filled);
+                    }
+                }
+                else
+                {
+                    context.DrawRectangle(CompactTrackBrush, null, full, height / 2, height / 2);
+                    if (filled.Width > 1) context.DrawRectangle(CompactFillBrush, null, filled, height / 2, height / 2);
+                }
+                var knob = new Point(full.X + full.Width * fraction, middle);
+                var radius = hovered || dragging || IsFocused || editing ? 5 : 4;
+                context.DrawEllipse(Brushes.White, new Pen(Brushes.Black, 1), knob, radius, radius);
+            }
+            context.DrawText(name, new Point(margin, Math.Round((bounds.Height - name.Height) / 2)));
+            context.DrawText(number, new Point(bounds.Width - margin - number.Width, Math.Round((bounds.Height - number.Height) / 2)));
+        }
     }
 
     protected override void OnPointerEntered(PointerEventArgs e) { base.OnPointerEntered(e); hovered = true; InvalidateVisual(); }
