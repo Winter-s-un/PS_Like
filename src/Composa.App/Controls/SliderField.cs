@@ -46,7 +46,9 @@ public sealed class SliderField : Control
     private readonly double min, max, step;
     private readonly string format;
     private double value;
-    private bool hovered, pressed, dragging, editing, lastPressDragged;
+    private bool hovered, pressed, dragging, editing, lastPressDragged, compact;
+    /// <summary>Where a compact row's label ends, so a double-click on it can tell a reset from typing.</summary>
+    private double compactLabelWidth;
     private Point pressAt;
     private double dragStart, dragTravel, lastX;
 
@@ -92,9 +94,20 @@ public sealed class SliderField : Control
 
     /// <summary>
     /// Draws the row as a thin track with a small knob and the label and value at its ends, the way a Lightroom
-    /// developing panel does, instead of as a box whose fill is the slider. The gestures are the same either way.
+    /// developing panel does, instead of as a box whose fill is the slider. The gestures are the same either way,
+    /// except that a double-click on the label resets rather than opening the editor, which that panel's habit is too.
     /// </summary>
-    public bool Compact { get; set; }
+    public bool Compact
+    {
+        get => compact;
+        set
+        {
+            if (compact == value) return;
+            compact = value;
+            ToolTip.SetTip(this, BuildTip());
+            InvalidateVisual();
+        }
+    }
 
     /// <summary>The text size of a <see cref="Compact"/> row's label and value, so a dense panel can ask for smaller ones.</summary>
     public double CompactFontSize { get; set; } = 11;
@@ -179,7 +192,7 @@ public sealed class SliderField : Control
         Row(1, "Fine steps", "Hold Alt while dragging");
         Row(2, "Exact value", "Double-click to type");
         Row(3, $"Step by {unit}", "Arrow keys or scroll wheel");
-        if (reset != null) Row(4, "Reset", "Double-click, then Reset");
+        if (reset != null) Row(4, "Reset", compact ? "Double-click the label" : "Double-click, then Reset");
         return grid;
     }
 
@@ -270,7 +283,10 @@ public sealed class SliderField : Control
         var typeface = new Typeface(TextElement.GetFontFamily(this));
         var size = CompactFontSize > 0 ? CompactFontSize : TextElement.GetFontSize(this);
         var name = new FormattedText(label, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface, size, Palette.Secondary);
-        var number = new FormattedText(Text, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface, size, Palette.Foreground);
+        // The value stays dim until the pointer or the keyboard is on the row, as a developing panel's does.
+        var active = hovered || dragging || IsFocused || editing;
+        var number = new FormattedText(Text, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, typeface, size, active ? Palette.Foreground : Palette.Secondary);
+        compactLabelWidth = name.Width;
         var middle = bounds.Height / 2;
         var start = margin + name.Width + 8;
         var end = bounds.Width - margin - number.Width - 8;
@@ -296,7 +312,7 @@ public sealed class SliderField : Control
                     if (filled.Width > 1) context.DrawRectangle(CompactFillBrush, null, filled, height / 2, height / 2);
                 }
                 var knob = new Point(full.X + full.Width * fraction, middle);
-                var radius = hovered || dragging || IsFocused || editing ? 5 : 4;
+                var radius = active ? 5 : 4;
                 context.DrawEllipse(Brushes.White, new Pen(Brushes.Black, 1), knob, radius, radius);
             }
             context.DrawText(name, new Point(margin, Math.Round((bounds.Height - name.Height) / 2)));
@@ -315,7 +331,20 @@ public sealed class SliderField : Control
         if (editing || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         // Avalonia counts a press soon after another at the same spot as a double-click even when the first one dragged;
         // two quick drags in a row must stay drags, so only a press after a plain click opens the editor.
-        if (e.ClickCount >= 2 && !lastPressDragged) { BeginEdit(); e.Handled = true; return; }
+        if (e.ClickCount >= 2 && !lastPressDragged)
+        {
+            // A compact row resets from its label, as a Lightroom developing panel does; the value still types.
+            if (compact && reset is { } back && compactLabelWidth > 0 && e.GetPosition(this).X <= compactLabelWidth + 8)
+            {
+                ToolTip.SetIsOpen(this, false);
+                SetFromUser(back);
+                e.Handled = true;
+                return;
+            }
+            BeginEdit();
+            e.Handled = true;
+            return;
+        }
         ToolTip.SetIsOpen(this, false);
         Focus();
         pressAt = e.GetPosition(this);

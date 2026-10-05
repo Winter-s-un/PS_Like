@@ -137,6 +137,56 @@ public class CameraRawDockTests
     }
 
     /// <summary>What a field or label draws its text with, as <see cref="SliderField"/> builds a <see cref="FormattedText"/>.</summary>
+    /// <summary>A wheel over a row steps that row, as the field's tooltip promises, instead of scrolling the list.</summary>
+    [AvaloniaFact]
+    public void The_wheel_over_a_row_steps_it_and_leaves_the_list_alone()
+    {
+        var (window, _) = NewWindowWithPhoto();
+        Click(window, "Camera Raw");
+        Dispatcher.UIThread.RunJobs();
+        var panel = window.GetVisualDescendants().OfType<CameraRawPanel>().Single();
+        var exposure = panel.GetVisualDescendants().OfType<SliderField>().Single(f => f.Label == "Exposure");
+        exposure.BringIntoView();
+        Dispatcher.UIThread.RunJobs();
+        var scroller = exposure.GetVisualAncestors().OfType<ScrollViewer>().First();
+        var offset = scroller.Offset;
+        var before = exposure.Value;
+        var at = exposure.TranslatePoint(new Point(exposure.Bounds.Width / 2, exposure.Bounds.Height / 2), window);
+        Assert.NotNull(at);
+
+        window.MouseWheel(at!.Value, new Vector(0, 1), RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(before + exposure.Step, exposure.Value);
+        Assert.Equal(offset, scroller.Offset);
+    }
+
+    /// <summary>A double-click on a compact row's label resets it, as a developing panel does; the value still types.</summary>
+    [AvaloniaFact]
+    public void Double_clicking_a_rows_label_resets_it()
+    {
+        var (window, _) = NewWindowWithPhoto();
+        Click(window, "Camera Raw");
+        Dispatcher.UIThread.RunJobs();
+        var panel = window.GetVisualDescendants().OfType<CameraRawPanel>().Single();
+        var exposure = panel.GetVisualDescendants().OfType<SliderField>().Single(f => f.Label == "Exposure");
+        exposure.BringIntoView();
+        exposure.Value = 0.4;
+        Dispatcher.UIThread.RunJobs();
+        var at = exposure.TranslatePoint(new Point(18, exposure.Bounds.Height / 2), window);
+        Assert.NotNull(at);
+
+        var label = at!.Value;
+        window.MouseDown(label, MouseButton.Left);
+        window.MouseUp(label, MouseButton.Left);
+        window.MouseDown(label, MouseButton.Left);
+        window.MouseUp(label, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(0, exposure.Value);
+        Assert.False(exposure.IsEditing);
+    }
+
     private static (double Width, double Height) Metrics(Control control)
     {
         var text = new FormattedText("Contrast", System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight,

@@ -2,9 +2,11 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Composa.App.Dialogs;
 using Composa.Filters;
 using SkiaSharp;
@@ -70,6 +72,9 @@ public sealed class CameraRawPanel : UserControl
         histogramWidth = previewSide;
         histogramHeight = Math.Round(previewSide * 0.3);
         Focusable = true;
+        // A wheel over a row steps that field, as its tooltip promises. The list's ScrollViewer handles the wheel in
+        // the tunnel phase, so the panel has to see it first, on its way down, or the list scrolls instead.
+        AddHandler(InputElement.PointerWheelChangedEvent, OnPanelWheel, RoutingStrategies.Tunnel);
 
         histogram = new HistogramView { Width = histogramWidth, Height = histogramHeight, HorizontalAlignment = HorizontalAlignment.Left };
         readout.FontSize = 11;
@@ -112,9 +117,14 @@ public sealed class CameraRawPanel : UserControl
             Grid.SetColumn(eye, 1);
             header.Children.Add(eye);
             body.Margin = new Thickness(0, 4, 0, 6);
+            // Avalonia's Fluent template puts the chevron at the end of the header. Mirroring the expander moves it to the
+            // start, where a developing panel keeps it, and the header and the rows are set back to read left to right.
+            header.FlowDirection = FlowDirection.LeftToRight;
+            body.FlowDirection = FlowDirection.LeftToRight;
             var expander = new Expander
             {
                 Header = header, Content = body, IsExpanded = open, Padding = new Thickness(0),
+                FlowDirection = FlowDirection.RightToLeft,
                 HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left
             };
             groups.Children.Add(expander);
@@ -325,6 +335,17 @@ public sealed class CameraRawPanel : UserControl
 
         // Every control exists by now: the debounce runs the preview the person's change asked for, then the histogram.
         timer.Tick += (_, _) => Run();
+    }
+
+    /// <summary>The field the pointer is over, if it is over one, is what a wheel turns; everything else scrolls the list.</summary>
+    private void OnPanelWheel(object? sender, PointerWheelEventArgs e)
+    {
+        if (e.Handled) return;
+        if ((e.Source as Visual)?.FindAncestorOfType<SliderField>(includeSelf: true) is not { } field) return;
+        var delta = e.Delta.Y != 0 ? e.Delta.Y : -e.Delta.X;
+        if (delta == 0) return;
+        field.Nudge(delta > 0 ? 1 : -1);
+        e.Handled = true;
     }
 
     /// <summary>
