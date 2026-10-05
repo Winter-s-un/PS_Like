@@ -84,9 +84,9 @@ public sealed partial class MainWindow
             Item("Close Project", () => _ = CloseSession(session!), Key.W, ctrl),
             Item("Quit", Close, Key.Q, ctrl, needsDocument: false));
 
-        undoItem = Item("Undo", () => session!.Undo(), Key.Z, ctrl, () => session!.CanUndo);
-        redoItem = Item("Redo", () => session!.Redo(), Key.Z, ctrl | shift, () => session!.CanRedo);
-        commands.Add(new Shortcut("Redo (Ctrl+Y)", "Redo", "Menus", new KeyGesture(Key.Y, ctrl), () => session!.Redo(), () => HasDocument && session!.CanRedo, hidden: true));
+        undoItem = Item("Undo", () => CameraRawThen(() => session!.Undo()), Key.Z, ctrl, () => session!.CanUndo);
+        redoItem = Item("Redo", () => CameraRawThen(() => session!.Redo()), Key.Z, ctrl | shift, () => session!.CanRedo);
+        commands.Add(new Shortcut("Redo (Ctrl+Y)", "Redo", "Menus", new KeyGesture(Key.Y, ctrl), () => CameraRawThen(() => session!.Redo()), () => HasDocument && session!.CanRedo, hidden: true));
         Top("_Edit", undoItem, redoItem, Line(),
             Item("Cut", () => _ = Cut(), Key.X, ctrl, () => session!.CanCopy),
             Item("Copy", () => _ = Copy(merged: false), Key.C, ctrl, () => session!.CanCopy),
@@ -254,7 +254,7 @@ public sealed partial class MainWindow
             panelToggles.Add((item, title));
             return item;
         }
-        Top("_Window", PanelToggle("History"));
+        Top("_Window", PanelToggle("History"), PanelToggle("Camera Raw"));
 
         Top("_Help", Item("Keyboard Shortcuts…", () => _ = ShowShortcuts(), Key.F1, needsDocument: false),
             Item("Check for Updates…", () => _ = CheckForUpdatesNow(), needsDocument: false),
@@ -672,6 +672,8 @@ public sealed partial class MainWindow
     /// </summary>
     public async Task<Exception?> SaveTo(EditorSession target, string path)
     {
+        // A grade the dock is still previewing is applied first, so the file and the undo step agree on what was saved.
+        if (ReferenceEquals(target, cameraRawTarget)) CommitCameraRaw();
         if (saving.TryGetValue(target, out var earlier)) await earlier.Task;
         var task = Write(target, path);
         saving[target] = (path, task);
@@ -979,6 +981,13 @@ public sealed partial class MainWindow
     {
         if (session == null) return;
         var target = session;
+        // The dock's panel is this same grade, applied as it is used, so the command brings it forward instead of a dialog.
+        if (kind == FilterKind.CameraRaw && cameraRawSection.State.Visible)
+        {
+            dock.SetCollapsed(cameraRawSection, false);
+            BindCameraRaw(force: true);
+            return;
+        }
         if (!target.BeginFilter(kind)) { ShowProblem("Select a pixel layer or a mask first."); return; }
         if (kind == FilterKind.CameraRaw)
         {

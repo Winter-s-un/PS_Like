@@ -66,8 +66,13 @@ public sealed partial class MainWindow : Window
         AddAt(center, Ui.Separator(), 3).Margin = new Thickness(0);
         var historySection = new DockSection("History", history, settings.Dock.GetValueOrDefault("History") ?? new DockPanelState());
         historySection.Changed += () => { settings.Dock["History"] = historySection.State; settings.Save(); };
+        // Window > Camera Raw: the grading panel, off until asked for, applied as it is used rather than on OK.
+        cameraRawSection = new DockSection("Camera Raw", cameraRaw, settings.Dock.GetValueOrDefault("Camera Raw") ?? new DockPanelState(Visible: false, Height: 460));
+        cameraRawSection.Changed += () => { settings.Dock["Camera Raw"] = cameraRawSection.State; settings.Save(); OnCameraRawSectionChanged(); };
+        cameraRaw.Changed += OnCameraRawGrade;
+        cameraRawWasVisible = cameraRawSection.State.Visible;
         // The column has the Layers panel's width, so a long step name is cut off rather than widening it.
-        dock = new SideDock(layers, historySection) { Width = layers.Width };
+        dock = new SideDock(layers, historySection, cameraRawSection) { Width = layers.Width };
         AddAt(center, dock, 4);
         history.GoToRequested += GoToHistory;
 
@@ -178,8 +183,10 @@ public sealed partial class MainWindow : Window
         if (lastToolSource == null) { added.View = settings.View; added.Detect = settings.Detect; }
         sessions.Add(added);
         added.HistoryChanged += RebuildTabs;
+        added.HistoryChanged += () => { if (added == session) OnCameraRawHistoryChanged(); };
         added.Problem += message => { if (added == session) ShowProblem(message); };
         added.LayersChanged += () => { if (added == session) OnSessionLayersChanged(); };
+        added.LayersChanged += () => { if (added == session) OnCameraRawLayersChanged(); };
         added.TextChanged += () => { if (added == session) refreshOptions?.Invoke(); };
         added.SelectionChanged += () => { if (added == session) refreshOptions?.Invoke(); };
         SetSession(added);
@@ -190,7 +197,8 @@ public sealed partial class MainWindow : Window
         if (session != null && session != next)
         {
             canvas.CancelInteraction();
-            if (session.IsPreviewing) session.CancelPreview();
+            // A grade the Camera Raw panel is holding is applied rather than thrown away; every other preview belongs to a dialog.
+            if (session.IsPreviewing) { if (cameraRawPreviewOpen && ReferenceEquals(session, cameraRawTarget)) CommitCameraRaw(); else session.CancelPreview(); }
             if (session.IsEditingText) session.FinishText();
             if (session.ColorRange != null) session.CommitColorRange();
         }
@@ -206,6 +214,8 @@ public sealed partial class MainWindow : Window
         UpdateColors();
         UpdateStatus();
         if (session != null) canvas.Focus();
+        // The panel follows the document that is now in front: what it was holding has just been applied.
+        if (cameraRawSection is { State.Visible: true }) BindCameraRaw();
     }
 
     private EditorSession? lastToolSource;
@@ -259,9 +269,11 @@ public sealed partial class MainWindow : Window
     private void GoToHistory(int index)
     {
         if (session == null || canvas.IsDragging) return;
-        var typing = session.IsEditingText;
+        var target = session;
+        var typing = target.IsEditingText;
         problem = note = null;
-        session.GoToHistory(index);
+        // A grade still being previewed is taken back rather than applied, as the Edit menu's Undo does.
+        CameraRawThen(() => target.GoToHistory(index));
         // Going to another state commits the text being typed, which the Type bar has to hear about.
         if (typing) RebuildOptions();
         UpdateStatus();
@@ -388,6 +400,8 @@ public sealed partial class MainWindow : Window
         RememberWindow();
         aiControl?.Dispose();
         if (session?.IsEditingText == true) session.FinishText();
+        // A grade still being previewed in the dock counts as a change, so quitting asks about it as it would any other.
+        CommitCameraRaw();
         if (closingConfirmed || (saving.Count == 0 && sessions.All(s => !s.IsModified) && download == null)) return;
         e.Cancel = true;
         if (!await ConfirmQuit()) return;
